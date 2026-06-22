@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    KasetWin.Platform — WinRT/WinUI adapter layer that implements Core abstractions
+    (WebView2 playback, SMTC, DPAPI credential store, toast, network monitor).
+    Targets Windows so WinRT projections are available. Implementations land in
+    later tasks (8.2, 9.1, 12.1, 13.4, 28.1).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <RootNamespace>KasetWin.Platform</RootNamespace>
+    <AssemblyName>KasetWin.Platform</AssemblyName>
+    <!-- Adapter layer is Windows-only; keep platform-availability warnings on. -->
+    <!--
+      KasetWin.Platform is the WinUI/WinRT adapter layer. KasetWin.App is a WinUI 3 app whose
+      Microsoft.UI.Xaml.Controls.WebView2 control exposes its CoreWebView2 through the C#/WinRT
+      WebView2 projection (Microsoft.Web.WebView2.Core.Projection). For the App to hand that
+      CoreWebView2 to WebView2PlaybackController.AttachAsync without a CS0012 type-identity
+      mismatch, this assembly must compile its WebView2 API against the SAME projection. Enabling
+      the projection here (instead of pulling in the full Windows App SDK) keeps Platform a plain
+      class library that still restores/builds independently and does not require MSIX/PRI tooling.
+    -->
+    <WebView2EnableCsWinRTProjection>true</WebView2EnableCsWinRTProjection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KasetWin.Core\KasetWin.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    Playback observer + audio-quality scripts injected into the watch page via
+    CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync (task 8.2, Req 2/7). Embedded so they
+    ship inside the assembly and are loaded by manifest name at runtime (no disk path needed).
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Playback\Scripts\observer.js">
+      <LogicalName>KasetWin.Platform.Playback.Scripts.observer.js</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Playback\Scripts\audioQuality.js">
+      <LogicalName>KasetWin.Platform.Playback.Scripts.audioQuality.js</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Pinned to the exact WebView2 version the Windows App SDK bundles for KasetWin.App
+      (Microsoft.WindowsAppSDK 1.6 → Microsoft.Web.WebView2 1.0.2651.64). Combined with
+      WebView2EnableCsWinRTProjection above, this makes Platform reference the very same
+      Microsoft.Web.WebView2.Core.Projection assembly identity as the App, so CoreWebView2 is one
+      type across the App↔Platform boundary (AttachAsync / cookie source).
+    -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2651.64" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+    <!-- DPAPI (ProtectedData, CurrentUser scope) for DpapiCredentialStore (task 9.1, Req 22.1). -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

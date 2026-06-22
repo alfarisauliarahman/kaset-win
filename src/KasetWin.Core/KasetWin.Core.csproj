@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    KasetWin.Core — pure .NET class library (NO WinUI/WinRT dependency).
+    Hosts models, services, parsers, abstractions and diagnostics so they can be
+    tested headless and reused by the API Explorer CLI. (Design: "kenapa tiga proyek")
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>KasetWin.Core</RootNamespace>
+    <AssemblyName>KasetWin.Core</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+    <!--
+      Structured logging sinks (Req 21). Serilog is the configured sink behind
+      Microsoft.Extensions.Logging. All packages are pure .NET (no WinUI/WinRT),
+      keeping Core headless-testable.
+    -->
+    <PackageReference Include="Serilog" Version="3.1.1" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Serilog.Sinks.Debug" Version="2.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,27 @@
+<Project>
+
+  <!--
+    Shared build settings for the KasetWin solution (Task 1.1, Requirements 23.1/23.2).
+    Applies to every project under KasetWin/. Individual projects may override
+    the TargetFramework (e.g. KasetWin.App / KasetWin.Platform target Windows).
+  -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Analyzers active across the solution. -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Keep warnings visible without failing the skeleton build. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <Authors>Kaset</Authors>
+    <Product>Kaset for Windows</Product>
+  </PropertyGroup>
+
+</Project>

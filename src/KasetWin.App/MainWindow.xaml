@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="KasetWin.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:KasetWin.App.Controls"
+    Title="Kaset">
+
+    <!-- Native Windows 11 Fluent shell: Mica backdrop behind the whole window (Req 1.4 shell). -->
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+
+    <!--
+        RootGrid is preserved as the mount point for the hidden playback WebView2 (Task 8.3): the
+        code-behind inserts PlaybackWebViewHost.Element at child index 0. Row 0 hosts the offline
+        connectivity indicator (Req 35.3), row 1 hosts the NavigationView + content Frame, row 2
+        hosts the bottom PlayerBar.
+    -->
+    <Grid x:Name="RootGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--
+            Offline indicator (Req 35.3): shown while the device has no connectivity and hidden when
+            back online. IsOpen is driven from the code-behind via INetworkMonitor.ConnectivityChanged.
+            Non-closable so the user cannot dismiss a still-accurate offline state.
+        -->
+        <InfoBar
+            x:Name="OfflineInfoBar"
+            Grid.Row="0"
+            Title="Offline"
+            IsClosable="False"
+            IsOpen="False"
+            Message="Connectivity is unavailable. Some features may not work until you're back online."
+            Severity="Warning" />
+
+        <NavigationView
+            x:Name="NavView"
+            Grid.Row="1"
+            IsBackButtonVisible="Collapsed"
+            IsSettingsVisible="True"
+            PaneDisplayMode="Auto"
+            SelectionChanged="OnNavigationSelectionChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="Home" Tag="Home">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE80F;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Explore" Tag="Explore">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE909;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Search" Tag="Search">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE721;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Library" Tag="Library">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8F1;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="History" Tag="History">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE81C;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <!-- Podcasts is prepared but hidden until region availability is wired (Req 27, advanced). -->
+                <NavigationViewItem
+                    x:Name="PodcastsItem"
+                    Content="Podcasts"
+                    Tag="Podcasts"
+                    Visibility="Collapsed">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE95A;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <!-- YouTube (full mode) section (Req 32.1/32.4). Parallel to the music surfaces;
+                     the music experience above is untouched. -->
+                <NavigationViewItemHeader Content="YouTube" />
+                <NavigationViewItem Content="YouTube Home" Tag="YouTube.Home">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE714;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Explore" Tag="YouTube.Explore">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE909;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Subscriptions" Tag="YouTube.Subscriptions">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8FA;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Shorts" Tag="YouTube.Shorts">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE786;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="YouTube History" Tag="YouTube.History">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE81C;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+
+            <Frame x:Name="ContentFrame" />
+        </NavigationView>
+
+        <controls:PlayerBar Grid.Row="2" />
+    </Grid>
+</Window>

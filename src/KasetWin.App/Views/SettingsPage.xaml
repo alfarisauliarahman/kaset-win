@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="KasetWin.App.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:KasetWin.Core.Models"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <!-- Lightweight Fluent "settings card": a rounded, subtly-filled container row. -->
+        <Style x:Key="SettingsCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,12" />
+        </Style>
+    </Page.Resources>
+
+    <ScrollViewer>
+        <StackPanel
+            MaxWidth="720"
+            Margin="24"
+            HorizontalAlignment="Stretch"
+            Spacing="20">
+
+            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Settings" />
+
+            <!-- ── General ───────────────────────────────────────────── -->
+            <TextBlock
+                Margin="0,4,0,0"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="General" />
+
+            <!-- Default launch page (Req 18.1) -->
+            <Border Style="{StaticResource SettingsCardStyle}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="Default launch page" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock
+                            Opacity="0.7"
+                            Text="The page Kaset opens to on launch."
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                    <ComboBox
+                        x:Name="LaunchPageComboBox"
+                        Grid.Column="1"
+                        MinWidth="180"
+                        VerticalAlignment="Center"
+                        ItemsSource="{x:Bind ViewModel.LaunchPages}"
+                        SelectedItem="{x:Bind ViewModel.SelectedLaunchPage, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:LaunchPage">
+                                <TextBlock Text="{x:Bind}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <!-- Language placeholder (Settings_Language / Req 19) -->
+            <Border Style="{StaticResource SettingsCardStyle}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock x:Uid="Settings_Language" Text="Language" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock
+                            Opacity="0.7"
+                            Text="Follows the system language. Per-language override is coming in a later task."
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                    <ComboBox
+                        Grid.Column="1"
+                        MinWidth="180"
+                        VerticalAlignment="Center"
+                        IsEnabled="False"
+                        PlaceholderText="System default" />
+                </Grid>
+            </Border>
+
+            <!-- ── Playback ──────────────────────────────────────────── -->
+            <TextBlock
+                Margin="0,8,0,0"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="Playback" />
+
+            <!-- Preferred audio quality (Req 7.3) -->
+            <Border Style="{StaticResource SettingsCardStyle}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="Preferred audio quality" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock
+                            Opacity="0.7"
+                            Text="Streaming quality Kaset requests when available."
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                    <ComboBox
+                        x:Name="AudioQualityComboBox"
+                        Grid.Column="1"
+                        MinWidth="180"
+                        VerticalAlignment="Center"
+                        ItemsSource="{x:Bind ViewModel.AudioQualities}"
+                        SelectedItem="{x:Bind ViewModel.SelectedAudioQuality, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:AudioQuality">
+                                <TextBlock Text="{x:Bind}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <!-- Remember playback settings (Req 18.2) -->
+            <Border Style="{StaticResource SettingsCardStyle}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="Remember playback settings" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock
+                            Opacity="0.7"
+                            Text="Restore shuffle and repeat on next launch."
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                    <ToggleSwitch
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        IsOn="{x:Bind ViewModel.RememberPlaybackSettings, Mode=TwoWay}" />
+                </Grid>
+            </Border>
+
+            <!-- ── Lyrics ────────────────────────────────────────────── -->
+            <TextBlock
+                Margin="0,8,0,0"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="Lyrics" />
+
+            <!-- Synced lyrics enabled (Req 18.3) -->
+            <Border Style="{StaticResource SettingsCardStyle}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="Synced lyrics" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock
+                            Opacity="0.7"
+                            Text="Prefer time-synced lyrics, falling back to plain lyrics."
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                    <ToggleSwitch
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        IsOn="{x:Bind ViewModel.SyncedLyricsEnabled, Mode=TwoWay}" />
+                </Grid>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

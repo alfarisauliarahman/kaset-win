@@ -1,0 +1,144 @@
+{
+  "_comment": "SANITIZED FEmusic_home fixture. No real cookies/tokens/SAPISID/PII. All IDs are placeholders.",
+  "responseContext": {
+    "visitorData": "REDACTED",
+    "trackingParams": "REDACTED"
+  },
+  "contents": {
+    "singleColumnBrowseResultsRenderer": {
+      "tabs": [
+        {
+          "tabRenderer": {
+            "content": {
+              "sectionListRenderer": {
+                "contents": [
+                  {
+                    "musicCarouselShelfRenderer": {
+                      "header": {
+                        "musicCarouselShelfBasicHeaderRenderer": {
+                          "title": { "runs": [ { "text": "Quick picks" } ] }
+                        }
+                      },
+                      "contents": [
+                        {
+                          "musicTwoRowItemRenderer": {
+                            "title": {
+                              "runs": [
+                                {
+                                  "text": "Sample Track One",
+                                  "navigationEndpoint": {
+                                    "watchEndpoint": { "videoId": "video0000001" }
+                                  }
+                                }
+                              ]
+                            },
+                            "subtitle": { "runs": [ { "text": "Sample Artist A" } ] },
+                            "thumbnailRenderer": {
+                              "musicThumbnailRenderer": {
+                                "thumbnail": {
+                                  "thumbnails": [
+                                    { "url": "https://example.invalid/thumb1.jpg", "width": 226, "height": 226 }
+                                  ]
+                                }
+                              }
+                            },
+                            "navigationEndpoint": {
+                              "watchEndpoint": { "videoId": "video0000001" }
+                            }
+                          }
+                        },
+                        {
+                          "musicTwoRowItemRenderer": {
+                            "title": {
+                              "runs": [
+                                {
+                                  "text": "Sample Album One",
+                                  "navigationEndpoint": {
+                                    "browseEndpoint": {
+                                      "browseId": "MPREb_0000000album1",
+                                      "browseEndpointContextSupportedConfigs": {
+                                        "browseEndpointContextMusicConfig": {
+                                          "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "subtitle": { "runs": [ { "text": "Album • Sample Artist B" } ] },
+                            "navigationEndpoint": {
+                              "browseEndpoint": {
+                                "browseId": "MPREb_0000000album1",
+                                "browseEndpointContextSupportedConfigs": {
+                                  "browseEndpointContextMusicConfig": {
+                                    "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "musicCarouselShelfRenderer": {
+                      "header": {
+                        "musicCarouselShelfBasicHeaderRenderer": {
+                          "title": { "runs": [ { "text": "Recommended playlists" } ] }
+                        }
+                      },
+                      "contents": [
+                        {
+                          "musicTwoRowItemRenderer": {
+                            "title": {
+                              "runs": [
+                                {
+                                  "text": "Sample Mix Playlist",
+                                  "navigationEndpoint": {
+                                    "browseEndpoint": {
+                                      "browseId": "VLPL0000000playlist1",
+                                      "browseEndpointContextSupportedConfigs": {
+                                        "browseEndpointContextMusicConfig": {
+                                          "pageType": "MUSIC_PAGE_TYPE_PLAYLIST"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "subtitle": { "runs": [ { "text": "Playlist • Kaset" } ] },
+                            "navigationEndpoint": {
+                              "browseEndpoint": {
+                                "browseId": "VLPL0000000playlist1",
+                                "browseEndpointContextSupportedConfigs": {
+                                  "browseEndpointContextMusicConfig": {
+                                    "pageType": "MUSIC_PAGE_TYPE_PLAYLIST"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "continuations": [
+                  {
+                    "nextContinuationData": {
+                      "continuation": "REDACTED_HOME_CONTINUATION_TOKEN",
+                      "clickTrackingParams": "REDACTED"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

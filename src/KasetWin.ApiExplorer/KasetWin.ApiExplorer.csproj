@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    KasetWin.ApiExplorer — CLI tool (Req 24). Reuses YTMusicClient + parsers from
+    Core so endpoint exploration verifies production code. Commands implemented in
+    Task 16: auth, list, browse (id) with -v and brand options.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>KasetWin.ApiExplorer</RootNamespace>
+    <AssemblyName>KasetWin.ApiExplorer</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KasetWin.Core\KasetWin.Core.csproj" />
+  </ItemGroup>
+
+</Project>

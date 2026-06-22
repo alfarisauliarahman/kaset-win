@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="KasetWin.App.Views.YouTubeShortsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="using:KasetWin.App.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:KasetWin.Core.Models"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
+    </Page.Resources>
+
+    <Grid Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+        <!--
+            Vertical snap-paging Shorts surface (Req 32.4). A FlipView snaps one Short per page; the
+            vertical ItemsPanel makes paging vertical. SelectedIndex two-way binds to the ViewModel's
+            CurrentIndex so the settled Short autoplays through the arbitrated YouTube video player.
+        -->
+        <FlipView
+            x:Name="ShortsFlip"
+            ItemsSource="{x:Bind ViewModel.Shorts, Mode=OneWay}"
+            SelectedIndex="{x:Bind ViewModel.CurrentIndex, Mode=TwoWay}">
+            <FlipView.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel Orientation="Vertical" />
+                </ItemsPanelTemplate>
+            </FlipView.ItemsPanel>
+            <FlipView.ItemTemplate>
+                <DataTemplate x:DataType="models:YouTubeVideo">
+                    <Grid>
+                        <Border MaxWidth="420" CornerRadius="12">
+                            <Image
+                                Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
+                                Stretch="Uniform" />
+                        </Border>
+                        <Border
+                            VerticalAlignment="Bottom"
+                            Padding="20,12"
+                            Background="#80000000">
+                            <StackPanel>
+                                <TextBlock
+                                    Foreground="White"
+                                    MaxLines="2"
+                                    Text="{x:Bind Title}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="Wrap"
+                                    Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock
+                                    Foreground="White"
+                                    Opacity="0.85"
+                                    Text="{x:Bind ChannelName}"
+                                    Style="{StaticResource CaptionTextBlockStyle}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </DataTemplate>
+            </FlipView.ItemTemplate>
+        </FlipView>
+
+        <TextBlock
+            Margin="24,24,0,0"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Foreground="White"
+            Text="Shorts"
+            Style="{StaticResource TitleTextBlockStyle}" />
+
+        <ProgressRing
+            Width="48"
+            Height="48"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" />
+
+        <InfoBar
+            Margin="24"
+            VerticalAlignment="Top"
+            IsClosable="True"
+            IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
+            Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
+            Severity="Error" />
+    </Grid>
+</Page>

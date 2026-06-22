@@ -1,0 +1,84 @@
+{
+  "_comment": "SANITIZED 'next' radio/mix queue fixture. Uses playlistPanelVideoWrapperRenderer.primaryRenderer.playlistPanelVideoRenderer wrapper + radio continuation. No real PII/tokens.",
+  "responseContext": { "visitorData": "REDACTED", "trackingParams": "REDACTED" },
+  "contents": {
+    "singleColumnMusicWatchNextResultsRenderer": {
+      "tabbedRenderer": {
+        "watchNextTabbedResultsRenderer": {
+          "tabs": [
+            {
+              "tabRenderer": {
+                "content": {
+                  "musicQueueRenderer": {
+                    "content": {
+                      "playlistPanelRenderer": {
+                        "playlistId": "RDAMVMvideo0000001",
+                        "contents": [
+                          {
+                            "playlistPanelVideoWrapperRenderer": {
+                              "primaryRenderer": {
+                                "playlistPanelVideoRenderer": {
+                                  "title": { "runs": [ { "text": "Sample Track One" } ] },
+                                  "longBylineText": {
+                                    "runs": [
+                                      {
+                                        "text": "Sample Artist A",
+                                        "navigationEndpoint": {
+                                          "browseEndpoint": { "browseId": "UCxxxxxxxxxxxxxxxxxxxxxx" }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "lengthText": { "runs": [ { "text": "3:14" } ] },
+                                  "videoId": "video0000001",
+                                  "selected": true,
+                                  "navigationEndpoint": {
+                                    "watchEndpoint": {
+                                      "videoId": "video0000001",
+                                      "playlistId": "RDAMVMvideo0000001"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "playlistPanelVideoWrapperRenderer": {
+                              "primaryRenderer": {
+                                "playlistPanelVideoRenderer": {
+                                  "title": { "runs": [ { "text": "Sample Track Two" } ] },
+                                  "longBylineText": { "runs": [ { "text": "Sample Artist B" } ] },
+                                  "lengthText": { "runs": [ { "text": "4:02" } ] },
+                                  "videoId": "video0000002",
+                                  "selected": false,
+                                  "navigationEndpoint": {
+                                    "watchEndpoint": {
+                                      "videoId": "video0000002",
+                                      "playlistId": "RDAMVMvideo0000001"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "continuations": [
+                          {
+                            "nextRadioContinuationData": {
+                              "continuation": "REDACTED_RADIO_CONTINUATION_TOKEN",
+                              "clickTrackingParams": "REDACTED"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

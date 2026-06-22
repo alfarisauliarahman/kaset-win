@@ -1,0 +1,23 @@
+# .NET build artifacts for the KasetWin solution
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# MSIX / packaging output
+AppPackages/
+BundleArtifacts/
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+
+# Test results
+[Tt]est[Rr]esults/
+*.trx

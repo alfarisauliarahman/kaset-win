@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="KasetWin.App.Views.PlaceholderPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <StackPanel
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        Spacing="8">
+        <FontIcon
+            HorizontalAlignment="Center"
+            FontSize="40"
+            Glyph="&#xE82D;"
+            Opacity="0.6" />
+        <TextBlock
+            x:Name="TitleText"
+            HorizontalAlignment="Center"
+            Style="{StaticResource SubtitleTextBlockStyle}"
+            Text="Section" />
+        <TextBlock
+            HorizontalAlignment="Center"
+            Opacity="0.6"
+            Text="Coming soon"
+            Style="{StaticResource BodyTextBlockStyle}" />
+    </StackPanel>
+</Page>

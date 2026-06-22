@@ -1,0 +1,92 @@
+{
+  "_comment": "SANITIZED FEmusic_library_landing fixture. gridRenderer with mixed item types (playlist VL/PL, podcast MPSPP, artist UC). No real PII/tokens.",
+  "responseContext": { "visitorData": "REDACTED", "trackingParams": "REDACTED" },
+  "contents": {
+    "singleColumnBrowseResultsRenderer": {
+      "tabs": [
+        {
+          "tabRenderer": {
+            "content": {
+              "sectionListRenderer": {
+                "contents": [
+                  {
+                    "gridRenderer": {
+                      "items": [
+                        {
+                          "musicTwoRowItemRenderer": {
+                            "title": {
+                              "runs": [ { "text": "Liked Music" } ]
+                            },
+                            "subtitle": { "runs": [ { "text": "Auto playlist" } ] },
+                            "navigationEndpoint": {
+                              "browseEndpoint": {
+                                "browseId": "VLLM",
+                                "browseEndpointContextSupportedConfigs": {
+                                  "browseEndpointContextMusicConfig": {
+                                    "pageType": "MUSIC_PAGE_TYPE_PLAYLIST"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "musicTwoRowItemRenderer": {
+                            "title": { "runs": [ { "text": "Sample Created Playlist" } ] },
+                            "subtitle": { "runs": [ { "text": "Playlist" } ] },
+                            "navigationEndpoint": {
+                              "browseEndpoint": {
+                                "browseId": "VLPL0000000playlist1",
+                                "browseEndpointContextSupportedConfigs": {
+                                  "browseEndpointContextMusicConfig": {
+                                    "pageType": "MUSIC_PAGE_TYPE_PLAYLIST"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "musicTwoRowItemRenderer": {
+                            "title": { "runs": [ { "text": "Sample Podcast Show" } ] },
+                            "subtitle": { "runs": [ { "text": "Podcast" } ] },
+                            "navigationEndpoint": {
+                              "browseEndpoint": {
+                                "browseId": "MPSPPL0000000podcast1",
+                                "browseEndpointContextSupportedConfigs": {
+                                  "browseEndpointContextMusicConfig": {
+                                    "pageType": "MUSIC_PAGE_TYPE_PODCAST_SHOW_DETAIL_PAGE"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "musicTwoRowItemRenderer": {
+                            "title": { "runs": [ { "text": "Sample Artist A" } ] },
+                            "subtitle": { "runs": [ { "text": "Artist" } ] },
+                            "navigationEndpoint": {
+                              "browseEndpoint": {
+                                "browseId": "UCxxxxxxxxxxxxxxxxxxxxxx",
+                                "browseEndpointContextSupportedConfigs": {
+                                  "browseEndpointContextMusicConfig": {
+                                    "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

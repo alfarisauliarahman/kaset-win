@@ -1,0 +1,24 @@
+{
+  "_comment": "SANITIZED MPLYt{id} lyrics fixture. Timed (LRC-style) lyrics text. Sample placeholder lyric lines only. No real PII/tokens.",
+  "responseContext": { "visitorData": "REDACTED", "trackingParams": "REDACTED" },
+  "contents": {
+    "sectionListRenderer": {
+      "contents": [
+        {
+          "musicDescriptionShelfRenderer": {
+            "description": {
+              "runs": [
+                {
+                  "text": "[00:00.00] Sample lyric line one\n[00:04.50] Sample lyric line two\n[00:09.10] Sample lyric line three\n[00:13.75] Sample lyric line four"
+                }
+              ]
+            },
+            "footer": {
+              "runs": [ { "text": "Source: Sample lyrics provider" } ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "_comment": "SANITIZED song metadata fixture (player + next shape). playabilityStatus + videoDetails.musicVideoType + lyrics browse tab. No real PII/tokens.",
+  "responseContext": { "visitorData": "REDACTED", "trackingParams": "REDACTED" },
+  "playabilityStatus": {
+    "status": "OK",
+    "playableInEmbed": true
+  },
+  "videoDetails": {
+    "videoId": "video0000001",
+    "title": "Sample Track One",
+    "lengthSeconds": "194",
+    "channelId": "UCxxxxxxxxxxxxxxxxxxxxxx",
+    "author": "Sample Artist A",
+    "viewCount": "1234567",
+    "isPrivate": false,
+    "isLiveContent": false,
+    "musicVideoType": "MUSIC_VIDEO_TYPE_ATV",
+    "thumbnail": {
+      "thumbnails": [
+        { "url": "https://example.invalid/song.jpg", "width": 226, "height": 226 }
+      ]
+    }
+  },
+  "contents": {
+    "singleColumnMusicWatchNextResultsRenderer": {
+      "tabbedRenderer": {
+        "watchNextTabbedResultsRenderer": {
+          "tabs": [
+            {
+              "tabRenderer": {
+                "title": "Up next"
+              }
+            },
+            {
+              "tabRenderer": {
+                "title": "Lyrics",
+                "endpoint": {
+                  "browseEndpoint": { "browseId": "MPLYt_0000000lyrics1" }
+                }
+              }
+            },
+            {
+              "tabRenderer": {
+                "title": "Related"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "microformat": {
+    "microformatDataRenderer": {
+      "urlCanonical": "https://music.youtube.com/watch?v=video0000001"
+    }
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "_comment": "SANITIZED search response fixture. Top result via musicCardShelfRenderer + regular results via musicShelfRenderer. No real PII/tokens.",
+  "responseContext": { "visitorData": "REDACTED", "trackingParams": "REDACTED" },
+  "contents": {
+    "tabbedSearchResultsRenderer": {
+      "tabs": [
+        {
+          "tabRenderer": {
+            "content": {
+              "sectionListRenderer": {
+                "contents": [
+                  {
+                    "musicCardShelfRenderer": {
+                      "title": {
+                        "runs": [
+                          {
+                            "text": "Sample Artist A",
+                            "navigationEndpoint": {
+                              "browseEndpoint": {
+                                "browseId": "UCxxxxxxxxxxxxxxxxxxxxxx",
+                                "browseEndpointContextSupportedConfigs": {
+                                  "browseEndpointContextMusicConfig": {
+                                    "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "subtitle": { "runs": [ { "text": "Artist • 1.2M monthly audience" } ] },
+                      "thumbnail": {
+                        "musicThumbnailRenderer": {
+                          "thumbnail": {
+                            "thumbnails": [
+                              { "url": "https://example.invalid/artist.jpg", "width": 226, "height": 226 }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "musicShelfRenderer": {
+                      "title": { "runs": [ { "text": "Songs" } ] },
+                      "contents": [
+                        {
+                          "musicResponsiveListItemRenderer": {
+                            "flexColumns": [
+                              {
+                                "musicResponsiveListItemFlexColumnRenderer": {
+                                  "text": {
+                                    "runs": [
+                                      {
+                                        "text": "Sample Track One",
+                                        "navigationEndpoint": {
+                                          "watchEndpoint": { "videoId": "video0000001" }
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "musicResponsiveListItemFlexColumnRenderer": {
+                                  "text": {
+                                    "runs": [
+                                      {
+                                        "text": "Sample Artist A",
+                                        "navigationEndpoint": {
+                                          "browseEndpoint": {
+                                            "browseId": "UCxxxxxxxxxxxxxxxxxxxxxx",
+                                            "browseEndpointContextSupportedConfigs": {
+                                              "browseEndpointContextMusicConfig": {
+                                                "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      { "text": " • " },
+                                      { "text": "Sample Album One" },
+                                      { "text": " • " },
+                                      { "text": "3:14" }
+                                    ]
+                                  }
+                                }
+                              }
+                            ],
+                            "playlistItemData": { "videoId": "video0000001" }
+                          }
+                        },
+                        {
+                          "musicResponsiveListItemRenderer": {
+                            "flexColumns": [
+                              {
+                                "musicResponsiveListItemFlexColumnRenderer": {
+                                  "text": {
+                                    "runs": [
+                                      {
+                                        "text": "Sample Album One",
+                                        "navigationEndpoint": {
+                                          "browseEndpoint": {
+                                            "browseId": "MPREb_0000000album1",
+                                            "browseEndpointContextSupportedConfigs": {
+                                              "browseEndpointContextMusicConfig": {
+                                                "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "musicResponsiveListItemFlexColumnRenderer": {
+                                  "text": {
+                                    "runs": [
+                                      { "text": "Album" },
+                                      { "text": " • " },
+                                      { "text": "Sample Artist B" }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="KasetWin.App.Views.SearchPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="using:KasetWin.App.Converters"
+    xmlns:core="using:KasetWin.Core.Models"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+
+        <!-- Song row: thumbnail + title/artists; plays on click (Req 12.4). -->
+        <DataTemplate x:Key="SongTemplate" x:DataType="core:Song">
+            <Button
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Click="OnSongClick"
+                Style="{StaticResource SubtleButtonStyle}">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border
+                        Width="40"
+                        Height="40"
+                        CornerRadius="4">
+                        <Image Source="{Binding ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock
+                            MaxLines="1"
+                            Text="{Binding Title}"
+                            TextTrimming="CharacterEllipsis" />
+                        <TextBlock
+                            MaxLines="1"
+                            Opacity="0.7"
+                            Text="{Binding ArtistsDisplay}"
+                            TextTrimming="CharacterEllipsis"
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                </Grid>
+            </Button>
+        </DataTemplate>
+
+        <!-- Album row: navigate to AlbumPage on click. -->
+        <DataTemplate x:Key="AlbumTemplate" x:DataType="core:Album">
+            <Button
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Click="OnAlbumClick"
+                Style="{StaticResource SubtleButtonStyle}">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border
+                        Width="40"
+                        Height="40"
+                        CornerRadius="4">
+                        <Image Source="{Binding ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock
+                            MaxLines="1"
+                            Text="{Binding Title}"
+                            TextTrimming="CharacterEllipsis" />
+                        <TextBlock
+                            MaxLines="1"
+                            Opacity="0.7"
+                            Text="{Binding ArtistsDisplay}"
+                            TextTrimming="CharacterEllipsis"
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                </Grid>
+            </Button>
+        </DataTemplate>
+
+        <!-- Artist row: circular thumbnail; navigate to ArtistPage on click. -->
+        <DataTemplate x:Key="ArtistTemplate" x:DataType="core:Artist">
+            <Button
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Click="OnArtistClick"
+                Style="{StaticResource SubtleButtonStyle}">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border
+                        Width="40"
+                        Height="40"
+                        CornerRadius="20">
+                        <Image Source="{Binding ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                    </Border>
+                    <TextBlock
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        MaxLines="1"
+                        Text="{Binding Name}"
+                        TextTrimming="CharacterEllipsis" />
+                </Grid>
+            </Button>
+        </DataTemplate>
+
+        <!-- Playlist row: navigate to PlaylistPage on click. -->
+        <DataTemplate x:Key="PlaylistTemplate" x:DataType="core:Playlist">
+            <Button
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Click="OnPlaylistClick"
+                Style="{StaticResource SubtleButtonStyle}">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border
+                        Width="40"
+                        Height="40"
+                        CornerRadius="4">
+                        <Image Source="{Binding ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock
+                            MaxLines="1"
+                            Text="{Binding Title}"
+                            TextTrimming="CharacterEllipsis" />
+                        <TextBlock
+                            MaxLines="1"
+                            Opacity="0.7"
+                            Text="{Binding Author.Name}"
+                            TextTrimming="CharacterEllipsis"
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                </Grid>
+            </Button>
+        </DataTemplate>
+
+        <!-- Podcast-show row: navigate to PodcastShowPage on click. -->
+        <DataTemplate x:Key="PodcastTemplate" x:DataType="core:Playlist">
+            <Button
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Click="OnPodcastClick"
+                Style="{StaticResource SubtleButtonStyle}">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border
+                        Width="40"
+                        Height="40"
+                        CornerRadius="4">
+                        <Image Source="{Binding ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock
+                            MaxLines="1"
+                            Text="{Binding Title}"
+                            TextTrimming="CharacterEllipsis" />
+                        <TextBlock
+                            MaxLines="1"
+                            Opacity="0.7"
+                            Text="{Binding Author.Name}"
+                            TextTrimming="CharacterEllipsis"
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                </Grid>
+            </Button>
+        </DataTemplate>
+    </Page.Resources>
+
+    <Grid Padding="24,16" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Query box with live suggestions (Req 12.2 / 12.3). -->
+        <AutoSuggestBox
+            x:Name="SearchBox"
+            Grid.Row="0"
+            MaxWidth="640"
+            HorizontalAlignment="Stretch"
+            ItemsSource="{x:Bind ViewModel.Suggestions, Mode=OneWay}"
+            PlaceholderText="Search songs, albums, artists, playlists"
+            QueryIcon="Find"
+            QuerySubmitted="OnQuerySubmitted"
+            TextChanged="OnSearchTextChanged" />
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Spacing="20">
+
+                <ProgressRing
+                    Margin="0,12"
+                    HorizontalAlignment="Center"
+                    IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" />
+
+                <InfoBar
+                    IsClosable="False"
+                    IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
+                    Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
+                    Severity="Error" />
+
+                <!-- Top Result (Req 12.1). -->
+                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasTopResult, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Top result" />
+                    <Button
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"
+                        Click="OnTopResultClick"
+                        Style="{StaticResource SubtleButtonStyle}">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border
+                                Width="72"
+                                Height="72"
+                                CornerRadius="6">
+                                <Image Source="{x:Bind ViewModel.TopResultThumbnail, Mode=OneWay, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock
+                                    MaxLines="2"
+                                    Text="{x:Bind ViewModel.TopResultTitle, Mode=OneWay}"
+                                    TextTrimming="CharacterEllipsis"
+                                    Style="{StaticResource TitleTextBlockStyle}" />
+                                <TextBlock
+                                    Opacity="0.7"
+                                    Text="{x:Bind ViewModel.TopResultSubtitle, Mode=OneWay}"
+                                    Style="{StaticResource BodyTextBlockStyle}" />
+                            </StackPanel>
+                        </Grid>
+                    </Button>
+                </StackPanel>
+
+                <!-- Songs (Req 12.1). -->
+                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasSongs, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Songs" />
+                    <ItemsRepeater ItemTemplate="{StaticResource SongTemplate}" ItemsSource="{x:Bind ViewModel.Songs, Mode=OneWay}" />
+                </StackPanel>
+
+                <!-- Albums. -->
+                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasAlbums, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Albums" />
+                    <ItemsRepeater ItemTemplate="{StaticResource AlbumTemplate}" ItemsSource="{x:Bind ViewModel.Albums, Mode=OneWay}" />
+                </StackPanel>
+
+                <!-- Artists. -->
+                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasArtists, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Artists" />
+                    <ItemsRepeater ItemTemplate="{StaticResource ArtistTemplate}" ItemsSource="{x:Bind ViewModel.Artists, Mode=OneWay}" />
+                </StackPanel>
+
+                <!-- Playlists. -->
+                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasPlaylists, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Playlists" />
+                    <ItemsRepeater ItemTemplate="{StaticResource PlaylistTemplate}" ItemsSource="{x:Bind ViewModel.Playlists, Mode=OneWay}" />
+                </StackPanel>
+
+                <!-- Podcasts. -->
+                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasPodcasts, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Podcasts" />
+                    <ItemsRepeater ItemTemplate="{StaticResource PodcastTemplate}" ItemsSource="{x:Bind ViewModel.Podcasts, Mode=OneWay}" />
+                </StackPanel>
+
+                <!-- Empty state. -->
+                <TextBlock
+                    Margin="0,24"
+                    HorizontalAlignment="Center"
+                    Opacity="0.6"
+                    Text="No results found"
+                    Visibility="{x:Bind ViewModel.ShowNoResults, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                    Style="{StaticResource BodyTextBlockStyle}" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

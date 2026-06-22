@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="KasetWin.App.Controls.PlayerBar"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="using:KasetWin.App.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
+        <converters:PlayPauseGlyphConverter x:Key="PlayPauseGlyph" />
+        <converters:RepeatGlyphConverter x:Key="RepeatGlyph" />
+        <converters:RepeatModeToOpacityConverter x:Key="RepeatOpacity" />
+        <converters:BoolToOpacityConverter x:Key="BoolOpacity" />
+        <converters:MuteGlyphConverter x:Key="MuteGlyph" />
+        <converters:SecondsToTimeConverter x:Key="SecondsToTime" />
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+    </UserControl.Resources>
+
+    <Grid
+        Padding="12,8"
+        Background="{ThemeResource LayerFillColorDefaultBrush}"
+        BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+        BorderThickness="0,1,0,0"
+        ColumnSpacing="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Now playing: thumbnail + title/artist -->
+        <StackPanel
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Orientation="Horizontal"
+            Spacing="12">
+            <Border
+                Width="48"
+                Height="48"
+                CornerRadius="4">
+                <Image
+                    Source="{Binding CurrentTrack.ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
+                    Stretch="UniformToFill" />
+            </Border>
+            <StackPanel VerticalAlignment="Center" MaxWidth="220">
+                <TextBlock
+                    MaxLines="1"
+                    Text="{Binding CurrentTrack.Title}"
+                    TextTrimming="CharacterEllipsis"
+                    Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <TextBlock
+                    MaxLines="1"
+                    Opacity="0.7"
+                    Text="{Binding CurrentTrack.ArtistsDisplay}"
+                    TextTrimming="CharacterEllipsis"
+                    Style="{StaticResource CaptionTextBlockStyle}" />
+            </StackPanel>
+            <Border
+                VerticalAlignment="Center"
+                Padding="6,2"
+                Background="{ThemeResource SystemFillColorCriticalBrush}"
+                CornerRadius="4"
+                Visibility="{Binding IsLive, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock
+                    FontWeight="SemiBold"
+                    Foreground="White"
+                    Text="LIVE"
+                    Style="{StaticResource CaptionTextBlockStyle}" />
+            </Border>
+            <Button
+                x:Name="ShareButton"
+                VerticalAlignment="Center"
+                Click="OnShareClick"
+                IsEnabled="False"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Share">
+                <FontIcon FontSize="16" Glyph="&#xE72D;" />
+            </Button>
+            <Button
+                x:Name="VideoButton"
+                VerticalAlignment="Center"
+                Click="OnVideoClick"
+                IsEnabled="False"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Pop out video">
+                <FontIcon FontSize="16" Glyph="&#xE714;" />
+            </Button>
+        </StackPanel>
+
+        <!-- Transport + seek -->
+        <StackPanel
+            Grid.Column="1"
+            VerticalAlignment="Center"
+            Spacing="2">
+            <StackPanel
+                HorizontalAlignment="Center"
+                Orientation="Horizontal"
+                Spacing="8">
+                <Button
+                    x:Name="ShuffleButton"
+                    Click="OnShuffleClick"
+                    Opacity="{Binding IsShuffled, Converter={StaticResource BoolOpacity}}"
+                    Style="{StaticResource SubtleButtonStyle}"
+                    ToolTipService.ToolTip="Shuffle">
+                    <FontIcon FontSize="16" Glyph="&#xE8B1;" />
+                </Button>
+                <Button
+                    x:Name="PreviousButton"
+                    Click="OnPreviousClick"
+                    Style="{StaticResource SubtleButtonStyle}"
+                    ToolTipService.ToolTip="Previous">
+                    <FontIcon FontSize="16" Glyph="&#xE892;" />
+                </Button>
+                <Button
+                    x:Name="PlayPauseButton"
+                    Width="40"
+                    Height="40"
+                    Click="OnPlayPauseClick"
+                    CornerRadius="20"
+                    Style="{StaticResource AccentButtonStyle}"
+                    ToolTipService.ToolTip="Play/Pause">
+                    <FontIcon FontSize="16" Glyph="{Binding IsPlaying, Converter={StaticResource PlayPauseGlyph}}" />
+                </Button>
+                <Button
+                    x:Name="NextButton"
+                    Click="OnNextClick"
+                    Style="{StaticResource SubtleButtonStyle}"
+                    ToolTipService.ToolTip="Next">
+                    <FontIcon FontSize="16" Glyph="&#xE893;" />
+                </Button>
+                <Button
+                    x:Name="RepeatButton"
+                    Click="OnRepeatClick"
+                    Opacity="{Binding RepeatMode, Converter={StaticResource RepeatOpacity}}"
+                    Style="{StaticResource SubtleButtonStyle}"
+                    ToolTipService.ToolTip="Repeat">
+                    <FontIcon FontSize="16" Glyph="{Binding RepeatMode, Converter={StaticResource RepeatGlyph}}" />
+                </Button>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock
+                    MinWidth="40"
+                    HorizontalTextAlignment="Right"
+                    Opacity="0.7"
+                    Text="{Binding Progress, Converter={StaticResource SecondsToTime}}"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource CaptionTextBlockStyle}" />
+                <Slider
+                    x:Name="SeekSlider"
+                    Width="360"
+                    Maximum="{Binding Duration}"
+                    Minimum="0"
+                    StepFrequency="1"
+                    Value="{Binding Progress, Mode=OneWay}"
+                    VerticalAlignment="Center" />
+                <TextBlock
+                    MinWidth="40"
+                    Opacity="0.7"
+                    Text="{Binding Duration, Converter={StaticResource SecondsToTime}}"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource CaptionTextBlockStyle}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Volume -->
+        <StackPanel
+            Grid.Column="2"
+            VerticalAlignment="Center"
+            Orientation="Horizontal"
+            Spacing="4">
+            <Button
+                x:Name="MuteButton"
+                Click="OnMuteClick"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Mute">
+                <FontIcon FontSize="16" Glyph="{Binding IsMuted, Converter={StaticResource MuteGlyph}}" />
+            </Button>
+            <Slider
+                x:Name="VolumeSlider"
+                Width="100"
+                Maximum="100"
+                Minimum="0"
+                ValueChanged="OnVolumeChanged"
+                Value="{Binding Volume, Mode=OneWay}"
+                VerticalAlignment="Center" />
+        </StackPanel>
+    </Grid>
+</UserControl>

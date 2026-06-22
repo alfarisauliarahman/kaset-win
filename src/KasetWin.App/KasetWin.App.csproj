@@ -1,0 +1,119 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    KasetWin.App — WinUI 3 (Windows App SDK) packaged desktop app, .NET 8.
+    Hosts UI/MVVM, Generic Host + DI bootstrap, and the hidden WebView2 playback host.
+
+    NOTE (scaffold assumption): Building this project requires the Windows App SDK
+    build tooling / MSIX tooling which is not present in every CI/dev environment.
+    The class library projects (Core, Platform, ApiExplorer, Tests) build/restore
+    independently. See Task 1.1 report for details.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>KasetWin.App</RootNamespace>
+    <AssemblyName>KasetWin.App</AssemblyName>
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <WindowsPackageType>MSIX</WindowsPackageType>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x86;x64;ARM64</Platforms>
+    <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
+    <Nullable>enable</Nullable>
+    <!--
+      Localization (Req 19). Default UI/PRI language is en-US (Req 19.3 fallback). The Windows
+      Resource Management System (PRI) auto-resolves the active language at runtime from the
+      Strings\{lang}\Resources.resw folders below; en-US is the neutral/default candidate.
+    -->
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <!--
+      Packaged WinUI apps cannot build as ProcessorArchitecture-neutral (AnyCPU).
+      When the solution is built without an explicit platform/RID (the default
+      "Any CPU"), fall back to win-x64 so `dotnet build KasetWin.sln` succeeds.
+    -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And '$(Platform)' == 'AnyCPU'">win-x64</RuntimeIdentifier>
+
+    <!--
+      WebView2 duplicate-asset mitigation (Task 1.3).
+      KasetWin.App references WebView2 only transitively (through KasetWin.Platform), so it is
+      not double-referenced. However, because the app targets a Windows 10 TFM and packages as
+      MSIX, two copies of the managed Microsoft.Web.WebView2.Core.dll reach the package payload:
+        1. the WebView2 NuGet's UWP variant under runtimes\win-x64\native_uap\, and
+        2. KasetWin.Platform's build output (the correct desktop managed assembly).
+      They share the same payload destination path, so MSIX packaging fails with APPX1101 (and
+      the equivalent publish step fails with NETSDK1152). The chosen fix (see the
+      _DedupWebView2CorePayload target below) drops the wrong (native_uap/UWP) variant, keeping a
+      single canonical desktop copy. ErrorOnDuplicatePublishOutputFiles is relaxed as a belt-and
+      -braces guard for the publish path, where identical content under the same relative path is
+      otherwise treated as an error.
+    -->
+    <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
+    <!--
+      WebView2 (CoreWebView2 + the WinUI Microsoft.UI.Xaml.Controls.WebView2 control used by the
+      hidden playback host and the login dialog) is provided by the Windows App SDK above via its
+      bundled Microsoft.Web.WebView2 C#/WinRT projection. KasetWin.Platform references the same
+      Windows App SDK, so both layers share one WebView2 projection assembly and CoreWebView2 is a
+      single type across the App↔Platform boundary. Do NOT add a standalone Microsoft.Web.WebView2
+      package here — a second (different-version/plain) WebView2 assembly causes CS0012 type
+      mismatches against WebView2PlaybackController's API.
+    -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageReference Include="Serilog" Version="4.1.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KasetWin.Core\KasetWin.Core.csproj" />
+    <ProjectReference Include="..\KasetWin.Platform\KasetWin.Platform.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Manifest Include="$(ApplicationManifest)" />
+  </ItemGroup>
+
+  <!--
+    Package logo / splash-screen images referenced by Package.appxmanifest (Logo, Square44x44Logo,
+    Square150x150Logo, Wide310x150Logo, SplashScreen). Declared as Content so the MSIX packaging
+    step copies them into the package payload; without this the app fails to register with
+    "splash screen image cannot be located" (0x80070003).
+  -->
+  <ItemGroup>
+    <Content Include="Assets\**\*.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!--
+    Localized UI strings (Req 19.1) live under Strings\{lang}\Resources.resw. The .NET SDK globs
+    them as <PRIResource> automatically (EnableDefaultPriItems), so each file is compiled into the
+    app's PRI package; ResourceLoader / x:Uid bindings then resolve keys for the language chosen via
+    ApplicationLanguages.PrimaryLanguageOverride. See Strings\README.md. (Do not re-declare the
+    .resw files explicitly here — that triggers NETSDK1022 duplicate-item errors.)
+  -->
+
+  <!--
+    Removes the WebView2 NuGet's UWP (native_uap) copy of Microsoft.Web.WebView2.Core.dll from the
+    MSIX payload before it is computed, leaving only the canonical desktop managed assembly that
+    flows from KasetWin.Platform. Without this, the two copies collide on the same payload
+    destination path and MSIX packaging fails with APPX1101 (Task 1.3). Runs before
+    _ComputeAppxPackagePayload, which is where the duplicate-detection task otherwise errors.
+  -->
+  <Target Name="_DedupWebView2CorePayload" BeforeTargets="_ComputeAppxPackagePayload">
+    <ItemGroup>
+      <PackagingOutputs Remove="@(PackagingOutputs)"
+                        Condition="'%(FileName)%(Extension)' == 'Microsoft.Web.WebView2.Core.dll' And $([System.String]::Copy('%(FullPath)').Contains('native_uap'))" />
+    </ItemGroup>
+  </Target>
+
+</Project>
