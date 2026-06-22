@@ -27,6 +27,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\KasetWin.Core\KasetWin.Core.csproj" />
+    <!-- Referenced so the API Explorer CLI command router can be unit-tested headlessly (task 16.2). -->
+    <ProjectReference Include="..\..\src\KasetWin.ApiExplorer\KasetWin.ApiExplorer.csproj" />
   </ItemGroup>
 
   <!--

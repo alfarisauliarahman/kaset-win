@@ -24,18 +24,22 @@
         <ScrollViewer Grid.Column="0" Padding="24,16,16,16">
             <StackPanel Spacing="12">
                 <!--
-                    Video surface (Req 32.2). The dedicated YouTube watch WebView2 host is part of
-                    the YouTube-mode foundation (IYouTubeWatchController); until it is attached,
-                    playback is driven through the arbitrated YouTube video player and this region
-                    shows the video thumbnail. The arbiter still guarantees a single audio source.
+                    Video surface (Req 32.2). The dedicated YouTube watch WebView2 host
+                    (YouTubeWatchController) loads www.youtube.com/watch?v={id} and is mounted into
+                    VideoHost by the code-behind, on top of the thumbnail poster which shows until the
+                    video paints. Playback routes through the arbitrated YouTube video player so the
+                    arbiter guarantees a single audio source (Req 32.3).
                 -->
                 <Border
                     Height="360"
                     Background="Black"
                     CornerRadius="12">
-                    <Image
-                        Source="{x:Bind ViewModel.ThumbnailUrl, Mode=OneWay, Converter={StaticResource UriToImageSource}}"
-                        Stretch="Uniform" />
+                    <Grid x:Name="VideoHost">
+                        <Image
+                            Source="{x:Bind ViewModel.ThumbnailUrl, Mode=OneWay, Converter={StaticResource UriToImageSource}}"
+                            Stretch="Uniform" />
+                        <!-- The watch WebView2 element is inserted here at runtime (above the poster). -->
+                    </Grid>
                 </Border>
 
                 <TextBlock

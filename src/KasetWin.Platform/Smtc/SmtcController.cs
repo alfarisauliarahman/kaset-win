@@ -207,6 +207,7 @@ public sealed class SmtcController : INowPlayingController
     private void UpdateDisplay()
     {
         Song? track = _player.CurrentTrack;
+        NowPlayingDisplay? display = NowPlayingMapper.MapDisplay(track);
 
         lock (_gate)
         {
@@ -217,7 +218,7 @@ public sealed class SmtcController : INowPlayingController
 
             try
             {
-                if (track is null)
+                if (display is null)
                 {
                     _displayUpdater.ClearAll();
                     _displayUpdater.Type = MediaPlaybackType.Music;
@@ -227,17 +228,15 @@ public sealed class SmtcController : INowPlayingController
 
                 _displayUpdater.Type = MediaPlaybackType.Music;
                 MusicDisplayProperties music = _displayUpdater.MusicProperties;
-                music.Title = track.Title ?? string.Empty;
-                music.Artist = track.ArtistsDisplay;
-                if (track.Album is { Title.Length: > 0 } album)
+                music.Title = display.Title;
+                music.Artist = display.Artist;
+                if (display.AlbumTitle is { Length: > 0 } albumTitle)
                 {
-                    music.AlbumTitle = album.Title;
+                    music.AlbumTitle = albumTitle;
                 }
 
-                // Prefer the track thumbnail; fall back to the deterministic videoId thumbnail so
-                // the surface always has artwork. RandomAccessStreamReference fetches the http(s) URI.
-                Uri artwork = track.ThumbnailUrl ?? track.FallbackThumbnailUrl;
-                _displayUpdater.Thumbnail = RandomAccessStreamReference.CreateFromUri(artwork);
+                // RandomAccessStreamReference fetches the http(s) artwork URI projected in Core.
+                _displayUpdater.Thumbnail = RandomAccessStreamReference.CreateFromUri(display.ArtworkUri);
 
                 _displayUpdater.Update();
             }
@@ -251,8 +250,8 @@ public sealed class SmtcController : INowPlayingController
     /// <summary>Mirrors the player's playing/paused/stopped state onto the SMTC (Req 10.3).</summary>
     private void UpdatePlaybackStatus()
     {
-        bool hasTrack = _player.CurrentTrack is not null;
-        bool isPlaying = _player.IsPlaying;
+        MediaPlaybackStatus status = ToMediaPlaybackStatus(
+            NowPlayingMapper.MapStatus(_player.CurrentTrack, _player.IsPlaying));
 
         lock (_gate)
         {
@@ -263,11 +262,7 @@ public sealed class SmtcController : INowPlayingController
 
             try
             {
-                _smtc.PlaybackStatus = !hasTrack
-                    ? MediaPlaybackStatus.Closed
-                    : isPlaying
-                        ? MediaPlaybackStatus.Playing
-                        : MediaPlaybackStatus.Paused;
+                _smtc.PlaybackStatus = status;
             }
             catch (Exception ex)
             {
@@ -275,6 +270,13 @@ public sealed class SmtcController : INowPlayingController
             }
         }
     }
+
+    private static MediaPlaybackStatus ToMediaPlaybackStatus(NowPlayingStatus status) => status switch
+    {
+        NowPlayingStatus.Playing => MediaPlaybackStatus.Playing,
+        NowPlayingStatus.Paused => MediaPlaybackStatus.Paused,
+        _ => MediaPlaybackStatus.Closed,
+    };
 
     // SMTC raises this on a thread-pool thread; forward to the player and observe failures.
     private void OnButtonPressed(SystemMediaTransportControls sender, SystemMediaTransportControlsButtonPressedEventArgs args)

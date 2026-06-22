@@ -16,4 +16,9 @@
     <ProjectReference Include="..\KasetWin.Core\KasetWin.Core.csproj" />
   </ItemGroup>
 
+  <!-- Expose the internal CLI command router to the headless test project (task 16.2). -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="KasetWin.Core.Tests" />
+  </ItemGroup>
+
 </Project>

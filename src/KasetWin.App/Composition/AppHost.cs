@@ -169,11 +169,25 @@ internal static class AppHost
             sp.GetService<ILogger<YouTubeClient>>()));
 
         // ── Core: YouTube video player + PlaybackArbiter (task 25.2/25.3, Req 32.2/32.3) ─
-        // The video player tracks the playing video and drives a separate watch WebView via the
-        // IYouTubeWatchController seam (a no-op foundation controller until the watch WebView host
-        // is attached). The arbiter guarantees a single active audio source: starting the video
-        // pauses music and vice-versa (Req 32.3). Resolved at startup so it begins arbitrating.
-        services.AddSingleton<YouTubePlayerService>(static _ => new YouTubePlayerService());
+        // The video player tracks the playing video and drives the real watch WebView via the
+        // IYouTubeWatchController seam. YouTubeWatchController (KasetWin.Platform) loads
+        // www.youtube.com/watch?v={id} in a dedicated WebView2 owned by the App-layer
+        // YouTubeWatchWebViewHost (mounted on the watch page); it replaces NullYouTubeWatchController.
+        // The watch controller's PlaybackStateObserved event is wired into the player so in-page
+        // play/pause is reflected into the arbitrated audio source. The arbiter guarantees a single
+        // active audio source: starting the video pauses music and vice-versa (Req 32.3). Resolving
+        // it at startup begins arbitration; pausing the YouTube source really pauses the WebView2.
+        services.AddSingleton<YouTubeWatchController>(static sp => new YouTubeWatchController(
+            sp.GetService<ILogger<YouTubeWatchController>>()));
+        services.AddSingleton<IYouTubeWatchController>(static sp => sp.GetRequiredService<YouTubeWatchController>());
+        services.AddSingleton<YouTubePlayerService>(static sp =>
+        {
+            var controller = sp.GetRequiredService<YouTubeWatchController>();
+            var player = new YouTubePlayerService(controller);
+            // Reflect observed in-page play/pause into the arbitrated source (Req 32.3).
+            controller.PlaybackStateObserved += (_, isPlaying) => player.ReportPlaying(isPlaying);
+            return player;
+        });
         services.AddSingleton(static sp => new PlaybackArbiter(
             new MusicAudioSource(sp.GetRequiredService<IPlayerService>()),
             sp.GetRequiredService<YouTubePlayerService>(),

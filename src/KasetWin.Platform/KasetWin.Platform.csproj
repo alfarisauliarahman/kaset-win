@@ -40,6 +40,13 @@
     <EmbeddedResource Include="Playback\Scripts\audioQuality.js">
       <LogicalName>KasetWin.Platform.Playback.Scripts.audioQuality.js</LogicalName>
     </EmbeddedResource>
+    <!--
+      Regular-YouTube (video) watch-page observer + video-surface extraction injected into
+      www.youtube.com/watch pages by YouTubeWatchController (task 25.1 real surface, Req 32.2).
+    -->
+    <EmbeddedResource Include="Playback\Scripts\youtubeWatch.js">
+      <LogicalName>KasetWin.Platform.Playback.Scripts.youtubeWatch.js</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>

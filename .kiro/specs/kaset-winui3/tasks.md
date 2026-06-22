@@ -200,7 +200,7 @@ Fase:
     - **Property 19: Pemetaan kualitas audio bersifat total**
     - **Validates: Requirements 7.1, 7.3**
     - _Properties: 19_
-  - [ ]* 8.5 Smoke test singleton/lifecycle WebView2 + deteksi DRM
+  - [x]* 8.5 Smoke test singleton/lifecycle WebView2 + deteksi DRM
     - Verifikasi satu instance dibuat & pesan DRM tak tersedia (integration/smoke)
     - _Requirements: 1.1, 1.3, 1.5, 1.7_
 
@@ -218,7 +218,7 @@ Fase:
     - **Property 5: Auth state machine selalu valid dan mengikuti transisi**
     - **Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5, 4.6**
     - _Properties: 5_
-  - [ ]* 9.5 Unit test cookie source & credential store (fakes)
+  - [x]* 9.5 Unit test cookie source & credential store (fakes)
     - Verifikasi ekstraksi cookie & round-trip kredensial dengan implementasi in-memory
     - _Requirements: 22.1_
 
@@ -288,7 +288,7 @@ Fase:
   - [x] 12.1 Implementasikan SmtcController (Platform)
     - Update SMTC (judul/artis/artwork + status); teruskan tombol media play/pause/next/prev ke PlayerService
     - _Requirements: 10.1, 10.2, 10.3_
-  - [ ]* 12.2 Smoke test pembaruan SMTC
+  - [x]* 12.2 Smoke test pembaruan SMTC
     - Verifikasi update metadata & status (integration/smoke)
     - _Requirements: 10.1, 10.3_
 
@@ -367,7 +367,7 @@ Fase:
   - [x] 16.1 Implementasikan Program.cs (auth/list/browse)
     - Perintah `auth` (status), `list` (endpoint dikenal), `browse <id> [-v] [--brand]`; reuse `YTMusicClient` + parser dari Core
     - _Requirements: 24.1, 24.2, 24.3_
-  - [ ]* 16.2 Smoke test perintah CLI
+  - [x]* 16.2 Smoke test perintah CLI
     - Verifikasi `auth`/`list` berjalan (integration/smoke)
     - _Requirements: 24.2_
 
@@ -464,7 +464,7 @@ Fase:
     - Toast ganti track (judul/artis); indikasi konektivitas tidak tersedia saat offline
     - _Requirements: 35.1, 35.2, 35.3_
 
-- [ ] 29. Checkpoint fase lanjutan — pastikan semua test lulus
+- [x] 29. Checkpoint fase lanjutan — pastikan semua test lulus
   - Pastikan seluruh test lulus, tanyakan ke user bila ada pertanyaan.
 
 ## Notes

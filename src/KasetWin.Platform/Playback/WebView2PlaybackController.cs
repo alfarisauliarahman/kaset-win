@@ -6,6 +6,7 @@ using KasetWin.Core.Abstractions;
 using KasetWin.Core.Diagnostics;
 using KasetWin.Core.Errors;
 using KasetWin.Core.Models;
+using KasetWin.Core.Services.Player;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Web.WebView2.Core;
@@ -345,7 +346,8 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
 
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
-        // Page content is UNTRUSTED. Parse defensively and validate the message shape before use.
+        // Page content is UNTRUSTED. Read the raw payload here, then delegate shape validation to
+        // the pure, headless-testable Core parser (Req 2 / Req 1.7).
         string json;
         try
         {
@@ -356,114 +358,32 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
             return;
         }
 
-        PlaybackStateMessage? state = null;
-        TrackEndedMessage? ended = null;
-        bool? drmAvailable = null;
+        var message = PlaybackMessageParser.Parse(json);
 
-        try
+        switch (message.Kind)
         {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                return;
-            }
+            case PlaybackMessageKind.DrmStatus when message.DrmAvailable is { } available:
+                if (_isDrmAvailable != available)
+                {
+                    _isDrmAvailable = available;
+                    _logger.LogInformation("Widevine DRM availability reported as {Available}.", available);
+                }
 
-            if (!doc.RootElement.TryGetProperty("type", out var typeProp) ||
-                typeProp.ValueKind != JsonValueKind.String)
-            {
-                return;
-            }
+                break;
 
-            switch (typeProp.GetString())
-            {
-                case "STATE_UPDATE":
-                    state = ParseStateUpdate(doc.RootElement);
-                    break;
-                case "TRACK_ENDED":
-                    {
-                        var videoId = ReadString(doc.RootElement, "videoId");
-                        if (!string.IsNullOrEmpty(videoId))
-                        {
-                            ended = new TrackEndedMessage(videoId);
-                        }
+            // Raise events for the strongly-typed messages. Handler exceptions are intentionally not
+            // caught here so they are not mistaken for parse errors.
+            case PlaybackMessageKind.StateUpdate when message.State is not null:
+                StateUpdated?.Invoke(this, message.State);
+                break;
 
-                        break;
-                    }
+            case PlaybackMessageKind.TrackEnded when message.TrackEndedMessage is not null:
+                TrackEnded?.Invoke(this, message.TrackEndedMessage);
+                break;
 
-                case "DRM_STATUS":
-                    drmAvailable = ReadBool(doc.RootElement, "available");
-                    break;
-                default:
-                    return; // unknown type — ignore
-            }
+            default:
+                break; // Ignored / malformed — nothing to do.
         }
-        catch (JsonException)
-        {
-            // Malformed payload from the page — ignore.
-            return;
-        }
-
-        if (drmAvailable is { } available)
-        {
-            if (_isDrmAvailable != available)
-            {
-                _isDrmAvailable = available;
-                _logger.LogInformation("Widevine DRM availability reported as {Available}.", available);
-            }
-        }
-
-        // Raise events outside the parse/try so handler exceptions are not mistaken for parse errors.
-        if (state is not null)
-        {
-            StateUpdated?.Invoke(this, state);
-        }
-
-        if (ended is not null)
-        {
-            TrackEnded?.Invoke(this, ended);
-        }
-    }
-
-    private static PlaybackStateMessage ParseStateUpdate(JsonElement root) => new(
-        IsPlaying: ReadBool(root, "isPlaying") ?? false,
-        Progress: ReadDouble(root, "progress"),
-        Duration: ReadDouble(root, "duration"),
-        VideoId: ReadString(root, "videoId") ?? string.Empty,
-        Title: ReadString(root, "title") ?? string.Empty,
-        Artist: ReadString(root, "artist") ?? string.Empty,
-        TrackChanged: ReadBool(root, "trackChanged") ?? false,
-        HasVideo: ReadBool(root, "hasVideo"),
-        VideoType: null);
-
-    private static string? ReadString(JsonElement obj, string name) =>
-        obj.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
-
-    private static bool? ReadBool(JsonElement obj, string name)
-    {
-        if (!obj.TryGetProperty(name, out var p))
-        {
-            return null;
-        }
-
-        return p.ValueKind switch
-        {
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            _ => null,
-        };
-    }
-
-    private static double ReadDouble(JsonElement obj, string name)
-    {
-        if (obj.TryGetProperty(name, out var p) &&
-            p.ValueKind == JsonValueKind.Number &&
-            p.TryGetDouble(out var value) &&
-            double.IsFinite(value))
-        {
-            return value < 0 ? 0 : value;
-        }
-
-        return 0;
     }
 
     private CoreWebView2 RequireCore()
