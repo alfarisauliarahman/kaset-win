@@ -124,10 +124,17 @@ public static class PlaybackMessageParser
         Artist: ReadString(root, "artist") ?? string.Empty,
         TrackChanged: ReadBool(root, "trackChanged") ?? false,
         HasVideo: ReadBool(root, "hasVideo"),
-        VideoType: null);
+        VideoType: null,
+        ThumbnailUrl: ReadUri(root, "thumbnailUrl"));
 
     private static string? ReadString(JsonElement obj, string name) =>
         obj.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+
+    private static Uri? ReadUri(JsonElement obj, string name)
+    {
+        var value = ReadString(obj, name);
+        return Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : null;
+    }
 
     private static bool? ReadBool(JsonElement obj, string name)
     {

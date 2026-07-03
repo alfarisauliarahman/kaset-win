@@ -1,4 +1,4 @@
-using KasetWin.App.ViewModels;
+﻿using KasetWin.App.ViewModels;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services;
 using KasetWin.Core.Services.Api;
@@ -11,7 +11,7 @@ using Microsoft.UI.Xaml.Controls;
 namespace KasetWin.App.Views;
 
 /// <summary>
-/// Podcasts discovery surface (Task 20.1, Req 27.1–27.4). Renders the <c>FEmusic_podcasts</c>
+/// Podcasts discovery surface (Task 20.1, Req 27.1â€“27.4). Renders the <c>FEmusic_podcasts</c>
 /// shelves of shows and episodes; selecting an episode plays it and persists its progress, and the
 /// card context menu subscribes / unsubscribes from a show.
 /// </summary>
@@ -55,6 +55,7 @@ public sealed partial class PodcastsPage : Page
         switch (card.Model)
         {
             case PodcastSectionItem.EpisodeItem episode:
+                // THROWAWAY DIAGNOSTIC (Bug A): confirm a podcast episode click reaches the player.
                 await ViewModel.PlayEpisodeAsync(episode.Episode);
                 break;
 
@@ -92,7 +93,7 @@ public sealed partial class PodcastsPage : Page
             return;
         }
 
-        if (Type.GetType(PodcastShowPageTypeName) is { } pageType)
+        if (Navigation.NavigationHelper.ResolvePageType(PodcastShowPageTypeName) is { } pageType)
         {
             this.Frame.Navigate(pageType, showId);
         }

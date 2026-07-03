@@ -1,4 +1,4 @@
-using KasetWin.Core.Abstractions;
+﻿using KasetWin.Core.Abstractions;
 using KasetWin.Platform.Playback;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -17,20 +17,20 @@ namespace KasetWin.App.Hosting;
 /// <para>
 /// Creating a <see cref="Microsoft.Web.WebView2.Core.CoreWebView2"/> requires the element to be
 /// live in a window's visual tree, so the host exposes <see cref="Element"/> for the shell
-/// (<c>MainWindow</c>, Task 14.1) to mount into its root grid. The element starts as a 1×1,
-/// hit-test-invisible surface (Hidden mode); it is resized to 160×90 for the mini player and
+/// (<c>MainWindow</c>, Task 14.1) to mount into its root grid. The element starts as a 1Ã—1,
+/// hit-test-invisible surface (Hidden mode); it is resized to 160Ã—90 for the mini player and
 /// stretched for full Video mode via <see cref="WebView2PlaybackController.DisplayModeChanged"/>
 /// (Req 26 seam).
 /// </para>
 /// <para>
-/// The host never disposes the <see cref="WebView2"/> when pages change — only an explicit
+/// The host never disposes the <see cref="WebView2"/> when pages change â€” only an explicit
 /// app shutdown (<see cref="DisposeAsync"/> / <c>IPlaybackController.ReleaseAsync</c>) tears it
 /// down. This is what keeps background audio alive (Req 1.4).
 /// </para>
 /// </remarks>
 public sealed class PlaybackWebViewHost : IAsyncDisposable
 {
-    /// <summary>Edge length of the 1×1 hidden audio surface (Req 1.1).</summary>
+    /// <summary>Edge length of the 1Ã—1 hidden audio surface (Req 1.1).</summary>
     private const double HiddenEdge = 1;
 
     /// <summary>Mini-player surface width (Req 26 seam).</summary>
@@ -40,6 +40,8 @@ public sealed class PlaybackWebViewHost : IAsyncDisposable
     private const double MiniPlayerHeight = 90;
 
     private readonly WebView2PlaybackController _controller;
+    private readonly WebViewEnvironmentProvider _environmentProvider;
+    private readonly ExtensionsService _extensions;
     private readonly ILogger<PlaybackWebViewHost> _logger;
     private readonly WebView2 _webView;
     private readonly SemaphoreSlim _initGate = new(1, 1);
@@ -59,12 +61,16 @@ public sealed class PlaybackWebViewHost : IAsyncDisposable
     /// <param name="logger">Optional logger; defaults to a no-op logger.</param>
     public PlaybackWebViewHost(
         WebView2PlaybackController controller,
+        WebViewEnvironmentProvider environmentProvider,
+        ExtensionsService extensions,
         ILogger<PlaybackWebViewHost>? logger = null)
     {
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _environmentProvider = environmentProvider ?? throw new ArgumentNullException(nameof(environmentProvider));
+        _extensions = extensions ?? throw new ArgumentNullException(nameof(extensions));
         _logger = logger ?? NullLogger<PlaybackWebViewHost>.Instance;
 
-        // The owned element. Top-left aligned with a fixed 1×1 size so it occupies no visible
+        // The owned element. Top-left aligned with a fixed 1Ã—1 size so it occupies no visible
         // space in Hidden mode but stays live in the visual tree (CoreWebView2 keeps rendering).
         _webView = new WebView2
         {
@@ -109,9 +115,16 @@ public sealed class PlaybackWebViewHost : IAsyncDisposable
                 return;
             }
 
-            // Creating the core requires the element to be live in a window's visual tree.
-            await _webView.EnsureCoreWebView2Async();
+            // Creating the core requires the element to be live in a window's visual tree. Use the
+            // shared environment (extensions enabled + shared session profile) so user extensions
+            // like uBlock apply and the session cookie is shared with the login/watch WebViews.
+            var environment = await _environmentProvider.GetAsync().ConfigureAwait(true);
+            await _webView.EnsureCoreWebView2Async(environment);
             await _controller.AttachAsync(_webView.CoreWebView2).ConfigureAwait(true);
+
+            // Load user-installed browser extensions (uBlock, etc.) onto the shared profile (ADR 0014
+            // equivalent). Best-effort so a missing/unsupported extension never blocks playback.
+            await _extensions.LoadIntoAsync(_webView.CoreWebView2.Profile).ConfigureAwait(true);
 
             _initialized = true;
             _logger.LogInformation("Playback WebView2 host initialized and attached to controller.");
@@ -120,6 +133,35 @@ public sealed class PlaybackWebViewHost : IAsyncDisposable
         {
             _initGate.Release();
         }
+    }
+
+    /// <summary>
+    /// Signs the user out by clearing all cookies from the shared browser profile (the login,
+    /// playback and watch WebViews all read this profile) and pausing playback. The auth state
+    /// machine re-evaluates to signed-out on the next cookie check. A no-op when the core is not
+    /// created yet.
+    /// </summary>
+    public async Task SignOutAsync()
+    {
+        var core = _webView.CoreWebView2;
+        if (core is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _controller.PauseAsync().ConfigureAwait(true);
+        }
+        catch
+        {
+            // Pausing is best-effort; sign-out must still clear the session below.
+        }
+
+        core.CookieManager.DeleteAllCookies();
+
+        // Reload the playback surface so it drops the now-unauthenticated page state.
+        core.Navigate("about:blank");
     }
 
     private void OnDisplayModeChanged(object? sender, PlaybackDisplayMode mode)
@@ -153,7 +195,7 @@ public sealed class PlaybackWebViewHost : IAsyncDisposable
                 break;
 
             case PlaybackDisplayMode.Video:
-                // Full surface — stretch to fill the host slot (Req 26, phased UI).
+                // Full surface â€” stretch to fill the host slot (Req 26, phased UI).
                 _webView.HorizontalAlignment = HorizontalAlignment.Stretch;
                 _webView.VerticalAlignment = VerticalAlignment.Stretch;
                 _webView.Width = double.NaN;
@@ -163,7 +205,7 @@ public sealed class PlaybackWebViewHost : IAsyncDisposable
 
             case PlaybackDisplayMode.Hidden:
             default:
-                // 1×1 audio-only surface; stays live so background audio continues (Req 1.1/1.4).
+                // 1Ã—1 audio-only surface; stays live so background audio continues (Req 1.1/1.4).
                 _webView.HorizontalAlignment = HorizontalAlignment.Left;
                 _webView.VerticalAlignment = VerticalAlignment.Top;
                 _webView.Width = HiddenEdge;
@@ -175,7 +217,7 @@ public sealed class PlaybackWebViewHost : IAsyncDisposable
 
     /// <summary>
     /// Releases the controller (stops audio) and closes the owned element. Called only on explicit
-    /// app shutdown — never on page navigation (Req 1.4/1.5).
+    /// app shutdown â€” never on page navigation (Req 1.4/1.5).
     /// </summary>
     public async ValueTask DisposeAsync()
     {

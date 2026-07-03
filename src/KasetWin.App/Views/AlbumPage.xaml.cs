@@ -1,4 +1,4 @@
-using KasetWin.App.ViewModels;
+﻿using KasetWin.App.ViewModels;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Api;
 using KasetWin.Core.Services.Player;
@@ -49,6 +49,7 @@ public sealed partial class AlbumPage : Page
     {
         if (e.ClickedItem is Song song)
         {
+            // THROWAWAY DIAGNOSTIC (Bug A): confirm an album track-row click reaches the player.
             ViewModel.PlayTrackCommand.Execute(song);
         }
     }

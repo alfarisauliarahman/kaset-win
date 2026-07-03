@@ -27,10 +27,23 @@
             Padding="24,24,24,12"
             Spacing="4">
             <StackPanel Orientation="Horizontal" Spacing="12">
+                <HyperlinkButton
+                    Click="OnTitleClick"
+                    Style="{StaticResource InlineLinkButtonStyle}"
+                    ToolTipService.ToolTip="Go to album"
+                    Visibility="{x:Bind ViewModel.HasAlbumLink, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock
+                        Foreground="{ThemeResource HyperlinkButtonForeground}"
+                        MaxLines="1"
+                        Text="{x:Bind ViewModel.TrackTitle, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis"
+                        Style="{StaticResource TitleTextBlockStyle}" />
+                </HyperlinkButton>
                 <TextBlock
                     MaxLines="1"
                     Text="{x:Bind ViewModel.TrackTitle, Mode=OneWay}"
                     TextTrimming="CharacterEllipsis"
+                    Visibility="{x:Bind ViewModel.TitleIsPlain, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
                     Style="{StaticResource TitleTextBlockStyle}" />
                 <Border
                     VerticalAlignment="Center"
@@ -46,11 +59,24 @@
                 </Border>
             </StackPanel>
 
+            <HyperlinkButton
+                Click="OnArtistClick"
+                Style="{StaticResource InlineLinkButtonStyle}"
+                ToolTipService.ToolTip="Go to artist"
+                Visibility="{x:Bind ViewModel.HasArtistLink, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock
+                    Foreground="{ThemeResource HyperlinkButtonForeground}"
+                    MaxLines="1"
+                    Text="{x:Bind ViewModel.TrackArtist, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis"
+                    Style="{StaticResource BodyStrongTextBlockStyle}" />
+            </HyperlinkButton>
             <TextBlock
                 MaxLines="1"
                 Opacity="0.8"
                 Text="{x:Bind ViewModel.TrackArtist, Mode=OneWay}"
                 TextTrimming="CharacterEllipsis"
+                Visibility="{x:Bind ViewModel.ArtistIsPlain, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
                 Style="{StaticResource BodyStrongTextBlockStyle}" />
 
             <StackPanel

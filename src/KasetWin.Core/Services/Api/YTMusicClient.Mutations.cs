@@ -384,16 +384,85 @@ public sealed partial class YTMusicClient
             var brandId = ExtractBrandId(account);
             var isCurrent = account.TryGetPropertyValue("isSelected", out var selected)
                 && selected is JsonValue sv && sv.TryGetValue<bool>(out var b) && b;
+            var avatarUrl = ExtractAccountPhoto(account);
 
             accounts.Add(new UserAccount(
                 Name: name,
                 Handle: handle,
                 BrandId: brandId,
                 IsPrimary: brandId is null,
-                IsCurrent: isCurrent));
+                IsCurrent: isCurrent,
+                AvatarUrl: avatarUrl));
         }
 
         return accounts;
+    }
+
+    /// <summary>
+    /// Fetches the active account's display info (name + avatar + handle) from
+    /// <c>account/account_menu</c>. Unlike <see cref="GetAccountsListAsync"/> (which lists brand
+    /// accounts for switching) this returns the header of the currently-signed-in account, so it is
+    /// the reliable source for the sidebar identity. Returns <see langword="null"/> when signed out
+    /// or the response lacks an account header.
+    /// </summary>
+    public async Task<UserAccount?> GetAccountInfoAsync(CancellationToken ct = default)
+    {
+        var node = await RequestAsync("account/account_menu", new JsonObject(), ttl: null, ct)
+            .ConfigureAwait(false);
+        return ParseAccountInfo(node);
+    }
+
+    /// <summary>
+    /// Parses the <c>activeAccountHeaderRenderer</c> (account name, photo, handle) from an
+    /// <c>account/account_menu</c> response. Returns <see langword="null"/> on any unexpected shape.
+    /// </summary>
+    private static UserAccount? ParseAccountInfo(JsonNode? root)
+    {
+        if (root is null || ResponseTreeSearch.FindFirst(root, "activeAccountHeaderRenderer") is not JsonObject header)
+        {
+            return null;
+        }
+
+        var name = FirstRunText(header, "accountName");
+        if (string.IsNullOrEmpty(name))
+        {
+            return null;
+        }
+
+        return new UserAccount(
+            Name: name,
+            Handle: FirstRunText(header, "channelHandle"),
+            BrandId: null,
+            IsPrimary: true,
+            IsCurrent: true,
+            AvatarUrl: ExtractAccountPhoto(header));
+    }
+
+    /// <summary>
+    /// Extracts the account profile photo from <c>accountPhoto.thumbnails</c>, preferring the last
+    /// (largest) thumbnail. Returns <see langword="null"/> when absent or malformed. Mirrors the
+    /// macOS <c>AccountsListParser</c>.
+    /// </summary>
+    private static Uri? ExtractAccountPhoto(JsonObject account)
+    {
+        if ((account["accountPhoto"] as JsonObject)?["thumbnails"] is not JsonArray thumbnails
+            || thumbnails.Count == 0)
+        {
+            return null;
+        }
+
+        for (var i = thumbnails.Count - 1; i >= 0; i--)
+        {
+            if ((thumbnails[i] as JsonObject)?["url"] is JsonValue urlValue
+                && urlValue.TryGetValue<string>(out var url)
+                && !string.IsNullOrWhiteSpace(url)
+                && Uri.TryCreate(ParsingHelpers.NormalizeUrl(url), UriKind.Absolute, out var uri))
+            {
+                return uri;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Extracts a brand account id from <c>serviceEndpoint…supportedTokens[].pageIdToken.pageId</c>.</summary>

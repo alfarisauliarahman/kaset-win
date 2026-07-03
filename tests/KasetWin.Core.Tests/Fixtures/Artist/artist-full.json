@@ -1,0 +1,243 @@
+{
+  "_comment": "SANITIZED rich UC{channelId} artist detail fixture. Immersive header (banner thumbnail, description, subscriber + monthly listeners, start-radio), Top songs shelf with See-all bottomEndpoint, Albums/Singles/Videos/Featured/Related carousels. No real PII/tokens.",
+  "responseContext": { "visitorData": "REDACTED", "trackingParams": "REDACTED" },
+  "header": {
+    "musicImmersiveHeaderRenderer": {
+      "title": { "runs": [ { "text": "Sample Artist Full" } ] },
+      "description": {
+        "runs": [
+          { "text": "Sample Artist Full is a sanitized placeholder artist used to exercise the artist page parser. This description is intentionally longer than the collapse threshold so the Show more/Show less expander is exercised by the view model." }
+        ]
+      },
+      "thumbnail": {
+        "musicThumbnailRenderer": {
+          "thumbnail": {
+            "thumbnails": [
+              { "url": "https://example.test/banner-small.jpg", "width": 320, "height": 180 },
+              { "url": "https://example.test/banner-large.jpg", "width": 1920, "height": 1080 }
+            ]
+          }
+        }
+      },
+      "subscriptionButton": {
+        "subscribeButtonRenderer": {
+          "channelId": "UCfullartist0000000000",
+          "subscribed": true,
+          "shortSubscriberCountText": { "runs": [ { "text": "1.2M subscribers" } ] },
+          "subscriberCountText": { "runs": [ { "text": "1,234,567 subscribers" } ] }
+        }
+      },
+      "monthlyListenerCount": { "runs": [ { "text": "93.2M monthly listeners" } ] },
+      "startRadioButton": {
+        "buttonRenderer": {
+          "navigationEndpoint": {
+            "watchPlaylistEndpoint": { "playlistId": "RDEMsampleradio00000" }
+          }
+        }
+      }
+    }
+  },
+  "contents": {
+    "singleColumnBrowseResultsRenderer": {
+      "tabs": [
+        {
+          "tabRenderer": {
+            "content": {
+              "sectionListRenderer": {
+                "contents": [
+                  {
+                    "musicShelfRenderer": {
+                      "title": { "runs": [ { "text": "Songs" } ] },
+                      "bottomEndpoint": {
+                        "browseEndpoint": { "browseId": "VLsongsfullartist0001" }
+                      },
+                      "contents": [
+                        {
+                          "musicResponsiveListItemRenderer": {
+                            "flexColumns": [
+                              {
+                                "musicResponsiveListItemFlexColumnRenderer": {
+                                  "text": {
+                                    "runs": [
+                                      {
+                                        "text": "Top Song One",
+                                        "navigationEndpoint": { "watchEndpoint": { "videoId": "vidsong0000001" } }
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "musicResponsiveListItemFlexColumnRenderer": {
+                                  "text": { "runs": [ { "text": "Sample Artist Full" } ] }
+                                }
+                              }
+                            ],
+                            "playlistItemData": { "videoId": "vidsong0000001" }
+                          }
+                        },
+                        {
+                          "musicResponsiveListItemRenderer": {
+                            "flexColumns": [
+                              {
+                                "musicResponsiveListItemFlexColumnRenderer": {
+                                  "text": {
+                                    "runs": [
+                                      {
+                                        "text": "Top Song Two",
+                                        "navigationEndpoint": { "watchEndpoint": { "videoId": "vidsong0000002" } }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ],
+                            "playlistItemData": { "videoId": "vidsong0000002" }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "musicCarouselShelfRenderer": {
+                      "header": {
+                        "musicCarouselShelfBasicHeaderRenderer": {
+                          "title": { "runs": [ { "text": "Albums" } ] },
+                          "moreContentButton": {
+                            "buttonRenderer": {
+                              "navigationEndpoint": {
+                                "browseEndpoint": { "browseId": "UCfullartist0000000000", "params": "albumsparams" }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "contents": [
+                        {
+                          "musicTwoRowItemRenderer": {
+                            "title": {
+                              "runs": [
+                                {
+                                  "text": "Sample Album One",
+                                  "navigationEndpoint": { "browseEndpoint": { "browseId": "MPREb_fullalbum00001" } }
+                                }
+                              ]
+                            },
+                            "subtitle": { "runs": [ { "text": "Album • 2024" } ] }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "musicCarouselShelfRenderer": {
+                      "header": {
+                        "musicCarouselShelfBasicHeaderRenderer": {
+                          "title": { "runs": [ { "text": "Singles & EPs" } ] },
+                          "moreContentButton": {
+                            "buttonRenderer": {
+                              "navigationEndpoint": {
+                                "browseEndpoint": { "browseId": "MPADsinglesfull00001" }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "contents": [
+                        {
+                          "musicTwoRowItemRenderer": {
+                            "title": {
+                              "runs": [
+                                {
+                                  "text": "Sample Single One",
+                                  "navigationEndpoint": { "browseEndpoint": { "browseId": "OLAK5uy_single000001" } }
+                                }
+                              ]
+                            },
+                            "subtitle": { "runs": [ { "text": "Single • 2023" } ] }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "musicCarouselShelfRenderer": {
+                      "header": {
+                        "musicCarouselShelfBasicHeaderRenderer": {
+                          "title": { "runs": [ { "text": "Videos" } ] }
+                        }
+                      },
+                      "contents": [
+                        {
+                          "musicTwoRowItemRenderer": {
+                            "title": {
+                              "runs": [
+                                {
+                                  "text": "Sample Music Video",
+                                  "navigationEndpoint": { "watchEndpoint": { "videoId": "vidclip0000001" } }
+                                }
+                              ]
+                            },
+                            "subtitle": { "runs": [ { "text": "12M views" } ] }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "musicCarouselShelfRenderer": {
+                      "header": {
+                        "musicCarouselShelfBasicHeaderRenderer": {
+                          "title": { "runs": [ { "text": "Featured on" } ] }
+                        }
+                      },
+                      "contents": [
+                        {
+                          "musicTwoRowItemRenderer": {
+                            "title": {
+                              "runs": [
+                                {
+                                  "text": "Sample Featured Playlist",
+                                  "navigationEndpoint": { "browseEndpoint": { "browseId": "VLPLfeatured0000001" } }
+                                }
+                              ]
+                            },
+                            "subtitle": { "runs": [ { "text": "Playlist" } ] }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "musicCarouselShelfRenderer": {
+                      "header": {
+                        "musicCarouselShelfBasicHeaderRenderer": {
+                          "title": { "runs": [ { "text": "Fans might also like" } ] }
+                        }
+                      },
+                      "contents": [
+                        {
+                          "musicTwoRowItemRenderer": {
+                            "title": {
+                              "runs": [
+                                {
+                                  "text": "Related Artist One",
+                                  "navigationEndpoint": { "browseEndpoint": { "browseId": "UCrelatedartist000001" } }
+                                }
+                              ]
+                            },
+                            "subtitle": { "runs": [ { "text": "Artist" } ] }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

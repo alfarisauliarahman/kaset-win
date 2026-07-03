@@ -1,4 +1,4 @@
-using KasetWin.App.ViewModels;
+﻿using KasetWin.App.ViewModels;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Api;
 using KasetWin.Core.Services.Player;
@@ -11,8 +11,8 @@ namespace KasetWin.App.Views;
 
 /// <summary>
 /// Playlist detail page (Task 14.6, Req 14.1/14.3/14.4). Shows the playlist header and its track
-/// list, plays the collection into the queue, pages in additional tracks, and — for a playlist owned
-/// by the user — offers a delete affordance that navigates back once the playlist is removed.
+/// list, plays the collection into the queue, pages in additional tracks, and â€” for a playlist owned
+/// by the user â€” offers a delete affordance that navigates back once the playlist is removed.
 /// </summary>
 /// <remarks>
 /// Follows the App page convention: a parameterless constructor resolves the ViewModel's
@@ -49,6 +49,7 @@ public sealed partial class PlaylistPage : Page
     {
         if (e.ClickedItem is Song song)
         {
+            // THROWAWAY DIAGNOSTIC (Bug A): confirm a playlist track-row click reaches the player.
             ViewModel.PlayTrackCommand.Execute(song);
         }
     }

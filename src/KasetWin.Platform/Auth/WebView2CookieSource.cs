@@ -1,4 +1,4 @@
-using KasetWin.Core.Abstractions;
+﻿using KasetWin.Core.Abstractions;
 using KasetWin.Core.Services.Api;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -54,6 +54,7 @@ public sealed class WebView2CookieSource : ICookieSource
         ArgumentException.ThrowIfNullOrWhiteSpace(origin);
         ct.ThrowIfCancellationRequested();
 
+        // [TRACE] throwaway diagnostic â€” remove before shipping (Bug A/B shared cookie path).
         var core = _coreWebViewProvider();
         if (core is null)
         {
@@ -74,7 +75,7 @@ public sealed class WebView2CookieSource : ICookieSource
         var pairs = new List<CookiePair>(cookies.Count);
         foreach (var cookie in cookies)
         {
-            // Map WinRT cookie → neutral Core type. Value is a secret: never logged.
+            // Map WinRT cookie â†’ neutral Core type. Value is a secret: never logged.
             pairs.Add(new CookiePair(cookie.Name, cookie.Value));
         }
 

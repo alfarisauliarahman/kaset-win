@@ -79,6 +79,36 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string? _trackArtist;
 
+    /// <summary>
+    /// Album browseId of the current track (for the clickable title affordance, Feature C), or
+    /// <c>null</c> when the track carries no album. Never fabricated.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAlbumLink))]
+    [NotifyPropertyChangedFor(nameof(TitleIsPlain))]
+    private string? _albumBrowseId;
+
+    /// <summary>
+    /// Channel id of the current track's primary artist (for the clickable artist affordance), or
+    /// <c>null</c> when no artist carries a navigable id.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasArtistLink))]
+    [NotifyPropertyChangedFor(nameof(ArtistIsPlain))]
+    private string? _artistChannelId;
+
+    /// <summary>Whether the header title should render as a clickable album link.</summary>
+    public bool HasAlbumLink => !string.IsNullOrEmpty(AlbumBrowseId);
+
+    /// <summary>Whether the header title should render as plain text.</summary>
+    public bool TitleIsPlain => !HasAlbumLink;
+
+    /// <summary>Whether the header artist should render as a clickable artist link.</summary>
+    public bool HasArtistLink => !string.IsNullOrEmpty(ArtistChannelId);
+
+    /// <summary>Whether the header artist should render as plain text.</summary>
+    public bool ArtistIsPlain => !HasArtistLink;
+
     /// <summary>The plain (unsynced) lyric text shown as a fallback (Req 17.3), or <c>null</c>.</summary>
     [ObservableProperty]
     private string? _plainText;
@@ -126,6 +156,8 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
         var track = _player.CurrentTrack;
         TrackTitle = track?.Title;
         TrackArtist = track?.ArtistsDisplay;
+        AlbumBrowseId = track?.AlbumBrowseId;
+        ArtistChannelId = track?.PrimaryArtistId;
 
         var info = BuildSearchInfo(track);
         if (info is null)

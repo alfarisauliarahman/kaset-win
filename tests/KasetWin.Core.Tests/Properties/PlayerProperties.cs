@@ -150,6 +150,94 @@ public class PlayerProperties
     // Feature: kaset-winui3, Property 8: Otoritas antrian pada akhir track
     // Validates: Requirements 2.3, 2.4, 2.5
     [Fact]
+    public async Task StateUpdate_ForQueuedAutoAdvancedTrack_AlignsQueueIndex()
+    {
+        var (player, queue, controller, _) = CreatePlayer();
+
+        await player.PlayCollectionAsync(MakeSongs(3), startIndex: 0);
+
+        player.HandleStateUpdate(
+            new PlaybackStateMessage(
+                IsPlaying: true,
+                Progress: 1,
+                Duration: 100,
+                VideoId: "q1",
+                Title: "Song 1",
+                Artist: string.Empty,
+                TrackChanged: true,
+                HasVideo: null,
+                VideoType: null));
+
+        Assert.Equal(1, queue.CurrentIndex);
+        Assert.Equal("q1", player.CurrentTrack?.VideoId);
+
+        await player.NextAsync();
+
+        Assert.Equal(2, queue.CurrentIndex);
+        Assert.Equal("q2", controller.CurrentVideoId);
+        Assert.Equal("q2", player.CurrentTrack?.VideoId);
+    }
+
+    [Fact]
+    public async Task LoadingNextTrack_ReappliesUserVolume()
+    {
+        var (player, _, controller, _) = CreatePlayer();
+
+        await player.PlayCollectionAsync(MakeSongs(2), startIndex: 0);
+        player.SetVolume(37);
+
+        await player.NextAsync();
+
+        Assert.Equal(37, player.Volume);
+        Assert.Equal(37, controller.Volume);
+    }
+
+    [Fact]
+    public async Task StateUpdate_ForAutoplayTrack_AppendsHistoryAndAllowsPrevious()
+    {
+        var (player, queue, controller, _) = CreatePlayer();
+
+        await player.PlayCollectionAsync(MakeSongs(2), startIndex: 1);
+
+        player.HandleStateUpdate(
+            new PlaybackStateMessage(
+                IsPlaying: true,
+                Progress: 1,
+                Duration: 100,
+                VideoId: "auto1",
+                Title: "Autoplay 1",
+                Artist: "Auto Artist",
+                TrackChanged: true,
+                HasVideo: null,
+                VideoType: null,
+                ThumbnailUrl: new Uri("https://example.invalid/auto.jpg")));
+
+        Assert.Equal(2, queue.CurrentIndex);
+        Assert.Equal(3, queue.Tracks.Count);
+        Assert.Equal("auto1", player.CurrentTrack?.VideoId);
+        Assert.Equal(new Uri("https://example.invalid/auto.jpg"), player.CurrentTrack?.ThumbnailUrl);
+
+        await player.PreviousAsync();
+
+        Assert.Equal(1, queue.CurrentIndex);
+        Assert.Equal("q1", controller.CurrentVideoId);
+        Assert.Equal("q1", player.CurrentTrack?.VideoId);
+    }
+
+    [Fact]
+    public async Task NextAtEnd_DelegatesToWebViewAutoplayChain()
+    {
+        var (player, queue, controller, _) = CreatePlayer();
+
+        await player.PlayCollectionAsync(MakeSongs(1), startIndex: 0);
+
+        await player.NextAsync();
+
+        Assert.Equal(0, queue.CurrentIndex);
+        Assert.Contains("web-next", controller.Operations);
+    }
+
+    [Fact]
     public void Property8_QueueAuthority_resolves_track_ended_correctly()
     {
         // For any (observed, expected, hasNext): the queue only advances when the observed id

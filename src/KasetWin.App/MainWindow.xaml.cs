@@ -1,4 +1,4 @@
-using KasetWin.App.Auth;
+﻿using KasetWin.App.Auth;
 using KasetWin.App.Hosting;
 using KasetWin.App.ViewModels;
 using KasetWin.App.Views;
@@ -15,7 +15,13 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Microsoft.UI.Xaml.Shapes;
+using Microsoft.Windows.AppNotifications;
+using Microsoft.Windows.AppNotifications.Builder;
 using System.Globalization;
+using System.Linq;
 using Windows.Foundation;
 using Windows.System;
 
@@ -23,8 +29,8 @@ namespace KasetWin.App;
 
 /// <summary>
 /// Application shell window (Task 14.1, Req 1.4/1.5/16.1). Hosts the native Windows 11 Fluent
-/// shell — Mica backdrop, a <see cref="NavigationView"/> sidebar + content <see cref="Frame"/>,
-/// and the bottom <c>PlayerBar</c> — and owns the mount point for the hidden playback WebView2.
+/// shell â€” Mica backdrop, a <see cref="NavigationView"/> sidebar + content <see cref="Frame"/>,
+/// and the bottom <c>PlayerBar</c> â€” and owns the mount point for the hidden playback WebView2.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,7 +41,7 @@ namespace KasetWin.App;
 /// (Req 1.1/1.4).
 /// </para>
 /// <para>
-/// <b>Background audio (close → hide).</b> The window intercepts <see cref="AppWindow.Closing"/>
+/// <b>Background audio (close â†’ hide).</b> The window intercepts <see cref="AppWindow.Closing"/>
 /// and, unless the user explicitly quit, cancels the close and hides the window instead. The app
 /// process and the hidden WebView2 stay alive so audio keeps playing in the background (Req 1.4).
 /// An explicit Quit path (Ctrl+Q, see <see cref="QuitAsync"/>) releases the playback controller
@@ -43,7 +49,7 @@ namespace KasetWin.App;
 /// </para>
 /// <para>
 /// <b>Navigation.</b> A dedicated NavigationService (Task 14.2) does not exist yet, so the shell
-/// navigates the content <see cref="Frame"/> directly. Concrete section pages (Tasks 14.3–14.10)
+/// navigates the content <see cref="Frame"/> directly. Concrete section pages (Tasks 14.3â€“14.10)
 /// are built in parallel; the shell resolves them by full type name at runtime and falls back to
 /// <see cref="PlaceholderPage"/> when a page is not present yet, so the build never breaks.
 /// TODO (Task 14.2): route through the shared NavigationService once it lands.
@@ -56,7 +62,7 @@ namespace KasetWin.App;
 /// </remarks>
 public sealed partial class MainWindow : Window
 {
-    /// <summary>Map of NavigationView item tag → fully-qualified page type name (Tasks 14.3–14.10).</summary>
+    /// <summary>Map of NavigationView item tag â†’ fully-qualified page type name (Tasks 14.3â€“14.10).</summary>
     private static readonly IReadOnlyDictionary<string, string> PageTypeNamesByTag = new Dictionary<string, string>
     {
         ["Home"] = "KasetWin.App.Views.HomePage",
@@ -81,6 +87,7 @@ public sealed partial class MainWindow : Window
     {
         this.InitializeComponent();
 
+
         // Mount the app-owned hidden playback WebView2 (Task 8.3). Resolving on this UI thread is
         // required because the host constructs a XAML WebView2 element. MUST be preserved. It is
         // placed in the content row (row 1) so it never affects the offline indicator's Auto row.
@@ -98,6 +105,18 @@ public sealed partial class MainWindow : Window
 
         _player = App.Current.Services.GetService<IPlayerService>();
 
+        // Bind the shared navigation service to the content frame (Task 14.2, Req 16.1) so every
+        // clickable affordance â€” including the bottom PlayerBar, which lives outside this frame â€”
+        // can navigate to artist/album/playlist detail pages via NavigationHelper without taking a
+        // direct Frame dependency.
+        App.Current.Services.GetService<Navigation.INavigationService>()?.Initialize(ContentFrame);
+
+        // Keep the NavigationView back button in sync with the content frame's back stack so detail
+        // pages (album/artist/playlist/â€¦) can be backed out of. The button sits beside the pane
+        // toggle (hamburger), which NavigationView renders by default, and BackRequested routes to
+        // ContentFrame.GoBack().
+        ContentFrame.Navigated += OnContentFrameNavigated;
+
         // Connectivity monitor backing the offline indicator (Req 35.2/35.3). Subscribe before the
         // monitor is started (in StartBackgroundControllers) so the initial publish is observed.
         _networkMonitor = App.Current.Services.GetService<INetworkMonitor>();
@@ -108,21 +127,81 @@ public sealed partial class MainWindow : Window
 
         RegisterKeyboardAccelerators();
 
-        // Apply the UI language + flow direction once at construction (Req 19.1–19.3). Pure Core
+        // Apply the UI language + flow direction once at construction (Req 19.1â€“19.3). Pure Core
         // policy picks the supported language (or English fallback); WinRT then overrides the app
         // language and the root flips to RTL for Arabic. Guarded so a missing/locked-down API never
         // blocks the shell from coming up.
         ApplyLanguageAndFlowDirection();
 
+        // Primary-window sizing contract: pin a minimum size and open at the default (Req 37.8).
+        MainWindowLayout.Configure(this);
+
         // Background-audio model: intercept the window close and hide instead of exiting (Req 1.4).
         AppWindow.Closing += OnAppWindowClosing;
         Activated += OnActivated;
 
-        // Select Home on first show.
+        // Start in the Music source: hide the YouTube surfaces and select the music default. The
+        // explicit SelectedItem below drives the toggle to Music; _sourceReady stays false until
+        // after this so the startup selection only sets visibility (it must not navigate/override
+        // the default page, which caused the shell to open on YouTube).
+        ApplySourceVisibility(youtube: false);
         NavView.SelectedItem = NavView.MenuItems.OfType<NavigationViewItem>().FirstOrDefault();
+        SourceSelector.SelectedItem = MusicSourceItem;
+        _sourceReady = true;
     }
 
-    // ── Navigation ────────────────────────────────────────────────────────────────────────────
+    /// <summary>False until the shell finishes its initial source setup, so the source toggle's
+    /// startup selection changes visibility without navigating over the default launch page.</summary>
+    private bool _sourceReady;
+
+    /// <summary>Whether the Podcasts tab has been revealed by the region-availability probe (Req 27).</summary>
+    private bool _podcastsAvailable;
+
+    // â”€â”€ Source toggle (Music â‡„ YouTube) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    private void OnSourceSelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        var youtube = ReferenceEquals(sender.SelectedItem, YouTubeSourceItem);
+        ApplySourceVisibility(youtube);
+
+        // Only a real user toggle navigates; the startup selection just sets visibility so it does
+        // not override the default launch page.
+        if (_sourceReady)
+        {
+            NavigateToTag(youtube ? "YouTube.Home" : "Home");
+        }
+    }
+
+    /// <summary>
+    /// Shows only the selected source's sidebar items: the YouTube header + <c>YouTube.*</c> items
+    /// for the YouTube source, or the music surfaces otherwise. Podcasts (a music surface) stays
+    /// hidden unless its region probe revealed it.
+    /// </summary>
+    private void ApplySourceVisibility(bool youtube)
+    {
+        foreach (var item in NavView.MenuItems)
+        {
+            switch (item)
+            {
+                case NavigationViewItemHeader:
+                    // The only header is the "YouTube" one.
+                    ((NavigationViewItemHeader)item).Visibility = youtube ? Visibility.Visible : Visibility.Collapsed;
+                    break;
+
+                case NavigationViewItem { Tag: "Podcasts" } podcasts:
+                    podcasts.Visibility = !youtube && _podcastsAvailable ? Visibility.Visible : Visibility.Collapsed;
+                    break;
+
+                case NavigationViewItem navItem:
+                    var isYouTube = navItem.Tag is string tag
+                        && tag.StartsWith("YouTube.", StringComparison.Ordinal);
+                    navItem.Visibility = isYouTube == youtube ? Visibility.Visible : Visibility.Collapsed;
+                    break;
+            }
+        }
+    }
+
+    // â”€â”€ Navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void OnNavigationSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
@@ -139,15 +218,364 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Routes the NavigationView back button (rendered beside the pane toggle) to the content
+    /// frame's back stack (Req 16.1). Guarded on <see cref="Frame.CanGoBack"/> so a request with an
+    /// empty stack is a no-op.
+    /// </summary>
+    private void OnNavigationBackRequested(NavigationView sender, NavigationViewBackRequestedEventArgs args)
+    {
+        if (ContentFrame.CanGoBack)
+        {
+            ContentFrame.GoBack();
+        }
+    }
+
+    /// <summary>
+    /// Keeps the back button enabled state in sync with the content frame's back stack after every
+    /// navigation (forward navigations push detail pages onto the stack; GoBack pops them).
+    /// </summary>
+    private void OnContentFrameNavigated(object sender, Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+    {
+        NavView.IsBackEnabled = ContentFrame.CanGoBack;
+    }
+
+    /// <summary>
+    /// Handles invocation of non-navigating footer actions â€” currently the Sign in / Account item
+    /// (Req 4.2), which opens the interactive Google sign-in flow instead of navigating a page.
+    /// </summary>
+    /// <summary>The signed-in account (name + avatar) shown on the footer item, or <c>null</c> when signed out.</summary>
+    private UserAccount? _currentAccount;
+
+    private void OnNavigationItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+    {
+        if (args.InvokedItemContainer is NavigationViewItem { Tag: "SignIn" } item)
+        {
+            var auth = App.Current.Services.GetService<IAuthService>();
+            if (auth is { State: AuthState.LoggedIn })
+            {
+                // Already signed in: show the account card instead of re-opening the Google login
+                // dialog. Re-opening it caused the flyout to flash openâ†’auto-close repeatedly (the
+                // dialog detects the live session and closes itself immediately).
+                ShowAccountFlyout(item);
+            }
+            else
+            {
+                _ = SignInAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Presents the Google sign-in dialog via <see cref="ILoginFlow"/>, then refreshes the account
+    /// footer (name + avatar) and posts a small success/failure toast (Req 4.2/4.3).
+    /// </summary>
+    private async Task SignInAsync()
+    {
+        var login = App.Current.Services.GetService<ILoginFlow>();
+        if (login is null || Content?.XamlRoot is not { } xamlRoot)
+        {
+            return;
+        }
+
+        bool loggedIn = false;
+        bool errored = false;
+        try
+        {
+            loggedIn = await login.ShowAsync(xamlRoot);
+        }
+        catch
+        {
+            // A failed sign-in attempt must not crash the shell.
+            errored = true;
+        }
+
+        if (loggedIn)
+        {
+            await RefreshAccountAsync();
+            ShowLoginTip(success: true);
+        }
+        else
+        {
+            UpdateSignInLabel();
+
+            // Only surface a failure notification on an actual error; a plain user cancel is silent.
+            if (errored)
+            {
+                ShowLoginTip(success: false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Shows a small in-app sign-in result notification anchored above the account footer item
+    /// (Req 4.3) â€” the in-app version the user asked for instead of a system toast. Auto-dismisses.
+    /// </summary>
+    private void ShowLoginTip(bool success)
+    {
+        void Apply()
+        {
+            var name = _currentAccount?.Name;
+            LoginTip.Target = SignInItem;
+            LoginTip.Title = success ? "Signed in" : "Sign-in failed";
+            LoginTip.Subtitle = success
+                ? (string.IsNullOrEmpty(name) ? "You're signed in to YouTube Music." : $"Signed in as {name}.")
+                : "Couldn't sign you in. Please try again.";
+            LoginTip.IconSource = new SymbolIconSource
+            {
+                Symbol = success ? Symbol.Accept : Symbol.Important,
+            };
+            LoginTip.IsOpen = true;
+
+            // Auto-dismiss after a few seconds so it behaves like a transient notification.
+            _loginTipTimer ??= CreateLoginTipTimer();
+            _loginTipTimer.Stop();
+            _loginTipTimer.Start();
+        }
+
+        if (DispatcherQueue.HasThreadAccess)
+        {
+            Apply();
+        }
+        else
+        {
+            DispatcherQueue.TryEnqueue(Apply);
+        }
+    }
+
+    private DispatcherTimer? _loginTipTimer;
+
+    private DispatcherTimer CreateLoginTipTimer()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            LoginTip.IsOpen = false;
+        };
+        return timer;
+    }
+
+    /// <summary>
+    /// Fetches the currently-selected account (name + avatar) via <c>account/accounts_list</c> and
+    /// refreshes the footer item. Best-effort: a network/auth failure leaves the footer unchanged.
+    /// </summary>
+    private async Task RefreshAccountAsync()
+    {
+        var auth = App.Current.Services.GetService<IAuthService>();
+        var client = App.Current.Services.GetService<IYTMusicClient>();
+        if (auth is not { State: AuthState.LoggedIn } || client is null)
+        {
+            _currentAccount = null;
+            UpdateSignInLabel();
+            return;
+        }
+
+        try
+        {
+            // Prefer account/account_menu â€” it returns the active account's name + avatar directly.
+            // accounts_list is a brand-account switcher and can be empty for a personal account.
+            _currentAccount = await client.GetAccountInfoAsync();
+
+            if (_currentAccount is null)
+            {
+                var accounts = await client.GetAccountsListAsync();
+                _currentAccount = accounts.FirstOrDefault(a => a.IsCurrent)
+                    ?? accounts.FirstOrDefault(a => a.IsPrimary)
+                    ?? accounts.FirstOrDefault();
+            }
+        }
+        catch
+        {
+            // Keep whatever we had; the footer still shows a generic "Account" label if unknown.
+        }
+
+        UpdateSignInLabel();
+    }
+
+    /// <summary>Reflects the current auth state on the footer item (Sign in â‡„ account name + avatar).</summary>
+    private void UpdateSignInLabel()
+    {
+        var auth = App.Current.Services.GetService<IAuthService>();
+        var signedIn = auth is { State: AuthState.LoggedIn };
+
+        void Apply()
+        {
+            if (signedIn && _currentAccount?.AvatarUrl is { } avatar)
+            {
+                // Circular profile photo (PersonPicture is round by design), enlarged, + name. The
+                // Icon slot is cleared because the avatar lives in the content row.
+                SignInItem.Icon = null;
+                SignInItem.Content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 12,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Children =
+                    {
+                        new PersonPicture
+                        {
+                            Width = 28,
+                            Height = 28,
+                            ProfilePicture = new BitmapImage(avatar),
+                            DisplayName = _currentAccount.Name,
+                        },
+                        new TextBlock
+                        {
+                            Text = _currentAccount.Name,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            TextTrimming = TextTrimming.CharacterEllipsis,
+                        },
+                    },
+                };
+            }
+            else if (signedIn)
+            {
+                SignInItem.Content = _currentAccount?.Name ?? "Account";
+                SignInItem.Icon = _currentAccount?.AvatarUrl is { } avatarIcon
+                    ? new ImageIcon { Source = new BitmapImage(avatarIcon) }
+                    : new FontIcon { Glyph = "î»" };
+            }
+            else
+            {
+                SignInItem.Content = "Sign in";
+                SignInItem.Icon = new FontIcon { Glyph = "î»" };
+            }
+        }
+
+        if (DispatcherQueue.HasThreadAccess)
+        {
+            Apply();
+        }
+        else
+        {
+            DispatcherQueue.TryEnqueue(Apply);
+        }
+    }
+
+    /// <summary>
+    /// Shows a small account card (avatar + name + handle) anchored to the footer item, so a
+    /// signed-in user can confirm who they are signed in as without re-triggering the login flow.
+    /// </summary>
+    private void ShowAccountFlyout(FrameworkElement anchor)
+    {
+        var account = _currentAccount;
+
+        var panel = new StackPanel { Spacing = 6, Padding = new Thickness(4), MinWidth = 200 };
+
+        if (account?.AvatarUrl is { } avatar)
+        {
+            panel.Children.Add(new PersonPicture
+            {
+                Width = 72,
+                Height = 72,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                ProfilePicture = new BitmapImage(avatar),
+                DisplayName = account.Name,
+            });
+        }
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = account?.Name ?? "Signed in",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        });
+
+        if (!string.IsNullOrEmpty(account?.Handle))
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = account!.Handle,
+                Opacity = 0.7,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            });
+        }
+
+        var flyout = new Flyout { Content = panel };
+
+        var signOut = new Button
+        {
+            Content = "Sign out",
+            Margin = new Thickness(0, 8, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        signOut.Click += async (_, _) =>
+        {
+            flyout.Hide();
+            await SignOutAsync();
+        };
+        panel.Children.Add(signOut);
+
+        flyout.ShowAt(anchor);
+    }
+
+    /// <summary>
+    /// Signs the user out: clears the session (cookies) via the playback host, re-evaluates the
+    /// auth state, and resets the footer to "Sign in". Best-effort; a failure never crashes the shell.
+    /// </summary>
+    private async Task SignOutAsync()
+    {
+        try
+        {
+            await _playbackHost.SignOutAsync();
+        }
+        catch
+        {
+            // Clearing the session is best-effort.
+        }
+
+        try
+        {
+            if (App.Current.Services.GetService<IAuthService>() is { } auth)
+            {
+                await auth.CheckLoginStatusAsync();
+            }
+        }
+        catch
+        {
+            // A failed re-check must not block the UI reset below.
+        }
+
+        _currentAccount = null;
+        UpdateSignInLabel();
+    }
+
+    /// <summary>Posts a small system toast for the sign-in outcome. Best-effort; never throws.</summary>
+    private void PostLoginToast(bool success)
+    {
+        try
+        {
+            var name = _currentAccount?.Name;
+            var text = success
+                ? (string.IsNullOrEmpty(name) ? "Signed in to YouTube Music" : $"Signed in as {name}")
+                : "Sign-in failed";
+
+            var builder = new AppNotificationBuilder().AddText("Kaset").AddText(text);
+            if (success && _currentAccount?.AvatarUrl is { } avatar)
+            {
+                builder.SetAppLogoOverride(avatar, AppNotificationImageCrop.Circle);
+            }
+
+            var notification = builder.BuildNotification();
+            notification.ExpiresOnReboot = true;
+            AppNotificationManager.Default.Show(notification);
+        }
+        catch
+        {
+            // Toast is a nicety; a notification-platform failure must not affect sign-in.
+        }
+    }
+
+    /// <summary>
     /// Navigates the content frame to the real page registered for <paramref name="tag"/> when its
     /// type exists in the loaded assembly; otherwise shows the <see cref="PlaceholderPage"/> for the
-    /// section so the shell keeps working while the page is built in parallel (Tasks 14.3–14.10).
+    /// section so the shell keeps working while the page is built in parallel (Tasks 14.3â€“14.10).
     /// </summary>
     private void NavigateToTag(string tag)
     {
         // YouTube (full mode) surfaces (Req 32.1/32.4): the feed pages need a navigation parameter
         // describing which feed to render, so they are routed here rather than via the simple
-        // tag→type map. The music surfaces below are untouched.
+        // tagâ†’type map. The music surfaces below are untouched.
         if (tag.StartsWith("YouTube.", StringComparison.Ordinal))
         {
             NavigateYouTube(tag);
@@ -155,7 +583,7 @@ public sealed partial class MainWindow : Window
         }
 
         if (PageTypeNamesByTag.TryGetValue(tag, out var typeName)
-            && Type.GetType(typeName) is { } pageType
+            && Navigation.NavigationHelper.ResolvePageType(typeName) is { } pageType
             && ContentFrame.CurrentSourcePageType != pageType)
         {
             ContentFrame.Navigate(pageType);
@@ -214,22 +642,22 @@ public sealed partial class MainWindow : Window
 
     private void NavigateYouTubePage(string pageTypeName, object? parameter)
     {
-        if (Type.GetType(pageTypeName) is { } pageType)
+        if (Navigation.NavigationHelper.ResolvePageType(pageTypeName) is { } pageType)
         {
             ContentFrame.Navigate(pageType, parameter);
         }
     }
 
-    // ── Protocol activation dispatch (Task 26.1, Req 33.1–33.5) ─────────────────────────────────
+    // â”€â”€ Protocol activation dispatch (Task 26.1, Req 33.1â€“33.5) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private const string PlaylistPageTypeName = "KasetWin.App.Views.PlaylistPage";
     private const string AlbumPageTypeName = "KasetWin.App.Views.AlbumPage";
     private const string ArtistPageTypeName = "KasetWin.App.Views.ArtistPage";
 
     /// <summary>
-    /// Acts on a parsed <c>kaset://</c> command (Req 33.1–33.4): a song plays immediately via
+    /// Acts on a parsed <c>kaset://</c> command (Req 33.1â€“33.4): a song plays immediately via
     /// <see cref="IPlayerService"/>; a playlist/album/artist navigates the shell to its detail page.
-    /// Safe to call from any thread and at any time — work is marshalled onto the UI thread, and the
+    /// Safe to call from any thread and at any time â€” work is marshalled onto the UI thread, and the
     /// window is brought to the foreground first (it may be hidden for background audio, Req 1.4).
     /// Invalid commands never reach here; the parser already dropped them (Req 33.5).
     /// </summary>
@@ -249,7 +677,7 @@ public sealed partial class MainWindow : Window
 
     private void DispatchProtocolCommand(KasetUriCommand command)
     {
-        // Surface the window in case it was hidden (background-audio close → hide, Req 1.4).
+        // Surface the window in case it was hidden (background-audio close â†’ hide, Req 1.4).
         try
         {
             AppWindow.Show();
@@ -293,13 +721,13 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (Type.GetType(pageTypeName) is { } pageType)
+        if (Navigation.NavigationHelper.ResolvePageType(pageTypeName) is { } pageType)
         {
             ContentFrame.Navigate(pageType, id);
         }
     }
 
-    // ── Keyboard accelerators (Req 16.1 shell UX) ───────────────────────────────────────────────
+    // â”€â”€ Keyboard accelerators (Req 16.1 shell UX) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Registers Ctrl-based accelerators that avoid clobbering standard Windows shortcuts:
@@ -412,13 +840,13 @@ public sealed partial class MainWindow : Window
         return focused is TextBox or AutoSuggestBox or PasswordBox or RichEditBox or ButtonBase;
     }
 
-    // ── Background audio: close → hide; explicit Quit → release + exit (Req 1.4/1.5) ────────────
+    // â”€â”€ Background audio: close â†’ hide; explicit Quit â†’ release + exit (Req 1.4/1.5) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         if (_isQuitting)
         {
-            return; // genuine quit — let the window close.
+            return; // genuine quit â€” let the window close.
         }
 
         // Keep the app + hidden WebView2 alive so audio continues in the background (Req 1.4).
@@ -462,7 +890,7 @@ public sealed partial class MainWindow : Window
         this.Close();
     }
 
-    // ── Login trigger after first activation (Req 4.2/4.3/4.6) ──────────────────────────────────
+    // â”€â”€ Login trigger after first activation (Req 4.2/4.3/4.6) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void OnActivated(object sender, WindowActivatedEventArgs args)
     {
@@ -480,7 +908,7 @@ public sealed partial class MainWindow : Window
     /// <summary>
     /// Resolves and starts the always-on background controllers once the shell is live: the system
     /// Now Playing / SMTC surface (Req 10), the network connectivity monitor (Req 35.2), and the
-    /// track-change toast service (Req 35.1). All are optional and best-effort — a missing
+    /// track-change toast service (Req 35.1). All are optional and best-effort â€” a missing
     /// registration or platform failure must not break the shell. After the monitor starts, the
     /// offline indicator is seeded from its current state so an offline-at-launch device shows the
     /// indicator even when no change event fires.
@@ -553,7 +981,7 @@ public sealed partial class MainWindow : Window
     /// <summary>
     /// Selects the UI language via the pure Core policy and applies it: overrides the WinRT primary
     /// language and flips the root <see cref="FrameworkElement.FlowDirection"/> to RTL for Arabic
-    /// (Req 19.1–19.3). Wrapped in try/catch so an unavailable globalization API cannot prevent the
+    /// (Req 19.1â€“19.3). Wrapped in try/catch so an unavailable globalization API cannot prevent the
     /// window from showing.
     /// </summary>
     private void ApplyLanguageAndFlowDirection()
@@ -576,7 +1004,7 @@ public sealed partial class MainWindow : Window
     /// Region-aware Podcasts tab reveal (Req 27.1/27.2). Probes the <c>FEmusic_podcasts</c> surface
     /// once the shell is live; if the region supports it the hidden <c>PodcastsItem</c> nav item is
     /// shown, otherwise it stays collapsed. The probe is best-effort and fully guarded so a failure
-    /// (network/auth/unavailable) never breaks the shell — a 404 region is mapped to "unavailable"
+    /// (network/auth/unavailable) never breaks the shell â€” a 404 region is mapped to "unavailable"
     /// by the client without throwing.
     /// </summary>
     private async Task RevealPodcastsTabIfAvailableAsync()
@@ -595,13 +1023,24 @@ public sealed partial class MainWindow : Window
                 return; // unsupported region (404): keep the tab hidden (Req 27.2).
             }
 
+            _podcastsAvailable = true;
+
+            // Only reveal it while the Music source is active; the source toggle re-applies this.
+            void Reveal()
+            {
+                if (!ReferenceEquals(SourceSelector.SelectedItem, YouTubeSourceItem))
+                {
+                    PodcastsItem.Visibility = Visibility.Visible;
+                }
+            }
+
             if (DispatcherQueue.HasThreadAccess)
             {
-                PodcastsItem.Visibility = Visibility.Visible;
+                Reveal();
             }
             else
             {
-                DispatcherQueue.TryEnqueue(() => PodcastsItem.Visibility = Visibility.Visible);
+                DispatcherQueue.TryEnqueue(Reveal);
             }
         }
         catch
@@ -617,6 +1056,23 @@ public sealed partial class MainWindow : Window
         if (auth is null)
         {
             return;
+        }
+
+        // Keep the footer Sign in / Account label in sync with the auth state.
+        auth.PropertyChanged += (_, _) => UpdateSignInLabel();
+
+        // Ensure the hidden playback WebView2 core exists before reading the session cookie: the
+        // cookie source reads cookies from that core, so checking before it is created reports a
+        // false "signed out" even when a valid session is persisted (the root cause of the sidebar
+        // showing "Sign in" while Home already loads personalized content). InitializeAsync is
+        // idempotent and gated, so awaiting it here is safe.
+        try
+        {
+            await _playbackHost.InitializeAsync();
+        }
+        catch
+        {
+            // If the core cannot be created we still attempt the cookie read below (best-effort).
         }
 
         try
@@ -635,5 +1091,9 @@ public sealed partial class MainWindow : Window
         {
             // A failed login evaluation must not crash the shell; public surfaces still work.
         }
+
+        // Populate the footer with the account name + avatar when a session is present (also on a
+        // persisted session at launch); otherwise this resets it to "Sign in".
+        await RefreshAccountAsync();
     }
 }

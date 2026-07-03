@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using KasetWin.Core.Models;
@@ -193,8 +193,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     /// <summary>Plays a single song (Req 8 convenience for liked/uploaded lists).</summary>
     [RelayCommand]
-    private Task PlaySongAsync(Song? song) =>
-        song is null || _player is null ? Task.CompletedTask : _player.PlaySongAsync(song);
+    private Task PlaySongAsync(Song? song)
+    {
+        // THROWAWAY DIAGNOSTIC (Bug A): confirm a Library liked/uploaded "Play" button reaches the
+        // player and that the optional player resolved non-null on this surface.
+        return song is null || _player is null ? Task.CompletedTask : _player.PlaySongAsync(song);
+    }
 
     /// <summary>
     /// Runs a mutation through the optimistic-update / reconcile / rollback orchestration. The

@@ -40,7 +40,7 @@ internal static class YouTubeNavigation
             return;
         }
 
-        if (Type.GetType(WatchPageTypeName) is { } pageType)
+        if (Navigation.NavigationHelper.ResolvePageType(WatchPageTypeName) is { } pageType)
         {
             frame.Navigate(pageType, videoId);
         }

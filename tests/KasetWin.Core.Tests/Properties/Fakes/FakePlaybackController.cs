@@ -76,6 +76,20 @@ internal sealed class FakePlaybackController : IPlaybackController
     }
 
     /// <inheritdoc />
+    public Task SkipToNextAsync()
+    {
+        Operations.Add("web-next");
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task SkipToPreviousAsync()
+    {
+        Operations.Add("web-previous");
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
     public Task SeekAsync(double positionSeconds)
     {
         SeekPosition = positionSeconds;

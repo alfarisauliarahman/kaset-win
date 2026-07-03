@@ -3,8 +3,15 @@ namespace KasetWin.Core.Models;
 /// <summary>
 /// A signed-in Google / brand account. <see cref="OnBehalfOfUser"/> equivalents
 /// are resolved elsewhere; this record describes display + selection state.
+/// <paramref name="AvatarUrl"/> is the account profile photo when the response carries one.
 /// </summary>
-public sealed record UserAccount(string Name, string? Handle, string? BrandId, bool IsPrimary, bool IsCurrent);
+public sealed record UserAccount(
+    string Name,
+    string? Handle,
+    string? BrandId,
+    bool IsPrimary,
+    bool IsCurrent,
+    Uri? AvatarUrl = null);
 
 /// <summary>
 /// A user-pinned favorite item shown on Home (advanced phase, Req 29). Identity is

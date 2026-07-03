@@ -4,7 +4,7 @@
 // (untrusted) page to the native controller; native validates every message shape.
 //
 // Messages posted to native via window.chrome.webview.postMessage:
-//   { type: 'STATE_UPDATE', isPlaying, progress, duration, videoId, title, artist, trackChanged, hasVideo }
+//   { type: 'STATE_UPDATE', isPlaying, progress, duration, videoId, title, artist, trackChanged, hasVideo, thumbnailUrl }
 //   { type: 'TRACK_ENDED', videoId }
 //   { type: 'DRM_STATUS', available }   // best-effort Widevine/EME probe (Req 1.7)
 //
@@ -27,6 +27,15 @@
     var lastArtist = '';
     var lastVideoId = '';
 
+    // Throttle routine progress/time updates (the `timeupdate` flood fires several times a second).
+    // Significant changes — play/pause transitions, track changes, videoId changes — always post
+    // immediately; only progress-only updates are rate-limited. The STATE_UPDATE message shape is
+    // unchanged (PlaybackMessageParser still receives the same fields).
+    var STATE_UPDATE_MIN_INTERVAL_MS = 500;
+    var lastStateUpdatePost = 0;
+    var lastIsPlaying = null;
+    var enforcingVolume = false;
+
     function post(message) {
         try {
             bridge.postMessage(message);
@@ -44,7 +53,14 @@
             var p = playerElement();
             var api = p && p.playerApi;
             var data = api && api.getVideoData ? api.getVideoData() : null;
-            return data || null;
+            if (data) {
+                return data;
+            }
+            var moviePlayer = document.getElementById('movie_player');
+            if (moviePlayer && moviePlayer.getVideoData) {
+                return moviePlayer.getVideoData() || null;
+            }
+            return null;
         } catch (e) {
             return null;
         }
@@ -55,7 +71,11 @@
         if (data && (data.video_id || data.videoId)) {
             return data.video_id || data.videoId;
         }
-        return '';
+        try {
+            return new URL(window.location.href).searchParams.get('v') || '';
+        } catch (e) {
+            return '';
+        }
     }
 
     function readTitle() {
@@ -82,14 +102,47 @@
         return text;
     }
 
-    // Apply native-requested target volume / mute the moment a <video> appears.
+    function readThumbnailUrl() {
+        var selectors = [
+            'ytmusic-player-bar img.image',
+            'ytmusic-player-bar img',
+            '.thumbnail-image img',
+            'img.ytmusic-player-bar'
+        ];
+        for (var i = 0; i < selectors.length; i++) {
+            var img = document.querySelector(selectors[i]);
+            var src = img ? (img.currentSrc || img.src || '') : '';
+            if (src && src.indexOf('data:') !== 0 && src.indexOf('blob:') !== 0) {
+                return src;
+            }
+        }
+        return '';
+    }
+
+    // Apply native-requested target volume / mute the moment a <video> appears. YouTube Music
+    // keeps a separate internal player volume, so video.volume alone is not enough; enforce the
+    // target through every available player API and immediately undo YouTube's own resets.
     function applyPlaybackPreferences(video) {
         if (!video) {
             return;
         }
         try {
             if (typeof window.__kasetTargetVolume === 'number') {
-                video.volume = Math.max(0, Math.min(1, window.__kasetTargetVolume));
+                var target = Math.max(0, Math.min(1, window.__kasetTargetVolume));
+                var ytVolume = Math.round(target * 100);
+                enforcingVolume = true;
+                if (Math.abs(video.volume - target) > 0.01) {
+                    video.volume = target;
+                }
+                var player = playerElement();
+                if (player && player.playerApi && player.playerApi.setVolume) {
+                    player.playerApi.setVolume(ytVolume);
+                }
+                var moviePlayer = document.getElementById('movie_player');
+                if (moviePlayer && moviePlayer.setVolume) {
+                    moviePlayer.setVolume(ytVolume);
+                }
+                setTimeout(function () { enforcingVolume = false; }, 50);
             }
             if (typeof window.__kasetMuted === 'boolean') {
                 video.muted = window.__kasetMuted;
@@ -112,6 +165,7 @@
         var title = readTitle();
         var artist = readArtist();
         var videoId = currentVideoId();
+        var thumbnailUrl = readThumbnailUrl();
 
         var trackChanged =
             (title !== '' && (title !== lastTitle || artist !== lastArtist)) ||
@@ -132,16 +186,35 @@
             hasVideo = (video.videoWidth || 0) > 0 && (video.videoHeight || 0) > 0;
         }
 
+        var isPlaying = video ? !video.paused : false;
+
+        // Post immediately on meaningful state changes; otherwise rate-limit progress-only updates
+        // so a single playing track doesn't flood native with a STATE_UPDATE every ~130–280ms.
+        var significant = trackChanged || (isPlaying !== lastIsPlaying);
+        if (!significant) {
+            var nowMs = (typeof performance !== 'undefined' && performance.now)
+                ? performance.now() : Date.now();
+            if (nowMs - lastStateUpdatePost < STATE_UPDATE_MIN_INTERVAL_MS) {
+                return;
+            }
+            lastStateUpdatePost = nowMs;
+        } else {
+            lastStateUpdatePost = (typeof performance !== 'undefined' && performance.now)
+                ? performance.now() : Date.now();
+        }
+        lastIsPlaying = isPlaying;
+
         post({
             type: 'STATE_UPDATE',
-            isPlaying: video ? !video.paused : false,
+            isPlaying: isPlaying,
             progress: isFinite(progress) ? progress : 0,
             duration: isFinite(duration) ? duration : 0,
             videoId: videoId,
             title: title,
             artist: artist,
             trackChanged: trackChanged,
-            hasVideo: hasVideo
+            hasVideo: hasVideo,
+            thumbnailUrl: thumbnailUrl
         });
     }
 
@@ -182,10 +255,38 @@
         boundVideo = video;
         applyPlaybackPreferences(video);
         video.addEventListener('play', sendUpdate);
+        video.addEventListener('playing', function () {
+            applyPlaybackPreferences(video);
+            sendUpdate();
+        });
         video.addEventListener('pause', sendUpdate);
         video.addEventListener('timeupdate', sendUpdate);
-        video.addEventListener('loadedmetadata', sendUpdate);
+        video.addEventListener('loadedmetadata', function () {
+            applyPlaybackPreferences(video);
+            sendUpdate();
+        });
+        video.addEventListener('loadeddata', function () {
+            applyPlaybackPreferences(video);
+            sendUpdate();
+        });
+        video.addEventListener('canplay', function () {
+            applyPlaybackPreferences(video);
+            sendUpdate();
+        });
+        video.addEventListener('volumechange', function () {
+            if (!enforcingVolume) {
+                applyPlaybackPreferences(video);
+            }
+        });
         video.addEventListener('ended', sendTrackEnded);
+
+        var burstCount = 0;
+        var burst = setInterval(function () {
+            applyPlaybackPreferences(video);
+            if (++burstCount >= 15) {
+                clearInterval(burst);
+            }
+        }, 200);
     }
 
     function tick() {

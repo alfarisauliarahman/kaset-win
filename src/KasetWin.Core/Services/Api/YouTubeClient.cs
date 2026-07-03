@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -106,7 +106,7 @@ public sealed class YouTubeClient : IYouTubeClient
         return client;
     }
 
-    // ── Feeds (Req 32.1) ─────────────────────────────────────────────────────────────────
+    // â”€â”€ Feeds (Req 32.1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc />
     public async Task<YouTubeFeed> GetHomeFeedAsync(CancellationToken ct = default)
@@ -135,7 +135,8 @@ public sealed class YouTubeClient : IYouTubeClient
     {
         // History changes with every play; intentionally uncached (mirrors the music history path).
         var node = await RequestAsync("browse", BrowseBody("FEhistory"), ttl: null, ct).ConfigureAwait(false);
-        return YouTubeFeedParser.Parse(node);
+        var feed = YouTubeFeedParser.Parse(node);
+        return feed;
     }
 
     /// <inheritdoc />
@@ -148,12 +149,12 @@ public sealed class YouTubeClient : IYouTubeClient
     /// <inheritdoc />
     public async Task<IReadOnlyList<YouTubeVideo>> GetShortsAsync(CancellationToken ct = default)
     {
-        // Shorts ride along in the home FEwhat_to_watch response — a cache hit right after Home loads.
+        // Shorts ride along in the home FEwhat_to_watch response â€” a cache hit right after Home loads.
         var node = await RequestAsync("browse", BrowseBody("FEwhat_to_watch"), ApiCacheTtl.Home, ct).ConfigureAwait(false);
         return YouTubeFeedParser.Parse(node).Shorts;
     }
 
-    // ── Watch page (Req 32.2) ────────────────────────────────────────────────────────────
+    // â”€â”€ Watch page (Req 32.2) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc />
     public async Task<WatchNextData> GetWatchNextAsync(string videoId, CancellationToken ct = default)
@@ -172,7 +173,7 @@ public sealed class YouTubeClient : IYouTubeClient
         return YouTubeCommentsParser.Parse(node);
     }
 
-    // ── Search (Req 32.1) ────────────────────────────────────────────────────────────────
+    // â”€â”€ Search (Req 32.1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc />
     public async Task<YouTubeSearchResponse> SearchAsync(
@@ -200,7 +201,7 @@ public sealed class YouTubeClient : IYouTubeClient
         return YouTubeSearchParser.ParseContinuation(node);
     }
 
-    // ── Browse detail (Req 32.1) ─────────────────────────────────────────────────────────
+    // â”€â”€ Browse detail (Req 32.1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc />
     public async Task<YouTubeChannelDetail> GetChannelAsync(string channelId, CancellationToken ct = default)
@@ -238,7 +239,7 @@ public sealed class YouTubeClient : IYouTubeClient
             && subscribed;
     }
 
-    // ── Mutations (Req 32.5) ─────────────────────────────────────────────────────────────
+    // â”€â”€ Mutations (Req 32.5) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc />
     public async Task RateVideoAsync(string videoId, YouTubeRating rating, CancellationToken ct = default)
@@ -285,7 +286,7 @@ public sealed class YouTubeClient : IYouTubeClient
         _cache.Invalidate(CachePrefix);
     }
 
-    // ── Request core (parallel to YTMusicClient, YouTube origin + WEB context) ───────────
+    // â”€â”€ Request core (parallel to YTMusicClient, YouTube origin + WEB context) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Core request helper: POSTs <paramref name="body"/> (merged with the WEB context) to

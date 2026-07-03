@@ -1,4 +1,4 @@
-using KasetWin.App.ViewModels;
+﻿using KasetWin.App.ViewModels;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Api;
 using KasetWin.Core.Services.Player;
@@ -9,9 +9,9 @@ using Microsoft.UI.Xaml.Controls;
 namespace KasetWin.App.Views;
 
 /// <summary>
-/// Search page (Task 14.4, Req 12.1–12.4). Hosts an <see cref="AutoSuggestBox"/> whose typing is
+/// Search page (Task 14.4, Req 12.1â€“12.4). Hosts an <see cref="AutoSuggestBox"/> whose typing is
 /// <b>debounced</b> by <see cref="SearchViewModel"/> (Req 12.2), shows live suggestions while the
-/// user types (Req 12.3), and renders grouped results — Top Result, Songs, Albums, Artists,
+/// user types (Req 12.3), and renders grouped results â€” Top Result, Songs, Albums, Artists,
 /// Playlists and Podcasts (Req 12.1). Selecting a song plays it; selecting any other result
 /// navigates to the matching detail page (Req 12.4).
 /// </summary>
@@ -20,7 +20,7 @@ namespace KasetWin.App.Views;
 /// frame navigation) and resolves its collaborators from <c>App.Services</c> to build the
 /// <see cref="SearchViewModel"/>. Detail navigation uses late-bound page types
 /// (<see cref="Type.GetType(string)"/>) so the page still builds and runs while sibling detail
-/// pages (Album/Artist/Playlist/Podcast) are implemented in parallel tasks — a missing target is a
+/// pages (Album/Artist/Playlist/Podcast) are implemented in parallel tasks â€” a missing target is a
 /// no-op rather than a crash.
 /// </remarks>
 public sealed partial class SearchPage : Page
@@ -38,7 +38,7 @@ public sealed partial class SearchPage : Page
     /// <summary>The page ViewModel; bound from XAML via <c>x:Bind</c>.</summary>
     public SearchViewModel ViewModel { get; }
 
-    // ── Query box (Req 12.2 / 12.3) ─────────────────────────────────────────────────────────────
+    // â”€â”€ Query box (Req 12.2 / 12.3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
@@ -57,13 +57,14 @@ public sealed partial class SearchPage : Page
         _ = ViewModel.SearchImmediately(query);
     }
 
-    // ── Result selection (Req 12.4) ─────────────────────────────────────────────────────────────
+    // â”€â”€ Result selection (Req 12.4) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void OnTopResultClick(object sender, RoutedEventArgs e)
     {
         switch (ViewModel.TopResult)
         {
             case HomeSectionItem.SongItem s:
+                // THROWAWAY DIAGNOSTIC (Bug A): confirm a search top-result song reaches the player.
                 _ = ViewModel.PlaySongAsync(s.Song);
                 break;
             case HomeSectionItem.AlbumItem a:
@@ -82,6 +83,7 @@ public sealed partial class SearchPage : Page
     {
         if (sender is FrameworkElement { DataContext: Song song })
         {
+            // THROWAWAY DIAGNOSTIC (Bug A): confirm a search song-row click reaches the player.
             _ = ViewModel.PlaySongAsync(song);
         }
     }
@@ -129,7 +131,7 @@ public sealed partial class SearchPage : Page
             return;
         }
 
-        var pageType = Type.GetType($"KasetWin.App.Views.{pageName}");
+        var pageType = Navigation.NavigationHelper.ResolvePageType($"KasetWin.App.Views.{pageName}");
         if (pageType is not null)
         {
             this.Frame?.Navigate(pageType, id);

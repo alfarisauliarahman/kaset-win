@@ -357,7 +357,13 @@ public static class PlaylistParser
             || lower.Contains(" plays", StringComparison.Ordinal)
             || lower.Contains(" subscribers", StringComparison.Ordinal)
             || lower.Contains("monthly audience", StringComparison.Ordinal)
-            || lower.Contains("episodes", StringComparison.Ordinal))
+            || lower.Contains("episodes", StringComparison.Ordinal)
+            // Word-form durations ("17 minutes", "1 hour 5 minutes") are album metadata, not an
+            // artist. ParseDuration only understands "M:SS", so these must be rejected explicitly —
+            // otherwise the album duration was picked up as the author and shown on every track.
+            || lower.Contains(" minute", StringComparison.Ordinal)
+            || lower.Contains(" hour", StringComparison.Ordinal)
+            || lower.Contains(" second", StringComparison.Ordinal))
         {
             return false;
         }

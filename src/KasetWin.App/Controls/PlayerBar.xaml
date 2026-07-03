@@ -3,6 +3,7 @@
     x:Class="KasetWin.App.Controls.PlayerBar"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:KasetWin.App.Controls"
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -45,19 +46,10 @@
                     Source="{Binding CurrentTrack.ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
                     Stretch="UniformToFill" />
             </Border>
-            <StackPanel VerticalAlignment="Center" MaxWidth="220">
-                <TextBlock
-                    MaxLines="1"
-                    Text="{Binding CurrentTrack.Title}"
-                    TextTrimming="CharacterEllipsis"
-                    Style="{StaticResource BodyStrongTextBlockStyle}" />
-                <TextBlock
-                    MaxLines="1"
-                    Opacity="0.7"
-                    Text="{Binding CurrentTrack.ArtistsDisplay}"
-                    TextTrimming="CharacterEllipsis"
-                    Style="{StaticResource CaptionTextBlockStyle}" />
-            </StackPanel>
+            <controls:TrackInfo
+                VerticalAlignment="Center"
+                MaxWidth="220"
+                Song="{Binding CurrentTrack}" />
             <Border
                 VerticalAlignment="Center"
                 Padding="6,2"
@@ -87,6 +79,24 @@
                 Style="{StaticResource SubtleButtonStyle}"
                 ToolTipService.ToolTip="Pop out video">
                 <FontIcon FontSize="16" Glyph="&#xE714;" />
+            </Button>
+            <Button
+                x:Name="LyricsButton"
+                VerticalAlignment="Center"
+                Click="OnLyricsClick"
+                IsEnabled="False"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Lyrics">
+                <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+            </Button>
+            <Button
+                x:Name="LikeButton"
+                VerticalAlignment="Center"
+                Click="OnLikeClick"
+                IsEnabled="False"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Like">
+                <FontIcon x:Name="LikeIcon" FontSize="16" Glyph="&#xEB51;" />
             </Button>
         </StackPanel>
 
@@ -141,29 +151,44 @@
                 </Button>
             </StackPanel>
 
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <!--
+                Seek row (Req 9.1): a 3-column Auto * Auto grid keeps the times pinned to the slider
+                ends and vertically centered. Elapsed (current Progress) sits at the LEFT edge aligned
+                with the slider start; total Duration sits at the RIGHT edge aligned with the slider
+                end; the Slider stretches full-width between them.
+            -->
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
                 <TextBlock
+                    Grid.Column="0"
                     MinWidth="40"
+                    HorizontalAlignment="Left"
                     HorizontalTextAlignment="Right"
+                    VerticalAlignment="Center"
                     Opacity="0.7"
                     Text="{Binding Progress, Converter={StaticResource SecondsToTime}}"
-                    VerticalAlignment="Center"
                     Style="{StaticResource CaptionTextBlockStyle}" />
                 <Slider
                     x:Name="SeekSlider"
-                    Width="360"
+                    Grid.Column="1"
+                    HorizontalAlignment="Stretch"
                     Maximum="{Binding Duration}"
                     Minimum="0"
                     StepFrequency="1"
-                    Value="{Binding Progress, Mode=OneWay}"
                     VerticalAlignment="Center" />
                 <TextBlock
+                    Grid.Column="2"
                     MinWidth="40"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
                     Opacity="0.7"
                     Text="{Binding Duration, Converter={StaticResource SecondsToTime}}"
-                    VerticalAlignment="Center"
                     Style="{StaticResource CaptionTextBlockStyle}" />
-            </StackPanel>
+            </Grid>
         </StackPanel>
 
         <!-- Volume -->
@@ -185,7 +210,6 @@
                 Maximum="100"
                 Minimum="0"
                 ValueChanged="OnVolumeChanged"
-                Value="{Binding Volume, Mode=OneWay}"
                 VerticalAlignment="Center" />
         </StackPanel>
     </Grid>

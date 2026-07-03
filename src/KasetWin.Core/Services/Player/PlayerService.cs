@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using KasetWin.Core.Abstractions;
 using KasetWin.Core.Models;
@@ -32,6 +33,17 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
 
     private readonly EventHandler<PlaybackStateMessage> _stateHandler;
     private readonly EventHandler<TrackEndedMessage> _trackEndedHandler;
+
+    /// <summary>
+    /// The UI <see cref="SynchronizationContext"/> captured at construction. The service is first
+    /// resolved on the UI thread via DI (from <c>MainWindow</c>), so this is the WinUI dispatcher
+    /// context. <c>PropertyChanged</c> is marshalled back onto it (see <see cref="OnPropertyChanged"/>)
+    /// so bound XAML never observes a mutation on a thread-pool thread (the root cause of the
+    /// <c>0xc000027b</c> XAML stowed exception when a track is loaded after <c>ConfigureAwait(false)</c>).
+    /// <c>null</c> in headless unit tests (no <see cref="SynchronizationContext"/>), where marshalling
+    /// is a no-op and notifications are raised inline exactly as before.
+    /// </summary>
+    private readonly SynchronizationContext? _uiContext = SynchronizationContext.Current;
 
     private Song? _currentTrack;
     private bool _isPlaying;
@@ -76,6 +88,33 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         _bridge.StateUpdated += _stateHandler;
         _bridge.TrackEnded += _trackEndedHandler;
     }
+
+    /// <summary>
+    /// Raises <see cref="ObservableObject.PropertyChanged"/> on the captured UI thread. This is the
+    /// single funnel CommunityToolkit's <c>SetProperty</c> uses, so overriding it covers every
+    /// observable property (<see cref="IsPlaying"/>, <see cref="CurrentTrack"/>, <see cref="Progress"/>,
+    /// <see cref="Duration"/>, <see cref="IsLive"/>, …). The play path awaits controller I/O with
+    /// <c>ConfigureAwait(false)</c> and then mutates these properties, which would otherwise raise
+    /// <c>PropertyChanged</c> on a thread-pool thread and update bound XAML off the UI thread → a
+    /// <c>0xc000027b</c> stowed exception / crash. When the current context differs from the captured
+    /// UI context we <see cref="SynchronizationContext.Post(SendOrPostCallback, object?)"/> (async, to
+    /// avoid deadlocks/reentrancy from a blocking <c>Send</c>); when already on the UI thread, or when
+    /// no context was captured (headless tests), we invoke the base implementation inline.
+    /// </summary>
+    protected override void OnPropertyChanged(PropertyChangedEventArgs e)
+    {
+        SynchronizationContext? ui = _uiContext;
+        if (ui is not null && !ReferenceEquals(SynchronizationContext.Current, ui))
+        {
+            ui.Post(_ => RaiseBasePropertyChanged(e), null);
+            return;
+        }
+
+        base.OnPropertyChanged(e);
+    }
+
+    /// <summary>Invokes the base <see cref="ObservableObject.OnPropertyChanged"/> (called on the UI thread).</summary>
+    private void RaiseBasePropertyChanged(PropertyChangedEventArgs e) => base.OnPropertyChanged(e);
 
     /// <inheritdoc />
     public Song? CurrentTrack
@@ -172,7 +211,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
             return;
         }
 
-        // The queue is the source of truth (Req 6.5, 8.1–8.3); SetQueue clamps the index.
+        // The queue is the source of truth (Req 6.5, 8.1-8.3); SetQueue clamps the index.
         _queue.SetQueue(songs, startIndex);
 
         // A regular collection is not a mix — clear any pending mix continuation (Req 25.4).
@@ -270,10 +309,16 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// <inheritdoc />
     public async Task NextAsync()
     {
-        Song? next = _queue.AdvanceToNext();
+        // Explicit skip (player-bar / media key): move to the next track even under Repeat One, which
+        // only governs auto-advance at track end — otherwise "Next" replays the same song (Req 37.7).
+        Song? next = _queue.AdvanceToNext(ignoreRepeatOne: true);
         if (next is not null)
         {
             await LoadTrackAsync(next).ConfigureAwait(false);
+        }
+        else
+        {
+            await _controller.SkipToNextAsync().ConfigureAwait(false);
         }
 
         await TopUpMixIfNeededAsync().ConfigureAwait(false);
@@ -286,6 +331,10 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         if (previous is not null)
         {
             await LoadTrackAsync(previous).ConfigureAwait(false);
+        }
+        else
+        {
+            await _controller.SkipToPreviousAsync().ConfigureAwait(false);
         }
     }
 
@@ -438,10 +487,20 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         Progress = message.Progress;
         Duration = message.Duration;
 
-        // A non-empty reported videoId is authoritative even if the DOM title is stale (Req 2.6).
         if (!string.IsNullOrEmpty(message.VideoId))
         {
-            CurrentTrack = ResolveTrackFromMessage(message);
+            // A non-empty reported videoId is authoritative even if the DOM title is stale (Req 2.6).
+            // If YouTube Music autoplay moves outside Kaset's native queue, append the reported
+            // track as ephemeral history before aligning the index. Without this, transport controls
+            // keep acting from the stale album/playlist index while WebView2 plays another song.
+            Song resolved = ResolveTrackFromMessage(message);
+            if (!_queue.TrySetCurrentByVideoId(message.VideoId))
+            {
+                _queue.AppendDeduplicated([resolved]);
+                _queue.TrySetCurrentByVideoId(message.VideoId);
+            }
+
+            CurrentTrack = resolved;
         }
     }
 
@@ -458,17 +517,26 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         if (queued is not null)
         {
             // Keep the rich queue metadata; only override the title when the message has one.
-            return hasTitle && !string.Equals(queued.Title, message.Title, StringComparison.Ordinal)
-                ? queued with { Title = message.Title }
-                : queued;
+            return queued with
+            {
+                Title = hasTitle ? message.Title : queued.Title,
+                ThumbnailUrl = queued.ThumbnailUrl ?? message.ThumbnailUrl ?? queued.FallbackThumbnailUrl,
+                HasVideo = message.HasVideo ?? queued.HasVideo,
+                VideoType = message.VideoType ?? queued.VideoType,
+            };
         }
 
-        // No queue match — synthesize a minimal song from the (authoritative) videoId/title.
+        // No queue match — synthesize a song from the (authoritative) videoId/title, including the
+        // artist the page reported so the now-playing line is not just the bare title.
         return new Song
         {
             Id = message.VideoId,
             VideoId = message.VideoId,
             Title = message.Title,
+            Artists = string.IsNullOrWhiteSpace(message.Artist)
+                ? []
+                : [new Artist { Id = string.Empty, Name = message.Artist }],
+            ThumbnailUrl = message.ThumbnailUrl ?? FallbackThumbnailUrl(message.VideoId),
             HasVideo = message.HasVideo,
             VideoType = message.VideoType,
         };
@@ -487,6 +555,8 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         return null;
     }
 
+    private static Uri FallbackThumbnailUrl(string videoId) => new($"https://i.ytimg.com/vi/{videoId}/hqdefault.jpg");
+
     /// <summary>
     /// Loads a track into the controller and starts playback: sets <see cref="CurrentTrack"/>,
     /// performs pause-before-load via <see cref="IPlaybackController.LoadVideoAsync"/> (Req 1.6),
@@ -501,6 +571,9 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
 
         await _controller.LoadVideoAsync(track.VideoId).ConfigureAwait(false);
         await _controller.SetAudioQualityAsync(_audioQuality).ConfigureAwait(false);
+        // A freshly loaded <video> defaults to full volume, so re-apply the user's volume/mute state
+        // - otherwise volume jumps back to 100% on every track change.
+        await _controller.SetVolumeAsync(_isMuted ? 0 : _volume).ConfigureAwait(false);
         await _controller.PlayAsync().ConfigureAwait(false);
         IsPlaying = true;
     }

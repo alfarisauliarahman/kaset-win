@@ -1,4 +1,5 @@
 using KasetWin.Core.Models;
+using KasetWin.Core.Services.Api.Parsers;
 using KasetWin.Core.Services.Sharing;
 using Microsoft.UI.Xaml;
 
@@ -27,7 +28,7 @@ public sealed class HomeCardItem
     private const double SquareRadius = 6;
     private const double RoundRadius = 80; // artist avatars read as circular
 
-    private HomeCardItem(HomeSectionItem model, string title, string subtitle, Uri? thumbnailUrl, bool isArtist)
+    private HomeCardItem(HomeSectionItem model, string title, string subtitle, Uri? thumbnailUrl, bool isArtist, bool canPlay)
     {
         Model = model;
         Title = title;
@@ -35,6 +36,7 @@ public sealed class HomeCardItem
         ThumbnailUrl = thumbnailUrl;
         ImageCornerRadius = new CornerRadius(isArtist ? RoundRadius : SquareRadius);
         CanShare = ShareUrlBuilder.TryCreate(model) is not null;
+        CanPlay = canPlay;
     }
 
     /// <summary>The original Core union item, used by the page to route activation/navigation.</summary>
@@ -42,6 +44,13 @@ public sealed class HomeCardItem
 
     /// <summary>Whether this item has a shareable URL; gates the Share affordance (Req 34.2).</summary>
     public bool CanShare { get; }
+
+    /// <summary>
+    /// Whether the card offers a cheap Play action (Feature A): songs, albums and non-mood
+    /// playlists do; artist cards and moods/genres entry points do not (navigation only). Gates the
+    /// hover/keyboard Play overlay on the card art.
+    /// </summary>
+    public bool CanPlay { get; }
 
     /// <summary>Stable, kind-prefixed identity for list virtualization (Req 16.1).</summary>
     public string Key => Model.Id;
@@ -67,30 +76,36 @@ public sealed class HomeCardItem
                 s.Song.Title,
                 s.Song.ArtistsDisplay,
                 s.Song.ThumbnailUrl ?? s.Song.FallbackThumbnailUrl,
-                isArtist: false),
+                isArtist: false,
+                canPlay: true),
 
             HomeSectionItem.AlbumItem a => new HomeCardItem(
                 item,
                 a.Album.Title,
                 AlbumSubtitle(a.Album),
                 a.Album.ThumbnailUrl,
-                isArtist: false),
+                isArtist: false,
+                canPlay: true),
 
             HomeSectionItem.PlaylistItem p => new HomeCardItem(
                 item,
                 p.Pl.Title,
                 p.Pl.Author?.Name ?? "Playlist",
                 p.Pl.ThumbnailUrl,
-                isArtist: false),
+                isArtist: false,
+                // Moods/genres entry points browse like an Explore section rather than play.
+                canPlay: !MoodCategoryId.IsMoodCategory(p.Pl.Id)),
 
             HomeSectionItem.ArtistItem ar => new HomeCardItem(
                 item,
                 ar.Artist.Name,
                 "Artist",
                 ar.Artist.ThumbnailUrl,
-                isArtist: true),
+                isArtist: true,
+                // No cheap artist play action — the card navigates to the artist page (Feature A).
+                canPlay: false),
 
-            _ => new HomeCardItem(item, "Unknown", string.Empty, null, isArtist: false),
+            _ => new HomeCardItem(item, "Unknown", string.Empty, null, isArtist: false, canPlay: false),
         };
     }
 

@@ -77,7 +77,9 @@ dotnet run --project src/KasetWin.ApiExplorer -- browse FEmusic_home -v
 ## Task planning
 
 For non-trivial work: **Research → Plan → Implement → Verify**. Build continuously; keep the test
-suite green. The spec that drives this project lives under `.kiro/specs/kaset-winui3/`.
+suite green. The spec that drives this project lives at the **workspace root** under
+`../.kiro/specs/kaset-winui3/` (requirements / design / tasks + `upstream-sync.md`) — this is the
+single canonical copy read by the Kiro tooling; do not re-create a copy inside `KasetWin/`.
 
 ## Credits
 

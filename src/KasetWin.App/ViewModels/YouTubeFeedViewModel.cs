@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services;
@@ -20,12 +20,12 @@ public enum YouTubeFeedKind
     /// <summary>The watch History feed (<c>FEhistory</c>).</summary>
     History,
 
-    /// <summary>An Explore destination feed (gaming/news/sports/…), selected by <see cref="YouTubeDestination"/>.</summary>
+    /// <summary>An Explore destination feed (gaming/news/sports/â€¦), selected by <see cref="YouTubeDestination"/>.</summary>
     Destination,
 }
 
 /// <summary>
-/// ViewModel for a list-style YouTube (full mode) feed — Subscriptions, History, or an Explore
+/// ViewModel for a list-style YouTube (full mode) feed â€” Subscriptions, History, or an Explore
 /// destination (Task 25.1, Req 32.1). Mirrors the music feed ViewModels (single-flight load, stable
 /// item identity via <see cref="YouTubeVideo.Id"/>) and pages forward via the feed continuation
 /// token. Clicking a video navigates to the watch page; the inline play command routes through the

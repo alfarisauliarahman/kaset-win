@@ -83,6 +83,12 @@ internal sealed class FakeLifecyclePlaybackController : IPlaybackController
     public Task PauseAsync() => Task.CompletedTask;
 
     /// <inheritdoc />
+    public Task SkipToNextAsync() => Task.CompletedTask;
+
+    /// <inheritdoc />
+    public Task SkipToPreviousAsync() => Task.CompletedTask;
+
+    /// <inheritdoc />
     public Task SeekAsync(double positionSeconds) => Task.CompletedTask;
 
     /// <inheritdoc />

@@ -1,5 +1,7 @@
+﻿using KasetWin.App.Navigation;
 using KasetWin.App.ViewModels;
 using KasetWin.Core.Models;
+using KasetWin.Core.Services.Api;
 using KasetWin.Core.Services.Api.Parsers;
 using KasetWin.Core.Services.Player;
 using Microsoft.UI.Xaml.Controls;
@@ -15,7 +17,7 @@ namespace KasetWin.App.Views;
 /// The concrete detail pages (<c>AlbumPage</c>, <c>PlaylistPage</c>, <c>ArtistPage</c>) are built in
 /// sibling tasks (14.6/14.7) and may not exist yet. To keep this surface compiling and functional in
 /// isolation, navigation is <b>guarded</b> by resolving the page <see cref="Type"/> by name with
-/// <see cref="Type.GetType(string)"/> — the same late-bind pattern the shell uses — and is simply a
+/// <see cref="Type.GetType(string)"/> â€” the same late-bind pattern the shell uses â€” and is simply a
 /// no-op when the target page type is not present in the assembly. Once those pages land their types
 /// resolve and navigation begins working with no change here.
 /// </remarks>
@@ -37,6 +39,7 @@ internal static class FeedNavigation
         switch (item)
         {
             case HomeSectionItem.SongItem song:
+                // THROWAWAY DIAGNOSTIC (Bug A): confirm a Home/Explore song activation reaches the
                 _ = player?.PlaySongAsync(song.Song);
                 break;
 
@@ -81,6 +84,7 @@ internal static class FeedNavigation
             case FavoriteItemType.Song:
                 if (!string.IsNullOrEmpty(item.ContentId))
                 {
+                    // THROWAWAY DIAGNOSTIC (Bug A): confirm a Favorites-shelf song reaches the player.
                     _ = player?.PlayAsync(item.ContentId);
                 }
 
@@ -118,18 +122,71 @@ internal static class FeedNavigation
         };
     }
 
-    private static void NavigateToDetail(Frame? frame, string pageTypeName, string id)
+    /// <summary>
+    /// Plays a Home/Explore card's underlying item without navigating â€” backs the hover/keyboard
+    /// Play overlay on card shelves (Feature A). A song plays immediately; an album or (non-mood)
+    /// playlist is fetched and its tracks are loaded into the queue. Artist and moods/genres cards
+    /// have no cheap play action, so they are a no-op here (the card body still navigates).
+    /// </summary>
+    public static async Task PlayItemAsync(HomeSectionItem item, IPlayerService? player, IYTMusicClient? client)
     {
-        if (frame is null || string.IsNullOrEmpty(id))
+        ArgumentNullException.ThrowIfNull(item);
+        if (player is null)
         {
             return;
         }
 
-        // Guard: the detail page type may not exist yet (built in a parallel task). Skip navigation
-        // until it does rather than break the build / throw at runtime.
-        if (Type.GetType(pageTypeName) is { } pageType)
+        switch (item)
         {
-            frame.Navigate(pageType, id);
+            case HomeSectionItem.SongItem song:
+                await player.PlaySongAsync(song.Song).ConfigureAwait(true);
+                break;
+
+            case HomeSectionItem.AlbumItem album:
+                await PlayBrowseCollectionAsync(album.Album.Id, player, client).ConfigureAwait(true);
+                break;
+
+            case HomeSectionItem.PlaylistItem playlist when !MoodCategoryId.IsMoodCategory(playlist.Pl.Id):
+                await PlayBrowseCollectionAsync(playlist.Pl.Id, player, client).ConfigureAwait(true);
+                break;
+
+            // Artist cards / moods/genres entry points: no cheap play action â€” navigation only.
         }
+    }
+
+    /// <summary>
+    /// Fetches the album/playlist identified by <paramref name="browseId"/> and plays its tracks as
+    /// the queue (Feature A). Best-effort: a fetch failure or an empty track list is a no-op so a
+    /// card Play tap never throws. Reused by the Home/Explore shelves and the Artist page cards.
+    /// </summary>
+    public static async Task PlayBrowseCollectionAsync(string? browseId, IPlayerService? player, IYTMusicClient? client)
+    {
+        if (player is null || client is null || string.IsNullOrEmpty(browseId))
+        {
+            return;
+        }
+
+        try
+        {
+            var detail = await client.GetPlaylistAsync(browseId).ConfigureAwait(true);
+            if (detail.Tracks.Count > 0)
+            {
+                await player.PlayCollectionAsync([.. detail.Tracks], startIndex: 0).ConfigureAwait(true);
+            }
+        }
+        catch
+        {
+            // A card Play affordance must never crash the shell on a transient fetch failure.
+        }
+    }
+
+    private static void NavigateToDetail(Frame? frame, string pageTypeName, string id)
+    {
+        // Route through the shared NavigationHelper (which resolves the shell frame via the
+        // navigation service) so card activation uses the same path as every other clickable
+        // affordance. The frame parameter is retained for API compatibility with callers but the
+        // helper owns the late-bind Type.GetType guard.
+        _ = frame;
+        NavigationHelper.NavigateToDetail(pageTypeName, id);
     }
 }

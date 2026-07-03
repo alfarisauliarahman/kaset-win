@@ -5,6 +5,7 @@ using KasetWin.Core.Services.Player;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 
 namespace KasetWin.App.Views;
 
@@ -23,6 +24,7 @@ namespace KasetWin.App.Views;
 public sealed partial class ExplorePage : Page
 {
     private readonly IPlayerService? _player;
+    private readonly IYTMusicClient? _client;
 
     public ExplorePage()
     {
@@ -31,6 +33,7 @@ public sealed partial class ExplorePage : Page
         var services = App.Current.Services;
         _player = services.GetService<IPlayerService>();
         var client = services.GetRequiredService<IYTMusicClient>();
+        _client = client;
         ViewModel = new ExploreViewModel(client, services.GetService<ISingleFlight>());
 
         Loaded += OnLoaded;
@@ -42,11 +45,42 @@ public sealed partial class ExplorePage : Page
     private async void OnLoaded(object sender, RoutedEventArgs e) =>
         await ViewModel.LoadInitialAsync();
 
-    private void OnItemClick(object sender, RoutedEventArgs e)
+    private void OnItemClick(object sender, TappedRoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: HomeCardItem card })
         {
             FeedNavigation.Activate(this.Frame, card.Model, _player);
+        }
+    }
+
+    private void OnCardKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (CardKeyboard.IsActivationKey(e.Key) && sender is FrameworkElement { DataContext: HomeCardItem card })
+        {
+            FeedNavigation.Activate(this.Frame, card.Model, _player);
+            e.Handled = true;
+        }
+    }
+
+    // ── Card Play overlay (Feature A) ────────────────────────────────────────────────────────────
+
+    private void OnCardPointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) =>
+        CardPlayOverlay.OnPointerEntered(sender);
+
+    private void OnCardPointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) =>
+        CardPlayOverlay.OnPointerExited(sender);
+
+    private void OnPlayOverlayGotFocus(object sender, RoutedEventArgs e) =>
+        CardPlayOverlay.OnOverlayGotFocus(sender);
+
+    private void OnPlayOverlayLostFocus(object sender, RoutedEventArgs e) =>
+        CardPlayOverlay.OnOverlayLostFocus(sender);
+
+    private async void OnCardPlay(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: HomeCardItem card })
+        {
+            await FeedNavigation.PlayItemAsync(card.Model, _player, _client);
         }
     }
 

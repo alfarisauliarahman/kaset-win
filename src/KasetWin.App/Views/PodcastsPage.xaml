@@ -38,7 +38,8 @@
                                     Background="Transparent"
                                     BorderThickness="0"
                                     Click="OnItemClick"
-                                    CornerRadius="8">
+                                    CornerRadius="8"
+                                    DataContext="{x:Bind}">
                                     <Button.ContextFlyout>
                                         <MenuFlyout>
                                             <MenuFlyoutItem Click="OnSubscribe" Text="Subscribe" />

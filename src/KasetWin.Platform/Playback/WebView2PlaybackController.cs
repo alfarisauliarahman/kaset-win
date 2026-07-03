@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -16,8 +16,8 @@ namespace KasetWin.Platform.Playback;
 /// <summary>
 /// WinRT adapter that drives DRM playback through a single hidden <see cref="CoreWebView2"/>
 /// and bridges the injected JavaScript observer back to the native player. Implements both
-/// <see cref="IPlaybackController"/> (native → web control) and <see cref="IJsBridge"/>
-/// (web → native events) (Req 1, 2, 7).
+/// <see cref="IPlaybackController"/> (native â†’ web control) and <see cref="IJsBridge"/>
+/// (web â†’ native events) (Req 1, 2, 7).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -200,10 +200,7 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
         await InvokeOnUiAsync(async () =>
         {
             await core.ExecuteScriptAsync("document.querySelector('video')?.pause()");
-            await core.ExecuteScriptAsync(
-                $"window.__kasetTargetVolume = {VolumeToUnitLiteral(_targetVolume)};");
-            await core.ExecuteScriptAsync(
-                $"window.__kasetMuted = {(_isMuted ? "true" : "false")};");
+            await core.ExecuteScriptAsync(BuildPlaybackPreferencesScript());
             core.Navigate(url);
         }).ConfigureAwait(true);
 
@@ -219,6 +216,28 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
         ExecuteVideoScriptAsync("document.querySelector('video')?.pause()");
 
     /// <inheritdoc />
+    public Task SkipToNextAsync() =>
+        ExecuteVideoScriptAsync(
+            "(function(){" +
+            "var b=document.querySelector('.next-button.ytmusic-player-bar');" +
+            "if(b){b.click();return 'clicked';}" +
+            "var p=document.querySelector('ytmusic-player');" +
+            "if(p&&p.playerApi&&p.playerApi.nextVideo){p.playerApi.nextVideo();return 'api';}" +
+            "return 'no-button';" +
+            "})()");
+
+    /// <inheritdoc />
+    public Task SkipToPreviousAsync() =>
+        ExecuteVideoScriptAsync(
+            "(function(){" +
+            "var b=document.querySelector('.previous-button.ytmusic-player-bar');" +
+            "if(b){b.click();return 'clicked';}" +
+            "var p=document.querySelector('ytmusic-player');" +
+            "if(p&&p.playerApi&&p.playerApi.previousVideo){p.playerApi.previousVideo();return 'api';}" +
+            "return 'no-button';" +
+            "})()");
+
+    /// <inheritdoc />
     public Task SeekAsync(double positionSeconds)
     {
         var safe = positionSeconds < 0 ? 0 : positionSeconds;
@@ -231,18 +250,14 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
     public Task SetVolumeAsync(int volume0to100)
     {
         _targetVolume = Math.Clamp(volume0to100, 0, 100);
-        var unit = VolumeToUnitLiteral(_targetVolume);
-        return ExecuteVideoScriptAsync(
-            $"(function(){{window.__kasetTargetVolume={unit};var v=document.querySelector('video');if(v){{v.volume={unit};}}}})()");
+        return ApplyPlaybackPreferencesAsync();
     }
 
     /// <inheritdoc />
     public Task SetMutedAsync(bool muted)
     {
         _isMuted = muted;
-        var literal = muted ? "true" : "false";
-        return ExecuteVideoScriptAsync(
-            $"(function(){{window.__kasetMuted={literal};var v=document.querySelector('video');if(v){{v.muted={literal};}}}})()");
+        return ApplyPlaybackPreferencesAsync();
     }
 
     /// <inheritdoc />
@@ -296,6 +311,7 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
         }
 
         core.WebMessageReceived -= OnWebMessageReceived;
+        core.NavigationCompleted -= OnNavigationCompleted;
         _core = null;
         _currentVideoId = null;
         _logger.LogInformation("Playback WebView2 released.");
@@ -330,6 +346,8 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
 
         core.WebMessageReceived -= OnWebMessageReceived;
         core.WebMessageReceived += OnWebMessageReceived;
+        core.NavigationCompleted -= OnNavigationCompleted;
+        core.NavigationCompleted += OnNavigationCompleted;
 
         // If an audio-quality preference was requested before attach, seed it so it loads with the page.
         var audioQualityScript = LoadScript(AudioQualityResourceName);
@@ -342,6 +360,18 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
 
         await core.AddScriptToExecuteOnDocumentCreatedAsync(LoadScript(ObserverResourceName));
         await core.AddScriptToExecuteOnDocumentCreatedAsync(audioQualityScript);
+    }
+
+    private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+    {
+        try
+        {
+            await ApplyPlaybackPreferencesAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException)
+        {
+            _logger.LogDebug("Playback preference re-apply after navigation failed benignly.");
+        }
     }
 
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
@@ -382,13 +412,17 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
                 break;
 
             default:
-                break; // Ignored / malformed — nothing to do.
+                break; // Ignored / malformed â€” nothing to do.
         }
     }
 
     private CoreWebView2 RequireCore()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_core is null)
+        {
+        }
+
         return _core ?? throw new KasetError(
             KasetErrorKind.PlaybackError,
             "Playback WebView2 is not initialized. Call EnsureInitializedAsync/AttachAsync first (Req 1.1).");
@@ -401,6 +435,30 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
         {
             await core.ExecuteScriptAsync(script);
         });
+    }
+
+    private Task ApplyPlaybackPreferencesAsync() => ExecuteVideoScriptAsync(BuildPlaybackPreferencesScript());
+
+    private string BuildPlaybackPreferencesScript()
+    {
+        var volume = VolumeToUnitLiteral(_targetVolume);
+        var muted = _isMuted ? "true" : "false";
+        var ytVolume = Math.Clamp(_targetVolume, 0, 100).ToString(CultureInfo.InvariantCulture);
+
+        return
+            "(function(){" +
+            $"window.__kasetTargetVolume={volume};" +
+            $"window.__kasetMuted={muted};" +
+            "var v=document.querySelector('video');" +
+            "if(v){" +
+            $"v.volume={volume};" +
+            $"v.muted={muted};" +
+            "}" +
+            "var p=document.querySelector('ytmusic-player');" +
+            $"if(p&&p.playerApi&&p.playerApi.setVolume){{p.playerApi.setVolume({ytVolume});}}" +
+            "var mp=document.getElementById('movie_player');" +
+            $"if(mp&&mp.setVolume){{mp.setVolume({ytVolume});}}" +
+            "})()";
     }
 
     private static string VolumeToUnitLiteral(int volume0to100) =>
@@ -421,7 +479,7 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
         var context = _uiContext;
         if (context is null || context == SynchronizationContext.Current)
         {
-            // Already on the WebView2 thread (or no context captured) — run inline.
+            // Already on the WebView2 thread (or no context captured) â€” run inline.
             return action();
         }
 

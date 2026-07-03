@@ -21,6 +21,21 @@
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Padding" Value="8" />
             </Style>
+
+            <!--
+                Inline, text-like hyperlink used wherever an artist name or a song/album title should
+                read as plain text but navigate on click (PlayerBar now-playing, track rows, Search
+                results, Lyrics header). Strips the default HyperlinkButton chrome (padding / min
+                size) so it sits inline with surrounding text; the accent foreground + hover
+                underline come from the base HyperlinkButton style.
+            -->
+            <Style x:Key="InlineLinkButtonStyle" TargetType="HyperlinkButton" BasedOn="{StaticResource DefaultHyperlinkButtonStyle}">
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

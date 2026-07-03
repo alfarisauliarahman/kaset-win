@@ -3,6 +3,7 @@
     x:Class="KasetWin.App.Views.AlbumPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:KasetWin.App.Controls"
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -56,11 +57,25 @@
                     TextTrimming="CharacterEllipsis"
                     TextWrapping="Wrap"
                     Style="{StaticResource TitleTextBlockStyle}" />
+                <!-- Artist: clickable to the artist page when a channel id exists, plain otherwise (Req 37.1). -->
+                <HyperlinkButton
+                    Command="{x:Bind ViewModel.NavigateToArtistCommand}"
+                    Style="{StaticResource InlineLinkButtonStyle}"
+                    ToolTipService.ToolTip="Go to artist"
+                    Visibility="{x:Bind ViewModel.HasAuthorLink, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock
+                        Foreground="{ThemeResource HyperlinkButtonForeground}"
+                        MaxLines="1"
+                        Text="{x:Bind ViewModel.AuthorDisplay, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis"
+                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                </HyperlinkButton>
                 <TextBlock
                     MaxLines="1"
                     Opacity="0.8"
                     Text="{x:Bind ViewModel.AuthorDisplay, Mode=OneWay}"
                     TextTrimming="CharacterEllipsis"
+                    Visibility="{x:Bind ViewModel.AuthorIsPlain, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
                     Style="{StaticResource BodyStrongTextBlockStyle}" />
                 <TextBlock
                     Opacity="0.6"
@@ -97,19 +112,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock
-                                MaxLines="1"
-                                Text="{x:Bind Title}"
-                                TextTrimming="CharacterEllipsis"
-                                Style="{StaticResource BodyStrongTextBlockStyle}" />
-                            <TextBlock
-                                MaxLines="1"
-                                Opacity="0.7"
-                                Text="{x:Bind ArtistsDisplay}"
-                                TextTrimming="CharacterEllipsis"
-                                Style="{StaticResource CaptionTextBlockStyle}" />
-                        </StackPanel>
+                        <controls:TrackInfo Grid.Column="0" Song="{x:Bind}" />
                         <TextBlock
                             Grid.Column="1"
                             VerticalAlignment="Center"

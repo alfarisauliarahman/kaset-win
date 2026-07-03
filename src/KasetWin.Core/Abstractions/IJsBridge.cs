@@ -37,6 +37,7 @@ public interface IJsBridge
 /// <param name="TrackChanged">Whether the observer detected a track change (Req 2.2).</param>
 /// <param name="HasVideo">Whether the page reports real video content, or <c>null</c> when unknown.</param>
 /// <param name="VideoType">The detected music video type, or <c>null</c> when unknown.</param>
+/// <param name="ThumbnailUrl">Current player-bar artwork, or <c>null</c> when unavailable.</param>
 public sealed record PlaybackStateMessage(
     bool IsPlaying,
     double Progress,
@@ -46,7 +47,8 @@ public sealed record PlaybackStateMessage(
     string Artist,
     bool TrackChanged,
     bool? HasVideo,
-    MusicVideoType? VideoType);
+    MusicVideoType? VideoType,
+    Uri? ThumbnailUrl = null);
 
 /// <summary>
 /// A <c>TRACK_ENDED</c> message carrying the videoId of the track that ended naturally

@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using KasetWin.Core.Services.Auth;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -12,7 +12,7 @@ namespace KasetWin.App.Auth;
 
 /// <summary>
 /// Interactive Google sign-in dialog (Task 9.3, Req 4.2/4.3). Hosts a <em>visible</em>
-/// <see cref="WebView2"/> — distinct from the hidden playback WebView — that loads the YouTube
+/// <see cref="WebView2"/> â€” distinct from the hidden playback WebView â€” that loads the YouTube
 /// Music Google login page. The dialog observes the WebView2's session and closes itself
 /// automatically once <see cref="IAuthService"/> reports <see cref="AuthState.LoggedIn"/>
 /// (a valid <c>__Secure-3PAPISID</c> cookie was detected), and offers a Cancel button otherwise.
@@ -45,6 +45,7 @@ internal sealed class LoginDialog : ContentDialog
 
     private readonly IAuthService _authService;
     private readonly CoreWebView2Accessor _accessor;
+    private readonly KasetWin.Platform.Playback.WebViewEnvironmentProvider _environmentProvider;
     private readonly ILogger _logger;
     private readonly WebView2 _webView;
     private readonly DispatcherQueue _dispatcherQueue;
@@ -64,11 +65,13 @@ internal sealed class LoginDialog : ContentDialog
     public LoginDialog(
         IAuthService authService,
         CoreWebView2Accessor accessor,
+        KasetWin.Platform.Playback.WebViewEnvironmentProvider environmentProvider,
         XamlRoot xamlRoot,
         ILogger? logger = null)
     {
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _accessor = accessor ?? throw new ArgumentNullException(nameof(accessor));
+        _environmentProvider = environmentProvider ?? throw new ArgumentNullException(nameof(environmentProvider));
         ArgumentNullException.ThrowIfNull(xamlRoot);
         _logger = logger ?? NullLogger.Instance;
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
@@ -94,7 +97,10 @@ internal sealed class LoginDialog : ContentDialog
     {
         try
         {
-            await _webView.EnsureCoreWebView2Async();
+            // Shared environment so the login WebView writes cookies to the same profile the
+            // playback/watch WebViews read (session sharing) and extensions are consistent.
+            var environment = await _environmentProvider.GetAsync();
+            await _webView.EnsureCoreWebView2Async(environment);
             var core = _webView.CoreWebView2;
             _attachedCore = core;
 

@@ -1,6 +1,7 @@
 using KasetWin.App.ViewModels;
 using KasetWin.Core.Services.Lyrics;
 using KasetWin.Core.Services.Player;
+using KasetWin.App.Navigation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -60,4 +61,12 @@ public sealed partial class LyricsPage : Page
             LyricsList.ScrollIntoView(line, ScrollIntoViewAlignment.Leading);
         }
     }
+
+    // ── Clickable header (Feature C) ─────────────────────────────────────────────────────────────
+
+    private void OnTitleClick(object sender, RoutedEventArgs e) =>
+        NavigationHelper.NavigateToAlbum(ViewModel.AlbumBrowseId);
+
+    private void OnArtistClick(object sender, RoutedEventArgs e) =>
+        NavigationHelper.NavigateToArtist(ViewModel.ArtistChannelId);
 }

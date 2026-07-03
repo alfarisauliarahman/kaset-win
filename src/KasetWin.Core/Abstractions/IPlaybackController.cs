@@ -56,6 +56,18 @@ public interface IPlaybackController
     Task PauseAsync();
 
     /// <summary>
+    /// Requests YouTube Music's own next item. Used when the native queue has reached the end and
+    /// playback is following the WebView autoplay chain.
+    /// </summary>
+    Task SkipToNextAsync();
+
+    /// <summary>
+    /// Requests YouTube Music's own previous item. Used when there is no native queue history to
+    /// restore.
+    /// </summary>
+    Task SkipToPreviousAsync();
+
+    /// <summary>
     /// Seeks to <paramref name="positionSeconds"/>. Disabled while a live stream is playing
     /// (Req 9.2) — the caller is responsible for not seeking on live content.
     /// </summary>

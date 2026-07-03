@@ -1,4 +1,4 @@
-using KasetWin.App.ViewModels;
+﻿using KasetWin.App.ViewModels;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Player;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,7 +8,7 @@ using Microsoft.UI.Xaml.Controls;
 namespace KasetWin.App.Views;
 
 /// <summary>
-/// Queue page (Task 14.8, Req 6.1–6.4). Shows the playback queue with the active track highlighted,
+/// Queue page (Task 14.8, Req 6.1â€“6.4). Shows the playback queue with the active track highlighted,
 /// reorders via drag, and offers Clear and Shuffle. Clicking a track plays from its position.
 /// </summary>
 /// <remarks>
@@ -39,6 +39,7 @@ public sealed partial class QueuePage : Page
     {
         if (e.ClickedItem is Song song)
         {
+            // THROWAWAY DIAGNOSTIC (Bug A): confirm a queue track-row click reaches the player.
             ViewModel.PlayTrackCommand.Execute(song);
         }
     }

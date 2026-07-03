@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using KasetWin.Core.Abstractions;
 using KasetWin.Core.Models;
@@ -25,6 +26,15 @@ public sealed class YouTubePlayerService : ObservableObject, IPausableAudioSourc
 {
     private readonly IYouTubeWatchController _controller;
 
+    /// <summary>
+    /// The UI <see cref="SynchronizationContext"/> captured at construction (the service is resolved
+    /// on the UI thread via DI). <c>PropertyChanged</c> is marshalled back onto it so the watch/feed
+    /// UI never observes <see cref="CurrentVideo"/>/<see cref="IsPlaying"/> mutations off the UI thread
+    /// (matching <see cref="PlayerService"/>; guards against the same class of XAML stowed exception).
+    /// <c>null</c> in headless tests, where notifications are raised inline exactly as before.
+    /// </summary>
+    private readonly SynchronizationContext? _uiContext = SynchronizationContext.Current;
+
     private YouTubeVideo? _currentVideo;
     private bool _isPlaying;
 
@@ -33,6 +43,27 @@ public sealed class YouTubePlayerService : ObservableObject, IPausableAudioSourc
     {
         _controller = controller ?? new NullYouTubeWatchController();
     }
+
+    /// <summary>
+    /// Raises <see cref="ObservableObject.PropertyChanged"/> on the captured UI thread (the single
+    /// funnel for every observable property). Uses <see cref="SynchronizationContext.Post(SendOrPostCallback, object?)"/>
+    /// (async) when off-thread; invokes inline when already on the UI thread or when no context was
+    /// captured (headless tests). See <see cref="PlayerService.OnPropertyChanged"/> for the rationale.
+    /// </summary>
+    protected override void OnPropertyChanged(PropertyChangedEventArgs e)
+    {
+        SynchronizationContext? ui = _uiContext;
+        if (ui is not null && !ReferenceEquals(SynchronizationContext.Current, ui))
+        {
+            ui.Post(_ => RaiseBasePropertyChanged(e), null);
+            return;
+        }
+
+        base.OnPropertyChanged(e);
+    }
+
+    /// <summary>Invokes the base <see cref="ObservableObject.OnPropertyChanged"/> (called on the UI thread).</summary>
+    private void RaiseBasePropertyChanged(PropertyChangedEventArgs e) => base.OnPropertyChanged(e);
 
     /// <inheritdoc />
     public event EventHandler? PlaybackStarted;
