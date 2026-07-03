@@ -27,6 +27,14 @@
     var lastArtist = '';
     var lastVideoId = '';
 
+    // Throttle routine progress/time updates (the `timeupdate` flood fires several times a second).
+    // Significant changes — play/pause transitions, track changes, videoId changes — always post
+    // immediately; only progress-only updates are rate-limited. The STATE_UPDATE message shape is
+    // unchanged (PlaybackMessageParser still receives the same fields).
+    var STATE_UPDATE_MIN_INTERVAL_MS = 500;
+    var lastStateUpdatePost = 0;
+    var lastIsPlaying = null;
+
     function post(message) {
         try {
             bridge.postMessage(message);
@@ -132,9 +140,27 @@
             hasVideo = (video.videoWidth || 0) > 0 && (video.videoHeight || 0) > 0;
         }
 
+        var isPlaying = video ? !video.paused : false;
+
+        // Post immediately on meaningful state changes; otherwise rate-limit progress-only updates
+        // so a single playing track doesn't flood native with a STATE_UPDATE every ~130–280ms.
+        var significant = trackChanged || (isPlaying !== lastIsPlaying);
+        if (!significant) {
+            var nowMs = (typeof performance !== 'undefined' && performance.now)
+                ? performance.now() : Date.now();
+            if (nowMs - lastStateUpdatePost < STATE_UPDATE_MIN_INTERVAL_MS) {
+                return;
+            }
+            lastStateUpdatePost = nowMs;
+        } else {
+            lastStateUpdatePost = (typeof performance !== 'undefined' && performance.now)
+                ? performance.now() : Date.now();
+        }
+        lastIsPlaying = isPlaying;
+
         post({
             type: 'STATE_UPDATE',
-            isPlaying: video ? !video.paused : false,
+            isPlaying: isPlaying,
             progress: isFinite(progress) ? progress : 0,
             duration: isFinite(duration) ? duration : 0,
             videoId: videoId,

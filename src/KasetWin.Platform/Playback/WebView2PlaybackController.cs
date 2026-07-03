@@ -136,6 +136,7 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
 
             await ConfigureCoreAsync(core).ConfigureAwait(true);
             _core = core;
+            KasetWin.Core.Diagnostics.KasetTrace.Log("BugA:Controller.AttachAsync.attached");
             _logger.LogInformation("Playback WebView2 attached and observer scripts installed.");
         }
         finally
@@ -184,6 +185,8 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
     public async Task LoadVideoAsync(string videoId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(videoId);
+        KasetWin.Core.Diagnostics.KasetTrace.Log(
+            "BugA:Controller.LoadVideoAsync.enter", $"coreNull={_core is null} same={string.Equals(_currentVideoId, videoId, StringComparison.Ordinal)}");
         var core = RequireCore();
 
         // Idempotent: re-loading the currently loaded video is a no-op (Req 1.2 / Property 6).
@@ -199,6 +202,7 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
 
         await InvokeOnUiAsync(async () =>
         {
+            KasetWin.Core.Diagnostics.KasetTrace.Log("BugA:Controller.LoadVideoAsync.onUi.navigate");
             await core.ExecuteScriptAsync("document.querySelector('video')?.pause()");
             await core.ExecuteScriptAsync(
                 $"window.__kasetTargetVolume = {VolumeToUnitLiteral(_targetVolume)};");
@@ -207,6 +211,7 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
             core.Navigate(url);
         }).ConfigureAwait(true);
 
+        KasetWin.Core.Diagnostics.KasetTrace.Log("BugA:Controller.LoadVideoAsync.navigated");
         _logger.LogInformation("Loading playback page for a new video.");
     }
 
@@ -319,6 +324,8 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
     private async Task ConfigureCoreAsync(CoreWebView2 core)
     {
         _uiContext = SynchronizationContext.Current;
+        KasetWin.Core.Diagnostics.KasetTrace.Log(
+            "BugA:Controller.ConfigureCoreAsync.uiContextCaptured", $"uiContextNull={_uiContext is null}");
 
         core.Settings.UserAgent = BrowserUserAgent;
         core.Settings.IsWebMessageEnabled = true; // required for window.chrome.webview.postMessage
@@ -359,6 +366,7 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
         }
 
         var message = PlaybackMessageParser.Parse(json);
+        KasetWin.Core.Diagnostics.KasetTrace.Log("BugA:Controller.OnWebMessageReceived", $"kind={message.Kind}");
 
         switch (message.Kind)
         {
@@ -389,6 +397,11 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
     private CoreWebView2 RequireCore()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_core is null)
+        {
+            KasetWin.Core.Diagnostics.KasetTrace.Log("BugA:Controller.RequireCore.NULL", "playback core not attached");
+        }
+
         return _core ?? throw new KasetError(
             KasetErrorKind.PlaybackError,
             "Playback WebView2 is not initialized. Call EnsureInitializedAsync/AttachAsync first (Req 1.1).");
@@ -422,9 +435,12 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
         if (context is null || context == SynchronizationContext.Current)
         {
             // Already on the WebView2 thread (or no context captured) — run inline.
+            KasetWin.Core.Diagnostics.KasetTrace.Log(
+                "BugA:Controller.InvokeOnUiAsync.inline", $"uiContextNull={context is null}");
             return action();
         }
 
+        KasetWin.Core.Diagnostics.KasetTrace.Log("BugA:Controller.InvokeOnUiAsync.post");
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         context.Post(
             async _ =>
@@ -436,6 +452,7 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
                 }
                 catch (Exception ex)
                 {
+                    KasetWin.Core.Diagnostics.KasetTrace.Log("BugA:Controller.InvokeOnUiAsync.post.error", ex.GetType().Name);
                     tcs.SetException(ex);
                 }
             },

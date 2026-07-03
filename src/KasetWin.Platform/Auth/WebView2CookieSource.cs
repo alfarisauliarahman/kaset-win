@@ -54,16 +54,25 @@ public sealed class WebView2CookieSource : ICookieSource
         ArgumentException.ThrowIfNullOrWhiteSpace(origin);
         ct.ThrowIfCancellationRequested();
 
+        // [TRACE] throwaway diagnostic — remove before shipping (Bug A/B shared cookie path).
         var core = _coreWebViewProvider();
+        KasetWin.Core.Diagnostics.KasetTrace.Log(
+            "Cookie.GetCookiesAsync.enter",
+            $"coreNull={core is null} hasThreadAccessKnown=false");
         if (core is null)
         {
             // WebView2 not initialized yet: return an empty (non-null) snapshot so callers can
             // still issue unauthenticated requests instead of having to handle an exception.
             _logger.LogDebug("Cookie source queried before WebView2 initialization; returning empty snapshot.");
+            KasetWin.Core.Diagnostics.KasetTrace.Log("Cookie.GetCookiesAsync.exit", "emptySnapshot coreNull=true");
             return CookieSnapshot.Empty(origin);
         }
 
+        var __cookieStart = KasetWin.Core.Diagnostics.KasetTrace.Now();
+        KasetWin.Core.Diagnostics.KasetTrace.Log("Cookie.CookieManager.GetCookiesAsync.start");
         var cookies = await core.CookieManager.GetCookiesAsync(origin);
+        KasetWin.Core.Diagnostics.KasetTrace.LogSince(
+            "Cookie.CookieManager.GetCookiesAsync.end", __cookieStart, $"count={cookies?.Count ?? 0}");
         ct.ThrowIfCancellationRequested();
 
         if (cookies is null || cookies.Count == 0)
