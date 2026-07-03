@@ -467,6 +467,49 @@ Fase:
 - [x] 29. Checkpoint fase lanjutan — pastikan semua test lulus
   - Pastikan seluruh test lulus, tanyakan ke user bila ada pertanyaan.
 
+### UPSTREAM SYNC (v0.12.0)
+
+> Fitur/fix baru dari repo asli `sozercan/kaset` sampai commit `bd68513` (tag v0.12.0) yang belum tercakup baseline spec. Rincian & pemetaan lengkap: `upstream-sync.md`. Semua sub-tugas ditandai `*` (belum diimplementasikan otomatis).
+
+- [ ] 30. (Upstream Sync) Fitur & fix v0.12.0
+  - [x]* 30.1 Nama artis clickable di header album/playlist → navigasi ke halaman artis
+    - Jadikan nama artis di `AlbumPage`/`PlaylistPage` sebuah `HyperlinkButton`/afordans klik → `NavigateToArtist(browseId)`; guard bila `browseId` kosong. Ref upstream: `PlaylistDetailView.swift` (#341)
+    - **SELESAI**: `PlaylistDetailViewModel` mengekspos `AuthorId` + `HasAuthorLink` (guard `ParsingHelpers.IsNavigableArtistId`, menolak id sintetis) + `NavigateToArtistCommand`; header `AlbumPage`/`PlaylistPage` pakai pola HyperlinkButton/plain seperti `TrackInfo`. Build hijau.
+    - _Requirements: 37.1_
+  - [ ]* 30.2 Kontrol seek ±30 detik (mode YouTube video)
+    - Tombol +30s/−30s di player bar video; clamp `[0, Duration]`. Ref upstream: `YouTubePlayerService+Seeking.swift` (#326)
+    - **DITUNDA (di luar fokus)**: fitur khusus **mode YouTube video** (Fase Lanjutan). User memutuskan fokus YouTube Music dulu. Kerjakan bersama Tugas 25 (mode YouTube penuh).
+    - _Requirements: 37.2_
+    - _Properties: 11_
+  - [~]* 30.3 Aksi Like/Unlike lagu aktif
+    - Toggle like lagu aktif via **SMTC thumbbutton** atau **Jump List** taskbar; reuse `SongLikeStatusManager`. Padanan dari Dock menu macOS. Ref upstream: #334
+    - **SEBAGIAN (in-app selesai; surface sistem ditunda)**: tombol **Like** ditambahkan di `PlayerBar` (grup now-playing) — resolve `IYTMusicClient` dari DI, toggle `RateSongAsync` (Like ↔ removelike), update optimistik + revert bila gagal, visual opacity mengikuti konvensi Shuffle/Repeat. Build hijau. **Verifikasi fungsional butuh app berjalan + sesi login** (belum dijalankan; AGENTS.md mewajibkan izin sebelum menjalankan UI). Surface sistem (taskbar thumbbutton `ITaskbarList3`) tetap ditunda.
+    - _Requirements: 37.3_
+  - [ ]* 30.4 Polish/redesain Player Bar sesuai upstream
+    - Scrubber ala Apple Music, marquee judul, artwork glow, vertical volume slider, seek-hold. Ref upstream file baru: `AppleMusicScrubber`, `PlayerBar*` (#314, #327, #331)
+    - **DITUNDA (redesain UI besar & subjektif)**: perlu keputusan desain dengan user + verifikasi visual app berjalan. Bukan perbaikan fungsional.
+    - _Requirements: 37.4_
+  - [ ]* 30.5 History Brand Account (musik + video)
+    - Pastikan pencatatan history memakai sesi Brand account yang benar; baca ADR `0023-brand-account-history-session-switch` di repo asli sebelum menyentuh auth/history. Ref upstream: #318
+    - **DITUNDA (butuh API/sesi multi-akun nyata)**: tidak dapat diverifikasi headless; perlu akun Brand asli + observasi sesi WebView2. Baca ADR 0023 dulu.
+    - _Requirements: 37.5_
+  - [ ]* 30.6 Resolusi API key di balik EU consent wall
+    - Tangani consent wall Uni Eropa saat resolusi API key/cookie di `YTMusicClient`. Ref upstream: `APISessionConfiguration.swift` (#345)
+    - **DITUNDA (butuh respons API region EU nyata)**: tidak dapat diverifikasi tanpa consent wall EU asli. Rujuk `APISessionConfiguration.swift` saat dikerjakan.
+    - _Requirements: 37.6_
+  - [x]* 30.7 Fix media-key "next" mengulang track saat background
+    - Pastikan next benar-benar maju (videoId otoritatif) di jalur SMTC/`PlayerService`. Ref upstream: #319
+    - **SELESAI + TERUJI**: bug ditemukan di `QueueService.NextIndexLocked` — `RepeatMode.One` membuat Next eksplisit mengulang lagu sama. Perbaikan: `AdvanceToNext(bool ignoreRepeatOne)`; `PlayerService.NextAsync` pakai `ignoreRepeatOne:true` (skip maju/ wrap), jalur track-end tetap default (Repeat One dipertahankan). 6 unit test baru di `QueueServiceSkipTests.cs`; **381 test lulus**.
+    - _Requirements: 37.7_
+  - [x]* 30.8 Kontrak ukuran main window
+    - Terapkan batas min/max + persistensi ukuran window. Ref upstream: `MainWindowLayout.swift` (#322)
+    - **SELESAI**: `MainWindowLayout.Configure(this)` di ctor MainWindow — min 980×600 (DPI-scaled) via subclass `WM_GETMINMAXINFO` (WinAppSDK 1.6 belum punya `PreferredMinimum*`), buka default 1100×760. Build hijau.
+    - _Requirements: 37.8_
+  - [~]* 30.9 Pertahankan warna ikon sidebar setelah navigasi
+    - Ikon `NavigationView`/sidebar tetap ter-branding setelah pindah halaman. Ref upstream: #336
+    - **N/A untuk port saat ini**: sidebar WinUI pakai `NavigationView` standar dengan `FontIcon` monokrom (tanpa override `Foreground`) — tidak ada konsep "ikon berwarna brand" seperti `KasetSidebarRow` macOS, dan NavigationView mengelola foreground state selected/unselected otomatis. Bug #336 tak punya analog di sini. Ditinjau ulang bila sidebar berwarna brand ditambahkan.
+    - _Requirements: 37.9_
+
 ## Notes
 
 - Sub-tugas bertanda `*` bersifat opsional (test atau fitur fase lanjutan) dan **tidak** diimplementasikan otomatis; dapat dilewati untuk MVP yang lebih cepat.

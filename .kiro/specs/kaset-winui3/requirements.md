@@ -449,3 +449,19 @@ Kebutuhan dikelompokkan menjadi tiga tingkat lingkup:
 4. THE Kaset SHALL mengecualikan integrasi AppleScript dan menggantinya dengan Protocol_Activation atau argumen CLI pada fase lanjutan.
 5. THE Kaset SHALL mengecualikan mekanisme auto-update (misalnya MSIX atau Velopack) dari rilis awal dan mencatatnya sebagai future work.
 6. THE Kaset SHALL mengecualikan seluruh fitur berbasis AI/Apple Intelligence (Command Bar AI, penjelasan lirik AI, analisis antrian AI, dan refine playlist AI) dari lingkup.
+
+### Requirement 37: Sinkronisasi Fitur Upstream v0.12.0 (Fase Lanjutan)
+
+**User Story:** Sebagai pengguna, saya ingin port Windows mengejar fitur baru yang ditambahkan pada Kaset macOS (rilis v0.12.0), sehingga pengalaman kedua platform tetap setara. Rujukan lengkap ada di `upstream-sync.md`.
+
+#### Acceptance Criteria
+
+1. WHEN pengguna melihat header album atau playlist, THE Kaset SHALL menampilkan nama artis sebagai afordans yang dapat diklik, dan WHEN diklik, THE Kaset SHALL menavigasi ke halaman artis terkait. _(upstream #341)_
+2. WHERE sebuah video sedang diputar (mode YouTube), THE Player_Service SHALL menyediakan kontrol lompat mundur dan maju 30 detik, dengan posisi hasil di-clamp ke rentang `[0, Duration]`. _(upstream #326)_
+3. WHILE sebuah lagu sedang diputar, THE Kaset SHALL menyediakan aksi Like/Unlike dari permukaan sistem (SMTC thumbbutton atau Jump List taskbar) yang memperbarui status like lagu tersebut. _(upstream #334)_
+4. THE Kaset SHALL menyelaraskan tata letak dan kontrol Player_Bar dengan desain upstream terbaru (scrubber, marquee judul, kontrol volume, seek-hold). _(upstream #314, #327, #331)_
+5. WHEN pengguna masuk dengan Brand Account, THE Kaset SHALL mencatat riwayat pemutaran (musik dan video) menggunakan sesi Brand account yang benar. _(upstream #318; lihat ADR terkait di repo asli)_
+6. WHERE resolusi API key terhalang consent wall Uni Eropa, THE YTMusic_Client SHALL menyelesaikan alur consent tersebut sehingga API key tetap dapat diperoleh. _(upstream #345)_
+7. WHILE aplikasi berada di latar belakang, WHEN pengguna menekan media-key "next", THE Player_Service SHALL memajukan ke track berikutnya (bukan mengulang track yang sama). _(upstream #319)_
+8. WHEN main window ditampilkan, THE Kaset SHALL menegakkan kontrak ukuran window (batas minimum/maksimum dan persistensi ukuran) yang konsisten. _(upstream #322)_
+9. WHEN pengguna bernavigasi antar-halaman, THE Kaset SHALL mempertahankan warna ikon sidebar yang ter-branding. _(upstream #336)_
