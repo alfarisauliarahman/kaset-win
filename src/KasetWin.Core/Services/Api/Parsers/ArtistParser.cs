@@ -24,10 +24,11 @@ namespace KasetWin.Core.Services.Api.Parsers;
 /// (<c>MPRE…</c>/<c>OLAK…</c>) via <see cref="BrowseIdClassifier"/>.
 /// </para>
 /// <para>
-/// Episodes and related artists are intentionally left empty in this slice (advanced phase,
-/// ADR-0018). On malformed input the parser throws <see cref="KasetError"/> with
-/// <see cref="KasetErrorKind.ParseError"/> rather than crashing or leaking another exception
-/// type (Property 34). This type lives in <c>KasetWin.Core</c> and has no WinUI/WinRT dependency.
+/// Episodes are intentionally left empty in this slice (advanced phase, ADR-0018). Related
+/// artists, featured playlists and videos are parsed from their carousels. On malformed input the
+/// parser throws <see cref="KasetError"/> with <see cref="KasetErrorKind.ParseError"/> rather than
+/// crashing or leaking another exception type (Property 34). This type lives in
+/// <c>KasetWin.Core</c> and has no WinUI/WinRT dependency.
 /// </para>
 /// </remarks>
 public static class ArtistParser
@@ -88,10 +89,20 @@ public static class ArtistParser
             var artist = ParseArtist(header, subscribeButton);
             var description = ParsingHelpers.JoinRunTexts(header, "description");
             var isSubscribed = Bool(subscribeButton, "subscribed") ?? false;
+            // The id YTM expects for subscription/subscribe lives on the subscribe button renderer
+            // (Bug 4); it can differ from the browse id used to load the page. Sending the browse id
+            // instead is what produced the HTTP 400, so surface this id for the mutation.
+            var subscribeChannelId = Str(subscribeButton, "channelId");
+            var subscriberText = ExtractSubscriberText(subscribeButton);
+            var monthlyListenersText = ExtractMonthlyListenersText(header);
+            var (radioPlaylistId, radioVideoId) = ExtractStartRadio(header);
 
             var topSongs = new List<Song>();
             var albums = new List<Album>();
             var singles = new List<Album>();
+            var videos = new List<Song>();
+            var featured = new List<Playlist>();
+            var related = new List<Artist>();
             var seeAll = new ArtistSeeAllDestinations();
 
             var sectionList = ResponseTreeSearch.FindFirst(root, "sectionListRenderer");
@@ -109,28 +120,58 @@ public static class ArtistParser
                 else if (Prop(sectionData, "musicCarouselShelfRenderer") is { } carousel)
                 {
                     var title = ExtractCarouselTitle(carousel);
-                    var isSingles = IsSinglesShelf(title);
-                    var parsed = ParseAlbumCarousel(carousel, artist);
-                    if (parsed.Count == 0)
+                    var section = ParseCarousel(carousel, artist, title);
+                    if (section.IsEmpty)
                     {
                         continue;
                     }
 
                     var more = ExtractMoreBrowseId(carousel);
-                    if (isSingles)
+
+                    // Attribute the shelf's content to the right rail. A single carousel is
+                    // homogeneous in practice, so the first non-empty bucket wins for the "See all".
+                    if (section.Singles.Count > 0)
                     {
-                        singles.AddRange(parsed);
+                        singles.AddRange(section.Singles);
                         if (more is not null)
                         {
                             seeAll = seeAll with { SinglesBrowseId = more };
                         }
                     }
-                    else
+
+                    if (section.Albums.Count > 0)
                     {
-                        albums.AddRange(parsed);
+                        albums.AddRange(section.Albums);
                         if (more is not null)
                         {
                             seeAll = seeAll with { AlbumsBrowseId = more };
+                        }
+                    }
+
+                    if (section.Videos.Count > 0)
+                    {
+                        videos.AddRange(section.Videos);
+                        if (more is not null)
+                        {
+                            seeAll = seeAll with { VideosBrowseId = more };
+                        }
+                    }
+
+                    if (section.Playlists.Count > 0)
+                    {
+                        featured.AddRange(section.Playlists);
+                        if (more is not null)
+                        {
+                            seeAll = seeAll with { FeaturedBrowseId = more };
+                        }
+                    }
+
+                    if (section.Artists.Count > 0)
+                    {
+                        related.AddRange(section.Artists);
+                        if (more is not null)
+                        {
+                            seeAll = seeAll with { RelatedBrowseId = more };
                         }
                     }
                 }
@@ -140,11 +181,20 @@ public static class ArtistParser
             {
                 Artist = artist,
                 Description = description,
+                HeaderImageUrl = artist.ThumbnailUrl,
+                SubscriberText = subscriberText,
+                MonthlyListenersText = monthlyListenersText,
+                RadioPlaylistId = radioPlaylistId,
+                RadioVideoId = radioVideoId,
                 TopSongs = topSongs,
                 Albums = albums,
                 SinglesAndEps = singles,
+                Videos = videos,
+                FeaturedPlaylists = featured,
+                RelatedArtists = related,
                 Episodes = Array.Empty<ArtistEpisode>(),
                 IsSubscribed = isSubscribed,
+                SubscribeChannelId = subscribeChannelId,
                 SeeAll = seeAll,
             };
         }
@@ -185,6 +235,76 @@ public static class ArtistParser
             : ParsingHelpers.StableId("artist", name);
 
         return new Artist { Id = id, Name = name, ThumbnailUrl = thumbnail };
+    }
+
+    /// <summary>
+    /// Extracts the subscriber count line (e.g. <c>"1.2M subscribers"</c>) from the subscribe
+    /// button, preferring the short form over the long form.
+    /// </summary>
+    private static string? ExtractSubscriberText(JsonNode? subscribeButton)
+    {
+        if (subscribeButton is null)
+        {
+            return null;
+        }
+
+        return ParsingHelpers.JoinRunTexts(subscribeButton, "shortSubscriberCountText")
+            ?? ParsingHelpers.JoinRunTexts(subscribeButton, "subscriberCountText");
+    }
+
+    /// <summary>
+    /// Extracts the monthly-listeners / monthly-audience line from the immersive header
+    /// (<c>monthlyListenerCount.runs</c>), or <c>null</c>.
+    /// </summary>
+    private static string? ExtractMonthlyListenersText(JsonNode header)
+    {
+        var node = ResponseTreeSearch.FindFirst(header, "monthlyListenerCount");
+        var joined = RunsTextDirect(node);
+        return string.IsNullOrWhiteSpace(joined) ? null : joined!.Trim();
+    }
+
+    /// <summary>
+    /// Reads the radio/mix seed from the header <c>startRadioButton</c>: a
+    /// <c>watchPlaylistEndpoint.playlistId</c> (artist mix) and/or a
+    /// <c>watchEndpoint.playlistId</c>/<c>videoId</c> (song radio fallback).
+    /// </summary>
+    private static (string? PlaylistId, string? VideoId) ExtractStartRadio(JsonNode header)
+    {
+        var startRadio = Prop(header, "startRadioButton");
+        if (startRadio is null)
+        {
+            return (null, null);
+        }
+
+        var watchPlaylist = ResponseTreeSearch.FindFirst(startRadio, "watchPlaylistEndpoint");
+        var playlistId = Str(watchPlaylist, "playlistId");
+        if (playlistId is not null)
+        {
+            return (playlistId, null);
+        }
+
+        var watch = ResponseTreeSearch.FindFirst(startRadio, "watchEndpoint");
+        return (Str(watch, "playlistId"), Str(watch, "videoId"));
+    }
+
+    private static string? RunsTextDirect(JsonNode? node)
+    {
+        var runs = Arr(Prop(node, "runs"));
+        if (runs is null)
+        {
+            return null;
+        }
+
+        var sb = new System.Text.StringBuilder();
+        foreach (var run in runs)
+        {
+            if (Str(run, "text") is { } text)
+            {
+                sb.Append(text);
+            }
+        }
+
+        return sb.Length == 0 ? null : sb.ToString();
     }
 
     // MARK: - Top songs (musicShelfRenderer)
@@ -230,23 +350,55 @@ public static class ArtistParser
             VideoId = videoId,
             Title = title,
             Artists = ParsingHelpers.ExtractArtistsFromFlexColumns(row),
+            Album = ParsingHelpers.ExtractAlbumFromFlexColumns(row),
             Duration = ExtractDurationFromColumns(row),
             ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(row),
             IsExplicit = ParsingHelpers.ExtractIsExplicit(row),
         };
     }
 
-    // MARK: - Albums / singles (musicCarouselShelfRenderer → musicTwoRowItemRenderer)
+    // MARK: - Carousels (musicCarouselShelfRenderer → musicTwoRowItemRenderer)
 
-    private static IReadOnlyList<Album> ParseAlbumCarousel(JsonNode carousel, Artist pageArtist)
+    /// <summary>
+    /// The classified contents of a single carousel shelf. A real artist-page carousel is
+    /// homogeneous (all albums, all videos, …); the buckets allow the rare mixed shelf and let the
+    /// caller attribute the shelf's "See all" to the right rail.
+    /// </summary>
+    private readonly struct CarouselSection
     {
+        public List<Album> Albums { get; init; }
+
+        public List<Album> Singles { get; init; }
+
+        public List<Song> Videos { get; init; }
+
+        public List<Playlist> Playlists { get; init; }
+
+        public List<Artist> Artists { get; init; }
+
+        public bool IsEmpty =>
+            Albums.Count == 0 && Singles.Count == 0 && Videos.Count == 0
+            && Playlists.Count == 0 && Artists.Count == 0;
+    }
+
+    private static CarouselSection ParseCarousel(JsonNode carousel, Artist pageArtist, string? shelfTitle)
+    {
+        var section = new CarouselSection
+        {
+            Albums = new List<Album>(),
+            Singles = new List<Album>(),
+            Videos = new List<Song>(),
+            Playlists = new List<Playlist>(),
+            Artists = new List<Artist>(),
+        };
+
         var contents = Arr(Prop(carousel, "contents"));
         if (contents is null)
         {
-            return Array.Empty<Album>();
+            return section;
         }
 
-        var albums = new List<Album>(contents.Count);
+        var isSinglesShelf = IsSinglesShelf(shelfTitle);
         foreach (var itemData in contents)
         {
             if (Prop(itemData, "musicTwoRowItemRenderer") is not { } twoRow)
@@ -254,29 +406,85 @@ public static class ArtistParser
                 continue;
             }
 
-            var album = ParseAlbumItem(twoRow, pageArtist);
-            if (album is not null)
-            {
-                albums.Add(album);
-            }
+            ClassifyCarouselItem(twoRow, pageArtist, isSinglesShelf, section);
         }
 
-        return albums;
+        return section;
     }
 
-    private static Album? ParseAlbumItem(JsonNode data, Artist pageArtist)
+    /// <summary>
+    /// Routes a single <c>musicTwoRowItemRenderer</c> into the matching bucket based on its
+    /// endpoint shape (<c>watchEndpoint</c> → video) and, for browse targets, the
+    /// <see cref="BrowseIdClassifier"/> kind (album/playlist/artist), using the shelf title as the
+    /// album-vs-single tiebreaker. Mirrors the macOS <c>classifyCarouselItem</c>.
+    /// </summary>
+    private static void ClassifyCarouselItem(JsonNode twoRow, Artist pageArtist, bool isSinglesShelf, CarouselSection section)
     {
-        // The browse target may sit on the renderer's top-level navigationEndpoint or on the
-        // title run (sanitized fixtures use the latter); search the item for either shape.
-        var browseId = ParsingHelpers.ExtractBrowseId(data)
-            ?? Str(ResponseTreeSearch.FindFirst(data, "browseEndpoint"), "browseId");
+        // A video carousel item plays directly via watchEndpoint (no browseId).
+        var watch = ResponseTreeSearch.FindFirst(twoRow, "watchEndpoint");
+        var videoId = Str(watch, "videoId");
 
-        // Only album / single browse ids (MPRE…/OLAK…) belong on the Albums / Singles rails.
-        if (browseId is null || BrowseIdClassifier.Classify(browseId) != BrowseIdKind.Album)
+        var browseId = ParsingHelpers.ExtractBrowseId(twoRow)
+            ?? Str(ResponseTreeSearch.FindFirst(twoRow, "browseEndpoint"), "browseId");
+
+        if (browseId is null && videoId is not null)
         {
-            return null;
+            var video = ParseVideoItem(twoRow, videoId, pageArtist);
+            if (video is not null)
+            {
+                section.Videos.Add(video);
+            }
+
+            return;
         }
 
+        if (browseId is null)
+        {
+            return;
+        }
+
+        switch (BrowseIdClassifier.Classify(browseId))
+        {
+            case BrowseIdKind.Album:
+                var album = ParseAlbumItem(twoRow, browseId, pageArtist);
+                if (album is null)
+                {
+                    break;
+                }
+
+                if (isSinglesShelf)
+                {
+                    section.Singles.Add(album);
+                }
+                else
+                {
+                    section.Albums.Add(album);
+                }
+
+                break;
+
+            case BrowseIdKind.Playlist:
+                var playlist = ParsePlaylistItem(twoRow, browseId, pageArtist);
+                if (playlist is not null)
+                {
+                    section.Playlists.Add(playlist);
+                }
+
+                break;
+
+            case BrowseIdKind.Artist:
+                var related = ParseRelatedArtistItem(twoRow, browseId);
+                if (related is not null)
+                {
+                    section.Artists.Add(related);
+                }
+
+                break;
+        }
+    }
+
+    private static Album? ParseAlbumItem(JsonNode data, string browseId, Artist pageArtist)
+    {
         var title = ParsingHelpers.ExtractText(data);
         if (title is null)
         {
@@ -290,6 +498,54 @@ public static class ArtistParser
             Artists = new[] { pageArtist },
             ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(data),
             Year = ExtractYear(data),
+        };
+    }
+
+    private static Song? ParseVideoItem(JsonNode data, string videoId, Artist pageArtist)
+    {
+        var title = ParsingHelpers.ExtractText(data) ?? "Unknown";
+        return new Song
+        {
+            Id = videoId,
+            VideoId = videoId,
+            Title = title,
+            Artists = new[] { pageArtist },
+            ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(data),
+            HasVideo = true,
+            IsExplicit = ParsingHelpers.ExtractIsExplicit(data),
+        };
+    }
+
+    private static Playlist? ParsePlaylistItem(JsonNode data, string browseId, Artist pageArtist)
+    {
+        var title = ParsingHelpers.ExtractText(data);
+        if (title is null)
+        {
+            return null;
+        }
+
+        return new Playlist
+        {
+            Id = browseId,
+            Title = title,
+            Author = pageArtist,
+            ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(data),
+        };
+    }
+
+    private static Artist? ParseRelatedArtistItem(JsonNode data, string browseId)
+    {
+        var name = ParsingHelpers.ExtractText(data);
+        if (name is null)
+        {
+            return null;
+        }
+
+        return new Artist
+        {
+            Id = browseId,
+            Name = name,
+            ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(data),
         };
     }
 

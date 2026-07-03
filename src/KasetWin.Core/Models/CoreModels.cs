@@ -42,6 +42,28 @@ public sealed record Song
 
     /// <summary>Deterministic thumbnail fallback derived from <see cref="VideoId"/>.</summary>
     public Uri FallbackThumbnailUrl => new($"https://i.ytimg.com/vi/{VideoId}/hqdefault.jpg");
+
+    /// <summary>
+    /// The primary artist with a navigable channel id (the first artist carrying a non-empty
+    /// <see cref="Artist.Id"/>), or <c>null</c> when no artist has one. Backs the clickable
+    /// artist-name affordance (only rendered when a real id exists, never fabricated).
+    /// </summary>
+    public Artist? PrimaryArtist => Artists.FirstOrDefault(a => !string.IsNullOrEmpty(a.Id));
+
+    /// <summary>Channel id of <see cref="PrimaryArtist"/>, or <c>null</c> when none is available.</summary>
+    public string? PrimaryArtistId => PrimaryArtist?.Id;
+
+    /// <summary>Whether the artist name can navigate to an artist page (a real channel id exists).</summary>
+    public bool HasArtistLink => PrimaryArtist is not null;
+
+    /// <summary>
+    /// The album browseId this song belongs to, or <c>null</c> when the song carries no album.
+    /// Backs the clickable song-title affordance (navigates to the album/single page when present).
+    /// </summary>
+    public string? AlbumBrowseId => string.IsNullOrEmpty(Album?.Id) ? null : Album!.Id;
+
+    /// <summary>Whether the song title can navigate to an album page (a real album browseId exists).</summary>
+    public bool HasAlbumLink => AlbumBrowseId is not null;
 }
 
 /// <summary>
@@ -125,16 +147,66 @@ public sealed record ArtistDetail
 
     public string? Description { get; init; }
 
+    /// <summary>
+    /// Wide banner / cover image from the artist header (<c>musicImmersiveHeaderRenderer</c> /
+    /// <c>musicVisualHeaderRenderer</c> thumbnail). Used as the YouTube-Music-style header banner.
+    /// Falls back to <see cref="Artist"/>.<see cref="Artist.ThumbnailUrl"/> when not separately set.
+    /// </summary>
+    public Uri? HeaderImageUrl { get; init; }
+
+    /// <summary>
+    /// Subscriber count line from the subscribe button (e.g. <c>"1.2M subscribers"</c>), or
+    /// <c>null</c> when the header carries none.
+    /// </summary>
+    public string? SubscriberText { get; init; }
+
+    /// <summary>
+    /// Monthly-listeners / monthly-audience line from the immersive header (e.g.
+    /// <c>"93.2M monthly listeners"</c>), or <c>null</c> when absent.
+    /// </summary>
+    public string? MonthlyListenersText { get; init; }
+
+    /// <summary>
+    /// Playlist id for the artist's "Radio"/mix (from the header <c>startRadioButton</c>
+    /// <c>watchPlaylistEndpoint</c>), or <c>null</c> when the header exposes none.
+    /// </summary>
+    public string? RadioPlaylistId { get; init; }
+
+    /// <summary>
+    /// Seed videoId for the artist's radio (from the header <c>startRadioButton</c>
+    /// <c>watchEndpoint</c>), or <c>null</c>.
+    /// </summary>
+    public string? RadioVideoId { get; init; }
+
     public IReadOnlyList<Song> TopSongs { get; init; } = [];
 
     public IReadOnlyList<Album> Albums { get; init; } = [];
 
     public IReadOnlyList<Album> SinglesAndEps { get; init; } = [];
 
+    /// <summary>Video shelf items (carousel items whose endpoint is a <c>watchEndpoint</c>).</summary>
+    public IReadOnlyList<Song> Videos { get; init; } = [];
+
+    /// <summary>"Featured on" / playlists-by-artist carousels (playlist browse ids).</summary>
+    public IReadOnlyList<Playlist> FeaturedPlaylists { get; init; } = [];
+
+    /// <summary>"Fans might also like" / similar/related artists (channel browse ids).</summary>
+    public IReadOnlyList<Artist> RelatedArtists { get; init; } = [];
+
     /// <summary>Podcast / show episodes on the artist page (advanced phase, Req 18 ADR-0018).</summary>
     public IReadOnlyList<ArtistEpisode> Episodes { get; init; } = [];
 
     public bool IsSubscribed { get; init; }
+
+    /// <summary>
+    /// The channel id YouTube Music expects for the subscribe/unsubscribe mutation, taken from the
+    /// header's <c>subscribeButtonRenderer.channelId</c> (Bug 4). This is the authoritative id for
+    /// the <c>subscription/subscribe</c> endpoint and can differ from the browse id used to load the
+    /// page; sending the browse id instead is what produced the HTTP 400. <c>null</c> when the
+    /// header carries no subscribe button channel id, in which case callers fall back to the
+    /// navigable browse id (mirroring the macOS client).
+    /// </summary>
+    public string? SubscribeChannelId { get; init; }
 
     public ArtistSeeAllDestinations SeeAll { get; init; } = new();
 }
@@ -156,4 +228,13 @@ public sealed record ArtistSeeAllDestinations
     public string? AlbumsBrowseId { get; init; }
 
     public string? SinglesBrowseId { get; init; }
+
+    /// <summary>"See all" browse target for the Videos shelf, when present.</summary>
+    public string? VideosBrowseId { get; init; }
+
+    /// <summary>"See all" browse target for the Featured/playlists shelf, when present.</summary>
+    public string? FeaturedBrowseId { get; init; }
+
+    /// <summary>"See all" browse target for the Related/similar artists shelf, when present.</summary>
+    public string? RelatedBrowseId { get; init; }
 }

@@ -134,8 +134,17 @@ public sealed class YouTubeClient : IYouTubeClient
     public async Task<YouTubeFeed> GetHistoryAsync(CancellationToken ct = default)
     {
         // History changes with every play; intentionally uncached (mirrors the music history path).
+        KasetWin.Core.Diagnostics.KasetTrace.Log("BugB:YouTubeClient.GetHistoryAsync.start");
+        var __t = KasetWin.Core.Diagnostics.KasetTrace.Now();
         var node = await RequestAsync("browse", BrowseBody("FEhistory"), ttl: null, ct).ConfigureAwait(false);
-        return YouTubeFeedParser.Parse(node);
+        KasetWin.Core.Diagnostics.KasetTrace.LogSince("BugB:YouTubeClient.GetHistoryAsync.request.end", __t);
+        KasetWin.Core.Diagnostics.KasetTrace.Log("BugB:YouTubeClient.GetHistoryAsync.parse.start");
+        var __p = KasetWin.Core.Diagnostics.KasetTrace.Now();
+        var feed = YouTubeFeedParser.Parse(node);
+        KasetWin.Core.Diagnostics.KasetTrace.LogSince(
+            "BugB:YouTubeClient.GetHistoryAsync.parse.end", __p,
+            $"videos={feed.Videos.Count} shorts={feed.Shorts.Count}");
+        return feed;
     }
 
     /// <inheritdoc />
@@ -299,7 +308,11 @@ public sealed class YouTubeClient : IYouTubeClient
         ArgumentException.ThrowIfNullOrEmpty(endpoint);
         ArgumentNullException.ThrowIfNull(body);
 
+        KasetWin.Core.Diagnostics.KasetTrace.Log("BugB:YouTubeClient.RequestAsync.enter", $"endpoint={endpoint}");
+        var __ck = KasetWin.Core.Diagnostics.KasetTrace.Now();
         var snapshot = await _cookieSource.GetCookiesAsync(_options.Origin, ct).ConfigureAwait(false);
+        KasetWin.Core.Diagnostics.KasetTrace.LogSince(
+            "BugB:YouTubeClient.RequestAsync.cookies.done", __ck, $"cookies={snapshot.Cookies.Count}");
 
         var payload = InnerTubeSupport.BuildWebContext(snapshot.OnBehalfOfUser);
         foreach (var pair in body)
@@ -317,12 +330,16 @@ public sealed class YouTubeClient : IYouTubeClient
 
         var headers = BuildAuthHeaders(_options.Origin, snapshot);
 
+        KasetWin.Core.Diagnostics.KasetTrace.Log("BugB:YouTubeClient.RequestAsync.send.start");
+        var __snd = KasetWin.Core.Diagnostics.KasetTrace.Now();
         var responseBody = await _retryPolicy.ExecuteAsync(
             () => SendAsync(endpoint, payload, headers, ct),
             static ex => ex is KasetError { IsRetryable: true },
             _options.MaxAttempts,
             initialDelay: null,
             ct).ConfigureAwait(false);
+        KasetWin.Core.Diagnostics.KasetTrace.LogSince(
+            "BugB:YouTubeClient.RequestAsync.send.end", __snd, $"bytes={responseBody?.Length ?? 0}");
 
         JsonNode node;
         try

@@ -63,7 +63,14 @@ public interface IQueueService : INotifyPropertyChanged
     /// Advances the active track following the repeat mode and returns the new
     /// <see cref="CurrentTrack"/>, or <c>null</c> if there is nothing to advance to.
     /// </summary>
-    Song? AdvanceToNext();
+    /// <param name="ignoreRepeatOne">
+    /// When <c>true</c>, a <see cref="RepeatMode.One"/> queue still moves to the next track
+    /// (wrapping like <see cref="RepeatMode.All"/>) instead of staying on the current one. Set by an
+    /// explicit user "Next" (media key / player-bar button): Repeat One governs auto-advance at
+    /// track end, not a deliberate skip — otherwise pressing Next merely replays the same song
+    /// (Task 30.7, Req 37.7; upstream #319).
+    /// </param>
+    Song? AdvanceToNext(bool ignoreRepeatOne = false);
 
     /// <summary>
     /// Moves the active track backwards following the repeat mode and returns the new

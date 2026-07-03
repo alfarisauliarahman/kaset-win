@@ -239,12 +239,12 @@ public sealed class QueueService : ObservableObject, IQueueService
     }
 
     /// <inheritdoc />
-    public Song? AdvanceToNext()
+    public Song? AdvanceToNext(bool ignoreRepeatOne = false)
     {
         bool changed;
         lock (_gate)
         {
-            int? next = NextIndexLocked();
+            int? next = NextIndexLocked(ignoreRepeatOne);
             if (next is not int idx)
             {
                 return null;
@@ -361,14 +361,18 @@ public sealed class QueueService : ObservableObject, IQueueService
     }
 
     /// <summary>Index of the next track per the repeat mode, or <c>null</c> when there is none.</summary>
-    private int? NextIndexLocked()
+    private int? NextIndexLocked(bool ignoreRepeatOne = false)
     {
         if (_tracks.Count == 0 || _currentIndex < 0)
         {
             return null;
         }
 
-        return _repeatMode switch
+        // An explicit skip treats Repeat One as Repeat All so "Next" moves forward instead of
+        // replaying the current track (Task 30.7, Req 37.7). Auto-advance keeps Repeat One semantics.
+        RepeatMode mode = ignoreRepeatOne && _repeatMode == RepeatMode.One ? RepeatMode.All : _repeatMode;
+
+        return mode switch
         {
             RepeatMode.One => _currentIndex,
             RepeatMode.All => (_currentIndex + 1) % _tracks.Count,

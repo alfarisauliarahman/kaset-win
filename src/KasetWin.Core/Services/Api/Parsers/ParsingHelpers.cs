@@ -376,6 +376,61 @@ public static class ParsingHelpers
     public static string? ExtractBrowseId(JsonNode? node) =>
         GetString(Prop(Prop(node, "navigationEndpoint"), "browseEndpoint"), "browseId");
 
+    /// <summary>
+    /// Extracts the album a song row belongs to from its flex columns (Bug 5). The album link sits
+    /// on a flex-column run whose <c>navigationEndpoint.browseEndpoint</c> targets an album browseId
+    /// (<c>MPRE…</c>/<c>OLAK…</c>, or a <c>MUSIC_PAGE_TYPE_ALBUM</c> pageType). Returns the
+    /// <see cref="Album"/> (id + title) when present, or <c>null</c> when the row carries no album
+    /// link — ids are never fabricated. Mirrors the macOS
+    /// <c>ParsingHelpers.extractAlbumFromFlexColumns</c> and the playlist track-row parser.
+    /// </summary>
+    public static Album? ExtractAlbumFromFlexColumns(JsonNode? node)
+    {
+        var flexColumns = AsArray(Prop(node, "flexColumns"));
+        if (flexColumns is null)
+        {
+            return null;
+        }
+
+        // The album link lives in a non-title column (typically the 2nd/3rd). Scan every flex column
+        // and return the first run that navigates to an album browse target.
+        foreach (var column in flexColumns)
+        {
+            var runs = AsArray(Prop(Prop(Prop(column, "musicResponsiveListItemFlexColumnRenderer"), "text"), "runs"));
+            if (runs is null)
+            {
+                continue;
+            }
+
+            foreach (var run in runs)
+            {
+                var browse = Prop(Prop(run, "navigationEndpoint"), "browseEndpoint");
+                var browseId = GetString(browse, "browseId");
+                if (string.IsNullOrEmpty(browseId))
+                {
+                    continue;
+                }
+
+                var pageType = GetString(
+                    Prop(Prop(browse, "browseEndpointContextSupportedConfigs"), "browseEndpointContextMusicConfig"),
+                    "pageType");
+
+                if (pageType == "MUSIC_PAGE_TYPE_ALBUM"
+                    || browseId.StartsWith("MPRE", StringComparison.Ordinal)
+                    || browseId.StartsWith("OLAK", StringComparison.Ordinal))
+                {
+                    var title = GetString(run, "text");
+                    if (!string.IsNullOrEmpty(title))
+                    {
+                        return new Album { Id = browseId, Title = title };
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
     // MARK: - Metadata classification
 
     private static bool IsArtistSeparator(string text) =>

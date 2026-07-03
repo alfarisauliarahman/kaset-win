@@ -362,6 +362,7 @@ public static class HomeResponseParser
             VideoId = videoId,
             Title = title,
             Artists = ParsingHelpers.ExtractArtistsFromFlexColumns(data),
+            Album = ParsingHelpers.ExtractAlbumFromFlexColumns(data),
             Duration = ExtractDurationFromFlexColumns(data),
             ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(data),
             VideoType = ExtractMusicVideoType(Prop(data, "navigationEndpoint")),

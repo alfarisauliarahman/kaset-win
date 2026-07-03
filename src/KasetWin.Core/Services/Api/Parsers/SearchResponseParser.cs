@@ -212,6 +212,7 @@ public static class SearchResponseParser
                 VideoId = videoId,
                 Title = title ?? "Unknown",
                 Artists = ParsingHelpers.ExtractArtistsFromFlexColumns(renderer),
+                Album = ParsingHelpers.ExtractAlbumFromFlexColumns(renderer),
                 ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(renderer),
                 IsExplicit = ParsingHelpers.ExtractIsExplicit(renderer),
             });

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using KasetWin.Core.Abstractions;
 using KasetWin.Core.Models;
@@ -32,6 +33,17 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
 
     private readonly EventHandler<PlaybackStateMessage> _stateHandler;
     private readonly EventHandler<TrackEndedMessage> _trackEndedHandler;
+
+    /// <summary>
+    /// The UI <see cref="SynchronizationContext"/> captured at construction. The service is first
+    /// resolved on the UI thread via DI (from <c>MainWindow</c>), so this is the WinUI dispatcher
+    /// context. <c>PropertyChanged</c> is marshalled back onto it (see <see cref="OnPropertyChanged"/>)
+    /// so bound XAML never observes a mutation on a thread-pool thread (the root cause of the
+    /// <c>0xc000027b</c> XAML stowed exception when a track is loaded after <c>ConfigureAwait(false)</c>).
+    /// <c>null</c> in headless unit tests (no <see cref="SynchronizationContext"/>), where marshalling
+    /// is a no-op and notifications are raised inline exactly as before.
+    /// </summary>
+    private readonly SynchronizationContext? _uiContext = SynchronizationContext.Current;
 
     private Song? _currentTrack;
     private bool _isPlaying;
@@ -76,6 +88,33 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         _bridge.StateUpdated += _stateHandler;
         _bridge.TrackEnded += _trackEndedHandler;
     }
+
+    /// <summary>
+    /// Raises <see cref="ObservableObject.PropertyChanged"/> on the captured UI thread. This is the
+    /// single funnel CommunityToolkit's <c>SetProperty</c> uses, so overriding it covers every
+    /// observable property (<see cref="IsPlaying"/>, <see cref="CurrentTrack"/>, <see cref="Progress"/>,
+    /// <see cref="Duration"/>, <see cref="IsLive"/>, …). The play path awaits controller I/O with
+    /// <c>ConfigureAwait(false)</c> and then mutates these properties, which would otherwise raise
+    /// <c>PropertyChanged</c> on a thread-pool thread and update bound XAML off the UI thread → a
+    /// <c>0xc000027b</c> stowed exception / crash. When the current context differs from the captured
+    /// UI context we <see cref="SynchronizationContext.Post(SendOrPostCallback, object?)"/> (async, to
+    /// avoid deadlocks/reentrancy from a blocking <c>Send</c>); when already on the UI thread, or when
+    /// no context was captured (headless tests), we invoke the base implementation inline.
+    /// </summary>
+    protected override void OnPropertyChanged(PropertyChangedEventArgs e)
+    {
+        SynchronizationContext? ui = _uiContext;
+        if (ui is not null && !ReferenceEquals(SynchronizationContext.Current, ui))
+        {
+            ui.Post(_ => RaiseBasePropertyChanged(e), null);
+            return;
+        }
+
+        base.OnPropertyChanged(e);
+    }
+
+    /// <summary>Invokes the base <see cref="ObservableObject.OnPropertyChanged"/> (called on the UI thread).</summary>
+    private void RaiseBasePropertyChanged(PropertyChangedEventArgs e) => base.OnPropertyChanged(e);
 
     /// <inheritdoc />
     public Song? CurrentTrack
@@ -171,6 +210,8 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         {
             return;
         }
+
+        KasetWin.Core.Diagnostics.KasetTrace.Log("BugA:PlayerService.PlayCollectionAsync.enter", $"count={songs.Count} start={startIndex}");
 
         // The queue is the source of truth (Req 6.5, 8.1–8.3); SetQueue clamps the index.
         _queue.SetQueue(songs, startIndex);
@@ -270,7 +311,9 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// <inheritdoc />
     public async Task NextAsync()
     {
-        Song? next = _queue.AdvanceToNext();
+        // Explicit skip (player-bar / media key): move to the next track even under Repeat One, which
+        // only governs auto-advance at track end — otherwise "Next" replays the same song (Req 37.7).
+        Song? next = _queue.AdvanceToNext(ignoreRepeatOne: true);
         if (next is not null)
         {
             await LoadTrackAsync(next).ConfigureAwait(false);
@@ -499,10 +542,14 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         IsLive = false;
         Progress = 0;
 
+        KasetWin.Core.Diagnostics.KasetTrace.Log("BugA:PlayerService.LoadTrackAsync.loadVideo.start");
+        var __lt = KasetWin.Core.Diagnostics.KasetTrace.Now();
         await _controller.LoadVideoAsync(track.VideoId).ConfigureAwait(false);
+        KasetWin.Core.Diagnostics.KasetTrace.LogSince("BugA:PlayerService.LoadTrackAsync.loadVideo.end", __lt);
         await _controller.SetAudioQualityAsync(_audioQuality).ConfigureAwait(false);
         await _controller.PlayAsync().ConfigureAwait(false);
         IsPlaying = true;
+        KasetWin.Core.Diagnostics.KasetTrace.Log("BugA:PlayerService.LoadTrackAsync.play.done");
     }
 
     /// <summary>

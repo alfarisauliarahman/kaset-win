@@ -54,6 +54,7 @@ public interface IYTMusicClient
     Task<string> CreatePlaylistAsync(string title, string? description, PlaylistPrivacy privacy, IReadOnlyList<string>? videoIds, CancellationToken ct = default); // playlist/create (Req 13.2)
     Task DeletePlaylistAsync(string playlistId, CancellationToken ct = default);              // playlist/delete (Req 13.4)
     Task<IReadOnlyList<UserAccount>> GetAccountsListAsync(CancellationToken ct = default);    // account/accounts_list (brand)
+    Task<UserAccount?> GetAccountInfoAsync(CancellationToken ct = default);                   // account/account_menu (active account name/photo/handle)
 
     // ── Advanced ────────────────────────────────────────────────────────────────────────
     Task<IReadOnlyList<Song>> GetHistoryAsync(CancellationToken ct = default);                // FEmusic_history (Req 30)
