@@ -11,6 +11,74 @@ namespace KasetWin.Core.Tests;
 /// </summary>
 public class ParsingHelpersTests
 {
+    [Fact]
+    public void ExtractAlbumFromFlexColumns_reads_album_link_from_flex_run()
+    {
+        // A song row whose 3rd flex column carries an album navigation endpoint (MPRE…) — the
+        // title link should light up (Bug 5).
+        var row = JsonNode.Parse("""
+        {
+          "flexColumns": [
+            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "Song Title" } ] } } },
+            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [
+              { "text": "Artist Name", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCartist00000000000000" } } }
+            ] } } },
+            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [
+              { "text": "Sample Album", "navigationEndpoint": { "browseEndpoint": { "browseId": "MPREb_album0000000001" } } }
+            ] } } }
+          ]
+        }
+        """);
+
+        var album = ParsingHelpers.ExtractAlbumFromFlexColumns(row);
+
+        Assert.NotNull(album);
+        Assert.Equal("MPREb_album0000000001", album!.Id);
+        Assert.Equal("Sample Album", album.Title);
+    }
+
+    [Fact]
+    public void ExtractAlbumFromFlexColumns_returns_null_when_no_album_link()
+    {
+        // A row with only an artist link (no album browse target) must stay plain — ids are never
+        // fabricated (Bug 5).
+        var row = JsonNode.Parse("""
+        {
+          "flexColumns": [
+            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "Song Title" } ] } } },
+            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [
+              { "text": "Artist Name", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCartist00000000000000" } } }
+            ] } } }
+          ]
+        }
+        """);
+
+        Assert.Null(ParsingHelpers.ExtractAlbumFromFlexColumns(row));
+    }
+
+    [Fact]
+    public void ExtractAlbumFromFlexColumns_reads_olak_album_via_page_type()
+    {
+        var row = JsonNode.Parse("""
+        {
+          "flexColumns": [
+            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "Song Title" } ] } } },
+            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [
+              { "text": "Sample Album", "navigationEndpoint": { "browseEndpoint": {
+                "browseId": "OLAK5uy_album00000001",
+                "browseEndpointContextSupportedConfigs": { "browseEndpointContextMusicConfig": { "pageType": "MUSIC_PAGE_TYPE_ALBUM" } }
+              } } }
+            ] } } }
+          ]
+        }
+        """);
+
+        var album = ParsingHelpers.ExtractAlbumFromFlexColumns(row);
+
+        Assert.NotNull(album);
+        Assert.Equal("OLAK5uy_album00000001", album!.Id);
+    }
+
     [Theory]
     [InlineData("3:45", 225)]
     [InlineData("0:30", 30)]

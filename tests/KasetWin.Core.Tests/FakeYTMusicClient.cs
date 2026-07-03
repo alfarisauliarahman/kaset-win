@@ -66,6 +66,8 @@ internal sealed class FakeYTMusicClient : IYTMusicClient
     public Task SendFeedbackAsync(IReadOnlyList<string> feedbackTokens, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<AddToPlaylistMenu> GetAddToPlaylistOptionsAsync(string videoId, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<IReadOnlyList<UserAccount>> GetAccountsListAsync(CancellationToken ct = default) => throw new NotSupportedException();
+
+    public Task<UserAccount?> GetAccountInfoAsync(CancellationToken ct = default) => throw new NotSupportedException();
     public Task<IReadOnlyList<Song>> GetHistoryAsync(CancellationToken ct = default) => throw new NotSupportedException();
     public Task<PodcastShow> GetPodcastShowAsync(string showId, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<PodcastsResult> GetPodcastsAsync(CancellationToken ct = default) => throw new NotSupportedException();
