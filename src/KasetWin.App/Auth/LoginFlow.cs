@@ -33,20 +33,24 @@ internal sealed class LoginFlow : ILoginFlow
 {
     private readonly IAuthService _authService;
     private readonly CoreWebView2Accessor _accessor;
+    private readonly KasetWin.Platform.Playback.WebViewEnvironmentProvider _environmentProvider;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<LoginFlow> _logger;
 
     /// <summary>Creates the login flow.</summary>
     /// <param name="authService">The auth state machine (Req 4).</param>
     /// <param name="accessor">Shared holder exposing the active WebView2 core to the cookie source.</param>
+    /// <param name="environmentProvider">Shared WebView2 environment so the login WebView shares the session profile.</param>
     /// <param name="loggerFactory">Optional factory used to create the dialog's category logger.</param>
     public LoginFlow(
         IAuthService authService,
         CoreWebView2Accessor accessor,
+        KasetWin.Platform.Playback.WebViewEnvironmentProvider environmentProvider,
         ILoggerFactory? loggerFactory = null)
     {
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _accessor = accessor ?? throw new ArgumentNullException(nameof(accessor));
+        _environmentProvider = environmentProvider ?? throw new ArgumentNullException(nameof(environmentProvider));
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = _loggerFactory.CreateLogger<LoginFlow>();
     }
@@ -63,6 +67,7 @@ internal sealed class LoginFlow : ILoginFlow
         var dialog = new LoginDialog(
             _authService,
             _accessor,
+            _environmentProvider,
             xamlRoot,
             _loggerFactory.CreateLogger<LoginDialog>());
 
@@ -73,6 +78,7 @@ internal sealed class LoginFlow : ILoginFlow
         await _authService.CheckLoginStatusAsync().ConfigureAwait(true);
 
         var loggedIn = _authService.State == AuthState.LoggedIn;
+        KasetWin.Core.Diagnostics.KasetTrace.Log("BugA:LoginFlow.ShowAsync.done", $"loggedIn={loggedIn}");
         _logger.LogInformation("Sign-in dialog closed; signed in: {LoggedIn}.", loggedIn);
         return loggedIn;
     }

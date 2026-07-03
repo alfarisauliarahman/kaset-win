@@ -87,6 +87,10 @@ internal static class AppHost
         // App-layer host that owns the single hidden WebView2 element for its whole lifetime
         // (background audio, Req 1.4). Resolved on the UI thread by the shell (MainWindow), which
         // mounts host.Element into its visual tree and calls InitializeAsync().
+        // Shared WebView2 environment (extensions enabled + shared session profile) and the
+        // user-managed extensions loader (uBlock etc., ADR 0014 equivalent).
+        services.AddSingleton<WebViewEnvironmentProvider>();
+        services.AddSingleton<ExtensionsService>();
         services.AddSingleton<PlaybackWebViewHost>();
 
         // ── App: floating video window controller (task 19.1, Req 26.2–26.4) ─────────────

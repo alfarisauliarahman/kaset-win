@@ -41,10 +41,26 @@
         <NavigationView
             x:Name="NavView"
             Grid.Row="1"
-            IsBackButtonVisible="Collapsed"
+            IsBackButtonVisible="Auto"
+            IsBackEnabled="False"
             IsSettingsVisible="True"
             PaneDisplayMode="Auto"
+            BackRequested="OnNavigationBackRequested"
+            ItemInvoked="OnNavigationItemInvoked"
             SelectionChanged="OnNavigationSelectionChanged">
+            <!--
+                Source toggle (ADR 0020 equivalent): switches the sidebar between the YouTube Music
+                surfaces and the regular YouTube surfaces, showing only the active source's items.
+            -->
+            <NavigationView.PaneHeader>
+                <SelectorBar
+                    x:Name="SourceSelector"
+                    Margin="4,8,4,0"
+                    SelectionChanged="OnSourceSelectionChanged">
+                    <SelectorBarItem x:Name="MusicSourceItem" Text="Music" />
+                    <SelectorBarItem x:Name="YouTubeSourceItem" Text="YouTube" />
+                </SelectorBar>
+            </NavigationView.PaneHeader>
             <NavigationView.MenuItems>
                 <NavigationViewItem Content="Home" Tag="Home">
                     <NavigationViewItem.Icon>
@@ -82,9 +98,9 @@
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
 
-                <!-- YouTube (full mode) section (Req 32.1/32.4). Parallel to the music surfaces;
-                     the music experience above is untouched. -->
-                <NavigationViewItemHeader Content="YouTube" />
+                <!-- YouTube (full mode) section (Req 32.1/32.4). Shown only when the YouTube source
+                     is selected in the pane-header toggle. -->
+                <NavigationViewItemHeader x:Name="YouTubeHeader" Content="YouTube" />
                 <NavigationViewItem Content="YouTube Home" Tag="YouTube.Home">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE714;" />
@@ -112,9 +128,38 @@
                 </NavigationViewItem>
             </NavigationView.MenuItems>
 
+            <!--
+                Account / sign-in entry point (Req 4.2). SelectsOnInvoked=False so invoking it runs
+                the Google sign-in flow (handled in OnNavigationItemInvoked) instead of navigating.
+                The label reflects the auth state (Sign in ⇄ Account).
+            -->
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem
+                    x:Name="SignInItem"
+                    Content="Sign in"
+                    Tag="SignIn"
+                    SelectsOnInvoked="False">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE77B;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
+
             <Frame x:Name="ContentFrame" />
         </NavigationView>
 
         <controls:PlayerBar Grid.Row="2" />
+
+        <!--
+            In-app sign-in result notification (Req 4.3). Shown as a light-dismiss TeachingTip
+            anchored above the account footer item, so a successful/failed sign-in is confirmed
+            right where the user acted, without a system toast. Target + text + IsOpen are driven
+            from the code-behind after the login flow resolves.
+        -->
+        <TeachingTip
+            x:Name="LoginTip"
+            Grid.Row="1"
+            IsLightDismissEnabled="True"
+            PreferredPlacement="Top" />
     </Grid>
 </Window>

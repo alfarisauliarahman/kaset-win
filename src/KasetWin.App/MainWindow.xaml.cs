@@ -15,7 +15,13 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Microsoft.UI.Xaml.Shapes;
+using Microsoft.Windows.AppNotifications;
+using Microsoft.Windows.AppNotifications.Builder;
 using System.Globalization;
+using System.Linq;
 using Windows.Foundation;
 using Windows.System;
 
@@ -81,6 +87,8 @@ public sealed partial class MainWindow : Window
     {
         this.InitializeComponent();
 
+        KasetWin.Core.Diagnostics.KasetTrace.Log("App:MainWindow.ctor.start");
+
         // Mount the app-owned hidden playback WebView2 (Task 8.3). Resolving on this UI thread is
         // required because the host constructs a XAML WebView2 element. MUST be preserved. It is
         // placed in the content row (row 1) so it never affects the offline indicator's Auto row.
@@ -98,6 +106,18 @@ public sealed partial class MainWindow : Window
 
         _player = App.Current.Services.GetService<IPlayerService>();
 
+        // Bind the shared navigation service to the content frame (Task 14.2, Req 16.1) so every
+        // clickable affordance — including the bottom PlayerBar, which lives outside this frame —
+        // can navigate to artist/album/playlist detail pages via NavigationHelper without taking a
+        // direct Frame dependency.
+        App.Current.Services.GetService<Navigation.INavigationService>()?.Initialize(ContentFrame);
+
+        // Keep the NavigationView back button in sync with the content frame's back stack so detail
+        // pages (album/artist/playlist/…) can be backed out of. The button sits beside the pane
+        // toggle (hamburger), which NavigationView renders by default, and BackRequested routes to
+        // ContentFrame.GoBack().
+        ContentFrame.Navigated += OnContentFrameNavigated;
+
         // Connectivity monitor backing the offline indicator (Req 35.2/35.3). Subscribe before the
         // monitor is started (in StartBackgroundControllers) so the initial publish is observed.
         _networkMonitor = App.Current.Services.GetService<INetworkMonitor>();
@@ -114,12 +134,72 @@ public sealed partial class MainWindow : Window
         // blocks the shell from coming up.
         ApplyLanguageAndFlowDirection();
 
+        // Primary-window sizing contract: pin a minimum size and open at the default (Req 37.8).
+        MainWindowLayout.Configure(this);
+
         // Background-audio model: intercept the window close and hide instead of exiting (Req 1.4).
         AppWindow.Closing += OnAppWindowClosing;
         Activated += OnActivated;
 
-        // Select Home on first show.
+        // Start in the Music source: hide the YouTube surfaces and select the music default. The
+        // explicit SelectedItem below drives the toggle to Music; _sourceReady stays false until
+        // after this so the startup selection only sets visibility (it must not navigate/override
+        // the default page, which caused the shell to open on YouTube).
+        ApplySourceVisibility(youtube: false);
         NavView.SelectedItem = NavView.MenuItems.OfType<NavigationViewItem>().FirstOrDefault();
+        SourceSelector.SelectedItem = MusicSourceItem;
+        _sourceReady = true;
+    }
+
+    /// <summary>False until the shell finishes its initial source setup, so the source toggle's
+    /// startup selection changes visibility without navigating over the default launch page.</summary>
+    private bool _sourceReady;
+
+    /// <summary>Whether the Podcasts tab has been revealed by the region-availability probe (Req 27).</summary>
+    private bool _podcastsAvailable;
+
+    // ── Source toggle (Music ⇄ YouTube) ─────────────────────────────────────────────────────────
+
+    private void OnSourceSelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        var youtube = ReferenceEquals(sender.SelectedItem, YouTubeSourceItem);
+        ApplySourceVisibility(youtube);
+
+        // Only a real user toggle navigates; the startup selection just sets visibility so it does
+        // not override the default launch page.
+        if (_sourceReady)
+        {
+            NavigateToTag(youtube ? "YouTube.Home" : "Home");
+        }
+    }
+
+    /// <summary>
+    /// Shows only the selected source's sidebar items: the YouTube header + <c>YouTube.*</c> items
+    /// for the YouTube source, or the music surfaces otherwise. Podcasts (a music surface) stays
+    /// hidden unless its region probe revealed it.
+    /// </summary>
+    private void ApplySourceVisibility(bool youtube)
+    {
+        foreach (var item in NavView.MenuItems)
+        {
+            switch (item)
+            {
+                case NavigationViewItemHeader:
+                    // The only header is the "YouTube" one.
+                    ((NavigationViewItemHeader)item).Visibility = youtube ? Visibility.Visible : Visibility.Collapsed;
+                    break;
+
+                case NavigationViewItem { Tag: "Podcasts" } podcasts:
+                    podcasts.Visibility = !youtube && _podcastsAvailable ? Visibility.Visible : Visibility.Collapsed;
+                    break;
+
+                case NavigationViewItem navItem:
+                    var isYouTube = navItem.Tag is string tag
+                        && tag.StartsWith("YouTube.", StringComparison.Ordinal);
+                    navItem.Visibility = isYouTube == youtube ? Visibility.Visible : Visibility.Collapsed;
+                    break;
+            }
+        }
     }
 
     // ── Navigation ────────────────────────────────────────────────────────────────────────────
@@ -135,6 +215,309 @@ public sealed partial class MainWindow : Window
         if (args.SelectedItem is NavigationViewItem { Tag: string tag })
         {
             NavigateToTag(tag);
+        }
+    }
+
+    /// <summary>
+    /// Routes the NavigationView back button (rendered beside the pane toggle) to the content
+    /// frame's back stack (Req 16.1). Guarded on <see cref="Frame.CanGoBack"/> so a request with an
+    /// empty stack is a no-op.
+    /// </summary>
+    private void OnNavigationBackRequested(NavigationView sender, NavigationViewBackRequestedEventArgs args)
+    {
+        if (ContentFrame.CanGoBack)
+        {
+            ContentFrame.GoBack();
+        }
+    }
+
+    /// <summary>
+    /// Keeps the back button enabled state in sync with the content frame's back stack after every
+    /// navigation (forward navigations push detail pages onto the stack; GoBack pops them).
+    /// </summary>
+    private void OnContentFrameNavigated(object sender, Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+    {
+        NavView.IsBackEnabled = ContentFrame.CanGoBack;
+    }
+
+    /// <summary>
+    /// Handles invocation of non-navigating footer actions — currently the Sign in / Account item
+    /// (Req 4.2), which opens the interactive Google sign-in flow instead of navigating a page.
+    /// </summary>
+    /// <summary>The signed-in account (name + avatar) shown on the footer item, or <c>null</c> when signed out.</summary>
+    private UserAccount? _currentAccount;
+
+    private void OnNavigationItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+    {
+        if (args.InvokedItemContainer is NavigationViewItem { Tag: "SignIn" } item)
+        {
+            var auth = App.Current.Services.GetService<IAuthService>();
+            if (auth is { State: AuthState.LoggedIn })
+            {
+                // Already signed in: show the account card instead of re-opening the Google login
+                // dialog. Re-opening it caused the flyout to flash open→auto-close repeatedly (the
+                // dialog detects the live session and closes itself immediately).
+                ShowAccountFlyout(item);
+            }
+            else
+            {
+                _ = SignInAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Presents the Google sign-in dialog via <see cref="ILoginFlow"/>, then refreshes the account
+    /// footer (name + avatar) and posts a small success/failure toast (Req 4.2/4.3).
+    /// </summary>
+    private async Task SignInAsync()
+    {
+        var login = App.Current.Services.GetService<ILoginFlow>();
+        if (login is null || Content?.XamlRoot is not { } xamlRoot)
+        {
+            return;
+        }
+
+        bool loggedIn = false;
+        bool errored = false;
+        try
+        {
+            loggedIn = await login.ShowAsync(xamlRoot);
+        }
+        catch
+        {
+            // A failed sign-in attempt must not crash the shell.
+            errored = true;
+        }
+
+        if (loggedIn)
+        {
+            await RefreshAccountAsync();
+            ShowLoginTip(success: true);
+        }
+        else
+        {
+            UpdateSignInLabel();
+
+            // Only surface a failure notification on an actual error; a plain user cancel is silent.
+            if (errored)
+            {
+                ShowLoginTip(success: false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Shows a small in-app sign-in result notification anchored above the account footer item
+    /// (Req 4.3) — the in-app version the user asked for instead of a system toast. Auto-dismisses.
+    /// </summary>
+    private void ShowLoginTip(bool success)
+    {
+        void Apply()
+        {
+            var name = _currentAccount?.Name;
+            LoginTip.Target = SignInItem;
+            LoginTip.Title = success ? "Signed in" : "Sign-in failed";
+            LoginTip.Subtitle = success
+                ? (string.IsNullOrEmpty(name) ? "You're signed in to YouTube Music." : $"Signed in as {name}.")
+                : "Couldn't sign you in. Please try again.";
+            LoginTip.IconSource = new SymbolIconSource
+            {
+                Symbol = success ? Symbol.Accept : Symbol.Important,
+            };
+            LoginTip.IsOpen = true;
+
+            // Auto-dismiss after a few seconds so it behaves like a transient notification.
+            _loginTipTimer ??= CreateLoginTipTimer();
+            _loginTipTimer.Stop();
+            _loginTipTimer.Start();
+        }
+
+        if (DispatcherQueue.HasThreadAccess)
+        {
+            Apply();
+        }
+        else
+        {
+            DispatcherQueue.TryEnqueue(Apply);
+        }
+    }
+
+    private DispatcherTimer? _loginTipTimer;
+
+    private DispatcherTimer CreateLoginTipTimer()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            LoginTip.IsOpen = false;
+        };
+        return timer;
+    }
+
+    /// <summary>
+    /// Fetches the currently-selected account (name + avatar) via <c>account/accounts_list</c> and
+    /// refreshes the footer item. Best-effort: a network/auth failure leaves the footer unchanged.
+    /// </summary>
+    private async Task RefreshAccountAsync()
+    {
+        var auth = App.Current.Services.GetService<IAuthService>();
+        var client = App.Current.Services.GetService<IYTMusicClient>();
+        if (auth is not { State: AuthState.LoggedIn } || client is null)
+        {
+            _currentAccount = null;
+            UpdateSignInLabel();
+            return;
+        }
+
+        try
+        {
+            // Prefer account/account_menu — it returns the active account's name + avatar directly.
+            // accounts_list is a brand-account switcher and can be empty for a personal account.
+            _currentAccount = await client.GetAccountInfoAsync();
+
+            if (_currentAccount is null)
+            {
+                var accounts = await client.GetAccountsListAsync();
+                _currentAccount = accounts.FirstOrDefault(a => a.IsCurrent)
+                    ?? accounts.FirstOrDefault(a => a.IsPrimary)
+                    ?? accounts.FirstOrDefault();
+            }
+        }
+        catch
+        {
+            // Keep whatever we had; the footer still shows a generic "Account" label if unknown.
+        }
+
+        UpdateSignInLabel();
+    }
+
+    /// <summary>Reflects the current auth state on the footer item (Sign in ⇄ account name + avatar).</summary>
+    private void UpdateSignInLabel()
+    {
+        var auth = App.Current.Services.GetService<IAuthService>();
+        var signedIn = auth is { State: AuthState.LoggedIn };
+
+        void Apply()
+        {
+            if (signedIn && _currentAccount?.AvatarUrl is { } avatar)
+            {
+                // Circular profile photo (PersonPicture is round by design), enlarged, + name. The
+                // Icon slot is cleared because the avatar lives in the content row.
+                SignInItem.Icon = null;
+                SignInItem.Content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 12,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Children =
+                    {
+                        new PersonPicture
+                        {
+                            Width = 28,
+                            Height = 28,
+                            ProfilePicture = new BitmapImage(avatar),
+                            DisplayName = _currentAccount.Name,
+                        },
+                        new TextBlock
+                        {
+                            Text = _currentAccount.Name,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            TextTrimming = TextTrimming.CharacterEllipsis,
+                        },
+                    },
+                };
+            }
+            else if (signedIn)
+            {
+                SignInItem.Content = _currentAccount?.Name ?? "Account";
+                SignInItem.Icon = _currentAccount?.AvatarUrl is { } avatarIcon
+                    ? new ImageIcon { Source = new BitmapImage(avatarIcon) }
+                    : new FontIcon { Glyph = "" };
+            }
+            else
+            {
+                SignInItem.Content = "Sign in";
+                SignInItem.Icon = new FontIcon { Glyph = "" };
+            }
+        }
+
+        if (DispatcherQueue.HasThreadAccess)
+        {
+            Apply();
+        }
+        else
+        {
+            DispatcherQueue.TryEnqueue(Apply);
+        }
+    }
+
+    /// <summary>
+    /// Shows a small account card (avatar + name + handle) anchored to the footer item, so a
+    /// signed-in user can confirm who they are signed in as without re-triggering the login flow.
+    /// </summary>
+    private void ShowAccountFlyout(FrameworkElement anchor)
+    {
+        var account = _currentAccount;
+
+        var panel = new StackPanel { Spacing = 6, Padding = new Thickness(4), MinWidth = 200 };
+
+        if (account?.AvatarUrl is { } avatar)
+        {
+            panel.Children.Add(new PersonPicture
+            {
+                Width = 72,
+                Height = 72,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                ProfilePicture = new BitmapImage(avatar),
+                DisplayName = account.Name,
+            });
+        }
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = account?.Name ?? "Signed in",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        });
+
+        if (!string.IsNullOrEmpty(account?.Handle))
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = account!.Handle,
+                Opacity = 0.7,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            });
+        }
+
+        new Flyout { Content = panel }.ShowAt(anchor);
+    }
+
+    /// <summary>Posts a small system toast for the sign-in outcome. Best-effort; never throws.</summary>
+    private void PostLoginToast(bool success)
+    {
+        try
+        {
+            var name = _currentAccount?.Name;
+            var text = success
+                ? (string.IsNullOrEmpty(name) ? "Signed in to YouTube Music" : $"Signed in as {name}")
+                : "Sign-in failed";
+
+            var builder = new AppNotificationBuilder().AddText("Kaset").AddText(text);
+            if (success && _currentAccount?.AvatarUrl is { } avatar)
+            {
+                builder.SetAppLogoOverride(avatar, AppNotificationImageCrop.Circle);
+            }
+
+            var notification = builder.BuildNotification();
+            notification.ExpiresOnReboot = true;
+            AppNotificationManager.Default.Show(notification);
+        }
+        catch
+        {
+            // Toast is a nicety; a notification-platform failure must not affect sign-in.
         }
     }
 
@@ -155,7 +538,7 @@ public sealed partial class MainWindow : Window
         }
 
         if (PageTypeNamesByTag.TryGetValue(tag, out var typeName)
-            && Type.GetType(typeName) is { } pageType
+            && Navigation.NavigationHelper.ResolvePageType(typeName) is { } pageType
             && ContentFrame.CurrentSourcePageType != pageType)
         {
             ContentFrame.Navigate(pageType);
@@ -214,7 +597,7 @@ public sealed partial class MainWindow : Window
 
     private void NavigateYouTubePage(string pageTypeName, object? parameter)
     {
-        if (Type.GetType(pageTypeName) is { } pageType)
+        if (Navigation.NavigationHelper.ResolvePageType(pageTypeName) is { } pageType)
         {
             ContentFrame.Navigate(pageType, parameter);
         }
@@ -293,7 +676,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (Type.GetType(pageTypeName) is { } pageType)
+        if (Navigation.NavigationHelper.ResolvePageType(pageTypeName) is { } pageType)
         {
             ContentFrame.Navigate(pageType, id);
         }
@@ -595,13 +978,24 @@ public sealed partial class MainWindow : Window
                 return; // unsupported region (404): keep the tab hidden (Req 27.2).
             }
 
+            _podcastsAvailable = true;
+
+            // Only reveal it while the Music source is active; the source toggle re-applies this.
+            void Reveal()
+            {
+                if (!ReferenceEquals(SourceSelector.SelectedItem, YouTubeSourceItem))
+                {
+                    PodcastsItem.Visibility = Visibility.Visible;
+                }
+            }
+
             if (DispatcherQueue.HasThreadAccess)
             {
-                PodcastsItem.Visibility = Visibility.Visible;
+                Reveal();
             }
             else
             {
-                DispatcherQueue.TryEnqueue(() => PodcastsItem.Visibility = Visibility.Visible);
+                DispatcherQueue.TryEnqueue(Reveal);
             }
         }
         catch
@@ -617,6 +1011,23 @@ public sealed partial class MainWindow : Window
         if (auth is null)
         {
             return;
+        }
+
+        // Keep the footer Sign in / Account label in sync with the auth state.
+        auth.PropertyChanged += (_, _) => UpdateSignInLabel();
+
+        // Ensure the hidden playback WebView2 core exists before reading the session cookie: the
+        // cookie source reads cookies from that core, so checking before it is created reports a
+        // false "signed out" even when a valid session is persisted (the root cause of the sidebar
+        // showing "Sign in" while Home already loads personalized content). InitializeAsync is
+        // idempotent and gated, so awaiting it here is safe.
+        try
+        {
+            await _playbackHost.InitializeAsync();
+        }
+        catch
+        {
+            // If the core cannot be created we still attempt the cookie read below (best-effort).
         }
 
         try
@@ -635,5 +1046,9 @@ public sealed partial class MainWindow : Window
         {
             // A failed login evaluation must not crash the shell; public surfaces still work.
         }
+
+        // Populate the footer with the account name + avatar when a session is present (also on a
+        // persisted session at launch); otherwise this resets it to "Sign in".
+        await RefreshAccountAsync();
     }
 }
