@@ -74,7 +74,7 @@ public sealed partial class LibraryPage : Page
     /// </summary>
     private void NavigateByName(string typeName, string parameter)
     {
-        if (Type.GetType(typeName) is { } pageType)
+        if (Navigation.NavigationHelper.ResolvePageType(typeName) is { } pageType)
         {
             this.Frame?.Navigate(pageType, parameter);
         }

@@ -45,9 +45,10 @@ public sealed partial class YouTubeWatchPage : Page
         // (it outlives pages so the arbiter keeps enforcing a single audio source); the host is
         // per-page and torn down on navigation away (Req 32.2/32.3). Resolved defensively so the
         // page still renders metadata if the watch controller is unavailable.
-        if (services.GetService<YouTubeWatchController>() is { } controller)
+        if (services.GetService<YouTubeWatchController>() is { } controller
+            && services.GetService<KasetWin.Platform.Playback.WebViewEnvironmentProvider>() is { } environmentProvider)
         {
-            _watchHost = new YouTubeWatchWebViewHost(controller);
+            _watchHost = new YouTubeWatchWebViewHost(controller, environmentProvider);
         }
 
         this.InitializeComponent();

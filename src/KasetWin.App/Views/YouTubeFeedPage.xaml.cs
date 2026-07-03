@@ -53,7 +53,9 @@ public sealed partial class YouTubeFeedPage : Page
         VideosList.ItemsSource = ViewModel.Videos;
         this.Bindings.Update();
 
+        KasetWin.Core.Diagnostics.KasetTrace.Log("BugB:FeedPage.OnNavigatedTo.loadAsync.await", $"kind={request.Kind}");
         await ViewModel.LoadAsync();
+        KasetWin.Core.Diagnostics.KasetTrace.Log("BugB:FeedPage.OnNavigatedTo.loadAsync.returned");
     }
 
     private void OnVideoClick(object sender, ItemClickEventArgs e)

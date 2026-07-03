@@ -3,8 +3,11 @@
     x:Class="KasetWin.App.Views.ArtistPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:behaviors="using:KasetWin.App.Behaviors"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:kc="using:KasetWin.App.Controls"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:KasetWin.Core.Models"
     mc:Ignorable="d">
@@ -12,215 +15,502 @@
     <Page.Resources>
         <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:DurationToTextConverter x:Key="DurationToText" />
+
+        <!-- Album / single card (square art). -->
+        <DataTemplate x:Key="AlbumCardTemplate" x:DataType="models:Album">
+            <!--
+                Grid root (not a Button): a Button must not contain the nested circular Play Button,
+                because a Button-inside-a-Button breaks the outer control's hit-testing and the card
+                click never reaches navigation. The Grid hit-tests via its Background, navigates on
+                Tapped, is keyboard focusable (Enter/Space), and shows a subtle hover background; the
+                Play Button is a sibling layered over the cover image.
+            -->
+            <Grid
+                Width="168"
+                Padding="8"
+                Background="Transparent"
+                CornerRadius="8"
+                DataContext="{x:Bind}"
+                IsTabStop="True"
+                KeyDown="OnCardKeyDown"
+                PointerEntered="OnCardPointerEntered"
+                PointerExited="OnCardPointerExited"
+                Tapped="OnAlbumCardClick"
+                UseSystemFocusVisuals="True">
+                <Border
+                    x:Name="CardHover"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    CornerRadius="8"
+                    Opacity="0" />
+                <StackPanel Spacing="8">
+                    <Grid Width="152" Height="152" HorizontalAlignment="Center">
+                        <Border
+                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            CornerRadius="6">
+                            <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                        </Border>
+                        <Button
+                            x:Name="PlayOverlay"
+                            Width="44"
+                            Height="44"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Click="OnAlbumCardPlay"
+                            CornerRadius="22"
+                            GotFocus="OnPlayOverlayGotFocus"
+                            IsHitTestVisible="False"
+                            LostFocus="OnPlayOverlayLostFocus"
+                            Opacity="0"
+                            Style="{StaticResource AccentButtonStyle}"
+                            ToolTipService.ToolTip="Play">
+                            <FontIcon FontSize="16" Glyph="&#xE768;" />
+                        </Button>
+                    </Grid>
+                    <TextBlock
+                        MaxLines="2"
+                        Text="{x:Bind Title}"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="Wrap"
+                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock
+                        MaxLines="1"
+                        Opacity="0.7"
+                        Text="{x:Bind Year}"
+                        TextTrimming="CharacterEllipsis"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Video card (wide 16:9 art). -->
+        <DataTemplate x:Key="VideoCardTemplate" x:DataType="models:Song">
+            <!-- Grid root (consistent with the other shelves): hit-tests via Background, navigates on Tapped, keyboard focusable. -->
+            <Grid
+                Width="248"
+                Padding="8"
+                Background="Transparent"
+                CornerRadius="8"
+                DataContext="{x:Bind}"
+                IsTabStop="True"
+                KeyDown="OnCardKeyDown"
+                PointerEntered="OnCardPointerEntered"
+                PointerExited="OnCardPointerExited"
+                Tapped="OnVideoCardClick"
+                UseSystemFocusVisuals="True">
+                <Border
+                    x:Name="CardHover"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    CornerRadius="8"
+                    Opacity="0" />
+                <StackPanel Spacing="8">
+                    <Border
+                        Width="232"
+                        Height="130"
+                        HorizontalAlignment="Center"
+                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                        CornerRadius="6">
+                        <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                    </Border>
+                    <TextBlock
+                        MaxLines="2"
+                        Text="{x:Bind Title}"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="Wrap"
+                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock
+                        MaxLines="1"
+                        Opacity="0.7"
+                        Text="{x:Bind ArtistsDisplay}"
+                        TextTrimming="CharacterEllipsis"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Featured playlist card (square art). -->
+        <DataTemplate x:Key="PlaylistCardTemplate" x:DataType="models:Playlist">
+            <!--
+                Grid root (not a Button): the nested circular Play Button cannot live inside a Button
+                root or hit-testing breaks. The Grid hit-tests via Background, navigates on Tapped, is
+                keyboard focusable, and shows a hover background; the Play Button is a sibling.
+            -->
+            <Grid
+                Width="168"
+                Padding="8"
+                Background="Transparent"
+                CornerRadius="8"
+                DataContext="{x:Bind}"
+                IsTabStop="True"
+                KeyDown="OnCardKeyDown"
+                PointerEntered="OnCardPointerEntered"
+                PointerExited="OnCardPointerExited"
+                Tapped="OnPlaylistCardClick"
+                UseSystemFocusVisuals="True">
+                <Border
+                    x:Name="CardHover"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    CornerRadius="8"
+                    Opacity="0" />
+                <StackPanel Spacing="8">
+                    <Grid Width="152" Height="152" HorizontalAlignment="Center">
+                        <Border
+                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            CornerRadius="6">
+                            <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                        </Border>
+                        <Button
+                            x:Name="PlayOverlay"
+                            Width="44"
+                            Height="44"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Click="OnPlaylistCardPlay"
+                            CornerRadius="22"
+                            GotFocus="OnPlayOverlayGotFocus"
+                            IsHitTestVisible="False"
+                            LostFocus="OnPlayOverlayLostFocus"
+                            Opacity="0"
+                            Style="{StaticResource AccentButtonStyle}"
+                            ToolTipService.ToolTip="Play">
+                            <FontIcon FontSize="16" Glyph="&#xE768;" />
+                        </Button>
+                    </Grid>
+                    <TextBlock
+                        MaxLines="2"
+                        Text="{x:Bind Title}"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="Wrap"
+                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Related artist card (circular art). -->
+        <DataTemplate x:Key="ArtistCardTemplate" x:DataType="models:Artist">
+            <!-- Grid root (consistent with the other shelves): hit-tests via Background, navigates on Tapped, keyboard focusable. -->
+            <Grid
+                Width="152"
+                Padding="8"
+                Background="Transparent"
+                CornerRadius="8"
+                DataContext="{x:Bind}"
+                IsTabStop="True"
+                KeyDown="OnCardKeyDown"
+                PointerEntered="OnCardPointerEntered"
+                PointerExited="OnCardPointerExited"
+                Tapped="OnArtistCardClick"
+                UseSystemFocusVisuals="True">
+                <Border
+                    x:Name="CardHover"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    CornerRadius="8"
+                    Opacity="0" />
+                <StackPanel Spacing="8">
+                    <Border
+                        Width="136"
+                        Height="136"
+                        HorizontalAlignment="Center"
+                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                        CornerRadius="68">
+                        <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                    </Border>
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        MaxLines="2"
+                        Text="{x:Bind Name}"
+                        TextAlignment="Center"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="Wrap"
+                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
     </Page.Resources>
 
     <Grid>
-        <ScrollViewer Padding="24,16,24,24">
+        <ScrollViewer>
             <StackPanel Spacing="24">
 
-                <!-- Header: thumbnail + name/description + actions (Req 15.1, 15.3, 15.4) -->
-                <Grid ColumnSpacing="20">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                <!-- Header banner: cover image with a gradient scrim and name/meta overlaid (Req 15.1) -->
+                <Grid Height="320">
+                    <Image
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        Source="{x:Bind ViewModel.HeaderImageUrl, Converter={StaticResource UriToImageSource}, Mode=OneWay}"
+                        Stretch="UniformToFill"
+                        Visibility="{x:Bind ViewModel.HasHeaderImage, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
 
-                    <Border
-                        Grid.Column="0"
-                        Width="160"
-                        Height="160"
-                        VerticalAlignment="Top"
-                        CornerRadius="80">
-                        <Image
-                            Source="{x:Bind ViewModel.ThumbnailUrl, Converter={StaticResource UriToImageSource}, Mode=OneWay}"
-                            Stretch="UniformToFill" />
+                    <!-- Legibility scrim: transparent at the top, dark at the bottom. -->
+                    <Border>
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                <GradientStop Offset="0.0" Color="#00000000" />
+                                <GradientStop Offset="0.55" Color="#66000000" />
+                                <GradientStop Offset="1.0" Color="#D9000000" />
+                            </LinearGradientBrush>
+                        </Border.Background>
                     </Border>
 
                     <StackPanel
-                        Grid.Column="1"
-                        VerticalAlignment="Top"
-                        Spacing="12">
+                        Margin="24,0,24,20"
+                        VerticalAlignment="Bottom"
+                        Spacing="6">
                         <TextBlock
+                            FontSize="44"
+                            FontWeight="Bold"
+                            Foreground="White"
                             MaxLines="2"
                             Text="{x:Bind ViewModel.Name, Mode=OneWay}"
                             TextTrimming="CharacterEllipsis"
-                            TextWrapping="Wrap"
-                            Style="{StaticResource TitleLargeTextBlockStyle}" />
+                            TextWrapping="Wrap" />
                         <TextBlock
-                            MaxLines="4"
-                            Opacity="0.75"
-                            Text="{x:Bind ViewModel.Description, Mode=OneWay}"
-                            TextTrimming="CharacterEllipsis"
-                            TextWrapping="Wrap"
-                            Visibility="{x:Bind ViewModel.HasDescription, Converter={StaticResource BoolToVisibility}, Mode=OneWay}"
-                            Style="{StaticResource BodyTextBlockStyle}" />
-
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <Button
-                                Command="{x:Bind ViewModel.PlayTopSongsCommand}"
-                                Style="{StaticResource AccentButtonStyle}"
-                                Visibility="{x:Bind ViewModel.HasTopSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon FontSize="16" Glyph="&#xE768;" />
-                                    <TextBlock Text="Play" />
-                                </StackPanel>
-                            </Button>
-                            <Button Command="{x:Bind ViewModel.ToggleSubscribeCommand}">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon FontSize="16" Glyph="{x:Bind ViewModel.SubscribeGlyph, Mode=OneWay}" />
-                                    <TextBlock Text="{x:Bind ViewModel.SubscribeLabel, Mode=OneWay}" />
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
-
-                        <TextBlock
-                            Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                            Text="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
-                            TextWrapping="Wrap"
-                            Visibility="{x:Bind ViewModel.HasError, Converter={StaticResource BoolToVisibility}, Mode=OneWay}"
-                            Style="{StaticResource CaptionTextBlockStyle}" />
+                            Foreground="White"
+                            Opacity="0.85"
+                            Text="{x:Bind ViewModel.MetaLine, Mode=OneWay}"
+                            Visibility="{x:Bind ViewModel.HasMetaLine, Converter={StaticResource BoolToVisibility}, Mode=OneWay}"
+                            Style="{StaticResource BodyStrongTextBlockStyle}" />
                     </StackPanel>
                 </Grid>
 
-                <!-- Top songs (Req 15.1, 15.4) -->
-                <StackPanel
-                    Spacing="8"
-                    Visibility="{x:Bind ViewModel.HasTopSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
-                    <Grid>
-                        <TextBlock Text="Top songs" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <StackPanel Margin="24,0,24,0" Spacing="20">
+
+                    <!-- Action buttons: Shuffle, Radio, Subscribe (Req 15.3, 15.4) -->
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Button
+                            Command="{x:Bind ViewModel.ShuffleTopSongsCommand}"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Visibility="{x:Bind ViewModel.HasTopSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon FontSize="16" Glyph="&#xE8B1;" />
+                                <TextBlock Text="Shuffle" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            Command="{x:Bind ViewModel.PlayTopSongsCommand}"
+                            Visibility="{x:Bind ViewModel.HasTopSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon FontSize="16" Glyph="&#xE768;" />
+                                <TextBlock Text="Play" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            Command="{x:Bind ViewModel.StartRadioCommand}"
+                            Visibility="{x:Bind ViewModel.HasRadio, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon FontSize="16" Glyph="&#xE93E;" />
+                                <TextBlock Text="Radio" />
+                            </StackPanel>
+                        </Button>
+                        <Button Command="{x:Bind ViewModel.ToggleSubscribeCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon FontSize="16" Glyph="{x:Bind ViewModel.SubscribeGlyph, Mode=OneWay}" />
+                                <TextBlock Text="{x:Bind ViewModel.SubscribeLabel, Mode=OneWay}" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <TextBlock
+                        Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                        Text="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
+                        TextWrapping="Wrap"
+                        Visibility="{x:Bind ViewModel.HasError, Converter={StaticResource BoolToVisibility}, Mode=OneWay}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+
+                    <!-- Description with Show more / Show less expander (Req 15.1) -->
+                    <StackPanel
+                        Spacing="4"
+                        Visibility="{x:Bind ViewModel.HasDescription, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
+                        <TextBlock
+                            MaxLines="{x:Bind ViewModel.DescriptionMaxLines, Mode=OneWay}"
+                            Opacity="0.8"
+                            Text="{x:Bind ViewModel.Description, Mode=OneWay}"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="Wrap"
+                            Style="{StaticResource BodyTextBlockStyle}" />
                         <HyperlinkButton
-                            HorizontalAlignment="Right"
-                            Click="OnSeeAllSongsClick"
-                            Content="See all"
-                            Visibility="{x:Bind ViewModel.CanSeeAllSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
-                    </Grid>
-                    <ListView
-                        IsItemClickEnabled="True"
-                        ItemClick="OnSongClick"
-                        ItemsSource="{x:Bind ViewModel.TopSongs}"
-                        SelectionMode="None">
-                        <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="models:Song">
-                                <Grid Padding="0,6" ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border
-                                        Grid.Column="0"
-                                        Width="40"
-                                        Height="40"
-                                        CornerRadius="4">
-                                        <Image
-                                            Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
-                                            Stretch="UniformToFill" />
-                                    </Border>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            Command="{x:Bind ViewModel.ToggleDescriptionCommand}"
+                            Content="{x:Bind ViewModel.DescriptionToggleLabel, Mode=OneWay}"
+                            Visibility="{x:Bind ViewModel.CanExpandDescription, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
+                    </StackPanel>
+
+                    <!-- Top songs (Req 15.1, 15.4) -->
+                    <StackPanel
+                        Spacing="8"
+                        Visibility="{x:Bind ViewModel.HasTopSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
+                        <Grid>
+                            <TextBlock Text="Top songs" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <HyperlinkButton
+                                HorizontalAlignment="Right"
+                                Click="OnSeeAllSongsClick"
+                                Content="See all"
+                                Visibility="{x:Bind ViewModel.CanSeeAllSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
+                        </Grid>
+                        <ListView
+                            IsItemClickEnabled="True"
+                            ItemClick="OnSongClick"
+                            ItemsSource="{x:Bind ViewModel.TopSongs}"
+                            SelectionMode="None">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="models:Song">
+                                    <Grid Padding="0,6" ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border
+                                            Grid.Column="0"
+                                            Width="40"
+                                            Height="40"
+                                            CornerRadius="4">
+                                            <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                                        </Border>
+                                        <kc:TrackInfo Grid.Column="1" Song="{x:Bind}" />
                                         <TextBlock
-                                            MaxLines="1"
-                                            Text="{x:Bind Title}"
-                                            TextTrimming="CharacterEllipsis"
-                                            Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                        <TextBlock
-                                            MaxLines="1"
+                                            Grid.Column="2"
+                                            VerticalAlignment="Center"
                                             Opacity="0.7"
-                                            Text="{x:Bind ArtistsDisplay}"
-                                            TextTrimming="CharacterEllipsis"
+                                            Text="{x:Bind Duration, Converter={StaticResource DurationToText}}"
                                             Style="{StaticResource CaptionTextBlockStyle}" />
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
 
-                <!-- Albums (Req 15.1, 15.2) -->
-                <StackPanel
-                    Spacing="8"
-                    Visibility="{x:Bind ViewModel.HasAlbums, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
-                    <Grid>
-                        <TextBlock Text="Albums" Style="{StaticResource SubtitleTextBlockStyle}" />
-                        <HyperlinkButton
-                            HorizontalAlignment="Right"
-                            Click="OnSeeAllAlbumsClick"
-                            Content="See all"
-                            Visibility="{x:Bind ViewModel.CanSeeAllAlbums, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
-                    </Grid>
-                    <GridView
-                        IsItemClickEnabled="True"
-                        ItemClick="OnAlbumClick"
-                        ItemsSource="{x:Bind ViewModel.Albums}"
-                        SelectionMode="None">
-                        <GridView.ItemTemplate>
-                            <DataTemplate x:DataType="models:Album">
-                                <StackPanel Width="160" Margin="0,0,8,8" Spacing="6">
-                                    <Border Width="160" Height="160" CornerRadius="6">
-                                        <Image
-                                            Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
-                                            Stretch="UniformToFill" />
-                                    </Border>
-                                    <TextBlock
-                                        MaxLines="2"
-                                        Text="{x:Bind Title}"
-                                        TextTrimming="CharacterEllipsis"
-                                        TextWrapping="Wrap"
-                                        Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                    <TextBlock
-                                        MaxLines="1"
-                                        Opacity="0.7"
-                                        Text="{x:Bind Year}"
-                                        TextTrimming="CharacterEllipsis"
-                                        Style="{StaticResource CaptionTextBlockStyle}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </GridView.ItemTemplate>
-                    </GridView>
-                </StackPanel>
+                    <!-- Albums (Req 15.1, 15.2) -->
+                    <StackPanel
+                        Spacing="8"
+                        Visibility="{x:Bind ViewModel.HasAlbums, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
+                        <Grid>
+                            <TextBlock Text="Albums" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <HyperlinkButton
+                                HorizontalAlignment="Right"
+                                Click="OnSeeAllAlbumsClick"
+                                Content="See all"
+                                Visibility="{x:Bind ViewModel.CanSeeAllAlbums, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
+                        </Grid>
+                        <ScrollViewer
+                            behaviors:VerticalWheelForwarder.IsEnabled="True"
+                            HorizontalScrollBarVisibility="Auto"
+                            HorizontalScrollMode="Enabled"
+                            VerticalScrollBarVisibility="Disabled"
+                            VerticalScrollMode="Disabled">
+                            <controls:ItemsRepeater ItemTemplate="{StaticResource AlbumCardTemplate}" ItemsSource="{x:Bind ViewModel.Albums}">
+                                <controls:ItemsRepeater.Layout>
+                                    <controls:StackLayout Orientation="Horizontal" Spacing="12" />
+                                </controls:ItemsRepeater.Layout>
+                            </controls:ItemsRepeater>
+                        </ScrollViewer>
+                    </StackPanel>
 
-                <!-- Singles & EPs (Req 15.1, 15.2) -->
-                <StackPanel
-                    Spacing="8"
-                    Visibility="{x:Bind ViewModel.HasSingles, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
-                    <Grid>
-                        <TextBlock Text="Singles &amp; EPs" Style="{StaticResource SubtitleTextBlockStyle}" />
-                        <HyperlinkButton
-                            HorizontalAlignment="Right"
-                            Click="OnSeeAllSinglesClick"
-                            Content="See all"
-                            Visibility="{x:Bind ViewModel.CanSeeAllSingles, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
-                    </Grid>
-                    <GridView
-                        IsItemClickEnabled="True"
-                        ItemClick="OnAlbumClick"
-                        ItemsSource="{x:Bind ViewModel.SinglesAndEps}"
-                        SelectionMode="None">
-                        <GridView.ItemTemplate>
-                            <DataTemplate x:DataType="models:Album">
-                                <StackPanel Width="160" Margin="0,0,8,8" Spacing="6">
-                                    <Border Width="160" Height="160" CornerRadius="6">
-                                        <Image
-                                            Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
-                                            Stretch="UniformToFill" />
-                                    </Border>
-                                    <TextBlock
-                                        MaxLines="2"
-                                        Text="{x:Bind Title}"
-                                        TextTrimming="CharacterEllipsis"
-                                        TextWrapping="Wrap"
-                                        Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                    <TextBlock
-                                        MaxLines="1"
-                                        Opacity="0.7"
-                                        Text="{x:Bind Year}"
-                                        TextTrimming="CharacterEllipsis"
-                                        Style="{StaticResource CaptionTextBlockStyle}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </GridView.ItemTemplate>
-                    </GridView>
-                </StackPanel>
+                    <!-- Singles & EPs (Req 15.1, 15.2) -->
+                    <StackPanel
+                        Spacing="8"
+                        Visibility="{x:Bind ViewModel.HasSingles, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
+                        <Grid>
+                            <TextBlock Text="Singles &amp; EPs" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <HyperlinkButton
+                                HorizontalAlignment="Right"
+                                Click="OnSeeAllSinglesClick"
+                                Content="See all"
+                                Visibility="{x:Bind ViewModel.CanSeeAllSingles, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
+                        </Grid>
+                        <ScrollViewer
+                            behaviors:VerticalWheelForwarder.IsEnabled="True"
+                            HorizontalScrollBarVisibility="Auto"
+                            HorizontalScrollMode="Enabled"
+                            VerticalScrollBarVisibility="Disabled"
+                            VerticalScrollMode="Disabled">
+                            <controls:ItemsRepeater ItemTemplate="{StaticResource AlbumCardTemplate}" ItemsSource="{x:Bind ViewModel.SinglesAndEps}">
+                                <controls:ItemsRepeater.Layout>
+                                    <controls:StackLayout Orientation="Horizontal" Spacing="12" />
+                                </controls:ItemsRepeater.Layout>
+                            </controls:ItemsRepeater>
+                        </ScrollViewer>
+                    </StackPanel>
 
+                    <!-- Videos (Req 15.1) -->
+                    <StackPanel
+                        Spacing="8"
+                        Visibility="{x:Bind ViewModel.HasVideos, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
+                        <Grid>
+                            <TextBlock Text="Videos" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <HyperlinkButton
+                                HorizontalAlignment="Right"
+                                Click="OnSeeAllVideosClick"
+                                Content="See all"
+                                Visibility="{x:Bind ViewModel.CanSeeAllVideos, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
+                        </Grid>
+                        <ScrollViewer
+                            behaviors:VerticalWheelForwarder.IsEnabled="True"
+                            HorizontalScrollBarVisibility="Auto"
+                            HorizontalScrollMode="Enabled"
+                            VerticalScrollBarVisibility="Disabled"
+                            VerticalScrollMode="Disabled">
+                            <controls:ItemsRepeater ItemTemplate="{StaticResource VideoCardTemplate}" ItemsSource="{x:Bind ViewModel.Videos}">
+                                <controls:ItemsRepeater.Layout>
+                                    <controls:StackLayout Orientation="Horizontal" Spacing="12" />
+                                </controls:ItemsRepeater.Layout>
+                            </controls:ItemsRepeater>
+                        </ScrollViewer>
+                    </StackPanel>
+
+                    <!-- Featured on / playlists (Req 15.1) -->
+                    <StackPanel
+                        Spacing="8"
+                        Visibility="{x:Bind ViewModel.HasFeatured, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
+                        <Grid>
+                            <TextBlock Text="Featured on" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <HyperlinkButton
+                                HorizontalAlignment="Right"
+                                Click="OnSeeAllFeaturedClick"
+                                Content="See all"
+                                Visibility="{x:Bind ViewModel.CanSeeAllFeatured, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
+                        </Grid>
+                        <ScrollViewer
+                            behaviors:VerticalWheelForwarder.IsEnabled="True"
+                            HorizontalScrollBarVisibility="Auto"
+                            HorizontalScrollMode="Enabled"
+                            VerticalScrollBarVisibility="Disabled"
+                            VerticalScrollMode="Disabled">
+                            <controls:ItemsRepeater ItemTemplate="{StaticResource PlaylistCardTemplate}" ItemsSource="{x:Bind ViewModel.FeaturedPlaylists}">
+                                <controls:ItemsRepeater.Layout>
+                                    <controls:StackLayout Orientation="Horizontal" Spacing="12" />
+                                </controls:ItemsRepeater.Layout>
+                            </controls:ItemsRepeater>
+                        </ScrollViewer>
+                    </StackPanel>
+
+                    <!-- Fans might also like / related artists (Req 15.1) -->
+                    <StackPanel
+                        Margin="0,0,0,24"
+                        Spacing="8"
+                        Visibility="{x:Bind ViewModel.HasRelated, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
+                        <Grid>
+                            <TextBlock Text="Fans might also like" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <HyperlinkButton
+                                HorizontalAlignment="Right"
+                                Click="OnSeeAllRelatedClick"
+                                Content="See all"
+                                Visibility="{x:Bind ViewModel.CanSeeAllRelated, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
+                        </Grid>
+                        <ScrollViewer
+                            behaviors:VerticalWheelForwarder.IsEnabled="True"
+                            HorizontalScrollBarVisibility="Auto"
+                            HorizontalScrollMode="Enabled"
+                            VerticalScrollBarVisibility="Disabled"
+                            VerticalScrollMode="Disabled">
+                            <controls:ItemsRepeater ItemTemplate="{StaticResource ArtistCardTemplate}" ItemsSource="{x:Bind ViewModel.RelatedArtists}">
+                                <controls:ItemsRepeater.Layout>
+                                    <controls:StackLayout Orientation="Horizontal" Spacing="12" />
+                                </controls:ItemsRepeater.Layout>
+                            </controls:ItemsRepeater>
+                        </ScrollViewer>
+                    </StackPanel>
+
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
 

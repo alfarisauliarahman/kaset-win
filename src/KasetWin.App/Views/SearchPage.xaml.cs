@@ -64,6 +64,8 @@ public sealed partial class SearchPage : Page
         switch (ViewModel.TopResult)
         {
             case HomeSectionItem.SongItem s:
+                // THROWAWAY DIAGNOSTIC (Bug A): confirm a search top-result song reaches the player.
+                KasetWin.Core.Diagnostics.KasetTrace.Log("Play:Search.TopResultSongClick");
                 _ = ViewModel.PlaySongAsync(s.Song);
                 break;
             case HomeSectionItem.AlbumItem a:
@@ -82,6 +84,8 @@ public sealed partial class SearchPage : Page
     {
         if (sender is FrameworkElement { DataContext: Song song })
         {
+            // THROWAWAY DIAGNOSTIC (Bug A): confirm a search song-row click reaches the player.
+            KasetWin.Core.Diagnostics.KasetTrace.Log("Play:Search.SongClick");
             _ = ViewModel.PlaySongAsync(song);
         }
     }
@@ -129,7 +133,7 @@ public sealed partial class SearchPage : Page
             return;
         }
 
-        var pageType = Type.GetType($"KasetWin.App.Views.{pageName}");
+        var pageType = Navigation.NavigationHelper.ResolvePageType($"KasetWin.App.Views.{pageName}");
         if (pageType is not null)
         {
             this.Frame?.Navigate(pageType, id);

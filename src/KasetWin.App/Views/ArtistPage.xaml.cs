@@ -6,6 +6,7 @@ using KasetWin.Core.Services.Player;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace KasetWin.App.Views;
@@ -34,6 +35,9 @@ public sealed partial class ArtistPage : Page
     private const string AlbumPageTypeName = "KasetWin.App.Views.AlbumPage";
     private const string PlaylistPageTypeName = "KasetWin.App.Views.PlaylistPage";
 
+    private readonly IPlayerService? _player;
+    private readonly IYTMusicClient? _client;
+
     public ArtistPage()
     {
         this.InitializeComponent();
@@ -43,6 +47,8 @@ public sealed partial class ArtistPage : Page
         // already-registered Core services (IYTMusicClient/IPlayerService, plus the optional
         // shared ISingleFlight) rather than via GetRequiredService<ArtistDetailViewModel>.
         var services = App.Current.Services;
+        _player = services.GetService<IPlayerService>();
+        _client = services.GetService<IYTMusicClient>();
         ViewModel = new ArtistDetailViewModel(
             services.GetRequiredService<IYTMusicClient>(),
             services.GetRequiredService<IPlayerService>(),
@@ -68,17 +74,114 @@ public sealed partial class ArtistPage : Page
     {
         if (e.ClickedItem is Song song && ViewModel.PlaySongCommand.CanExecute(song))
         {
+            // THROWAWAY DIAGNOSTIC (Bug A): confirm an artist top-song click reaches the player.
+            KasetWin.Core.Diagnostics.KasetTrace.Log("Play:ArtistPage.SongClick", $"topSongs={ViewModel.TopSongs.Count}");
             ViewModel.PlaySongCommand.Execute(song);
         }
     }
 
-    // ── Navigation to Album/Playlist (Req 15.2) — Frame + Type.GetType guard ────────────────────
+    // ── Navigation to Album/Playlist/Artist (Req 15.2) — Frame + Type.GetType guard ─────────────
 
-    private void OnAlbumClick(object sender, ItemClickEventArgs e)
+    private void OnAlbumCardClick(object sender, TappedRoutedEventArgs e)
     {
-        if (e.ClickedItem is Album album)
+        if (sender is FrameworkElement { DataContext: Album album })
         {
             NavigateByTypeName(AlbumPageTypeName, album.Id);
+        }
+    }
+
+    private void OnVideoCardClick(object sender, TappedRoutedEventArgs e)
+    {
+        // A video plays like any other track, loading the full Videos rail into the queue so the
+        // user can continue past the clicked item (Req 15.4).
+        if (sender is FrameworkElement { DataContext: Song video })
+        {
+            KasetWin.Core.Diagnostics.KasetTrace.Log("Play:ArtistPage.VideoClick", $"videos={ViewModel.Videos.Count}");
+            if (ViewModel.PlayVideoCommand.CanExecute(video))
+            {
+                ViewModel.PlayVideoCommand.Execute(video);
+            }
+        }
+    }
+
+    private void OnPlaylistCardClick(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: Playlist playlist })
+        {
+            NavigateByTypeName(PlaylistPageTypeName, playlist.Id);
+        }
+    }
+
+    private void OnArtistCardClick(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: Artist artist })
+        {
+            // Re-navigate the same page type to the related artist.
+            Frame?.Navigate(typeof(ArtistPage), artist.Id);
+        }
+    }
+
+    /// <summary>
+    /// Keyboard activation for the Grid-based cards (album/single/video/featured/related). The card
+    /// root is a Grid (not a Button — a nested Play Button would break a Button root's hit-testing),
+    /// so it does not raise Click for Enter/Space; this handler dispatches on the bound model type
+    /// to mirror the matching Tapped handler.
+    /// </summary>
+    private void OnCardKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (!CardKeyboard.IsActivationKey(e.Key) || sender is not FrameworkElement element)
+        {
+            return;
+        }
+
+        switch (element.DataContext)
+        {
+            case Album album:
+                NavigateByTypeName(AlbumPageTypeName, album.Id);
+                e.Handled = true;
+                break;
+            case Playlist playlist:
+                NavigateByTypeName(PlaylistPageTypeName, playlist.Id);
+                e.Handled = true;
+                break;
+            case Artist artist:
+                Frame?.Navigate(typeof(ArtistPage), artist.Id);
+                e.Handled = true;
+                break;
+            case Song video when ViewModel.PlayVideoCommand.CanExecute(video):
+                ViewModel.PlayVideoCommand.Execute(video);
+                e.Handled = true;
+                break;
+        }
+    }
+
+    // ── Card Play overlay (Feature A) ────────────────────────────────────────────────────────────
+
+    private void OnCardPointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) =>
+        CardPlayOverlay.OnPointerEntered(sender);
+
+    private void OnCardPointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) =>
+        CardPlayOverlay.OnPointerExited(sender);
+
+    private void OnPlayOverlayGotFocus(object sender, RoutedEventArgs e) =>
+        CardPlayOverlay.OnOverlayGotFocus(sender);
+
+    private void OnPlayOverlayLostFocus(object sender, RoutedEventArgs e) =>
+        CardPlayOverlay.OnOverlayLostFocus(sender);
+
+    private async void OnAlbumCardPlay(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: Album album })
+        {
+            await FeedNavigation.PlayBrowseCollectionAsync(album.Id, _player, _client);
+        }
+    }
+
+    private async void OnPlaylistCardPlay(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: Playlist playlist })
+        {
+            await FeedNavigation.PlayBrowseCollectionAsync(playlist.Id, _player, _client);
         }
     }
 
@@ -91,11 +194,20 @@ public sealed partial class ArtistPage : Page
     private void OnSeeAllSinglesClick(object sender, RoutedEventArgs e) =>
         NavigateToSeeAll(ViewModel.SinglesSeeAllBrowseId);
 
+    private void OnSeeAllVideosClick(object sender, RoutedEventArgs e) =>
+        NavigateToSeeAll(ViewModel.VideosSeeAllBrowseId);
+
+    private void OnSeeAllFeaturedClick(object sender, RoutedEventArgs e) =>
+        NavigateToSeeAll(ViewModel.FeaturedSeeAllBrowseId);
+
+    private void OnSeeAllRelatedClick(object sender, RoutedEventArgs e) =>
+        NavigateToSeeAll(ViewModel.RelatedSeeAllBrowseId);
+
     /// <summary>
     /// Navigates a "See all" rail to its full list. Artist discography "See all" targets are
     /// browse ids that render as a playlist-style collection, so we route them to
     /// <c>PlaylistPage</c> when that page exists. A dedicated artist see-all surface is future work;
-    /// until <c>PlaylistPage</c> lands the link is a safe no-op (Req 15.2).
+    /// until then the link is a safe no-op when the target page is absent (Req 15.2).
     /// </summary>
     private void NavigateToSeeAll(string? browseId)
     {
@@ -107,7 +219,7 @@ public sealed partial class ArtistPage : Page
 
     private void NavigateByTypeName(string typeName, string parameter)
     {
-        if (Type.GetType(typeName) is { } pageType)
+        if (Navigation.NavigationHelper.ResolvePageType(typeName) is { } pageType)
         {
             Frame?.Navigate(pageType, parameter);
         }

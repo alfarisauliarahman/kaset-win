@@ -51,7 +51,7 @@ public sealed partial class YouTubeHomePage : Page
     private void OnShortClick(object sender, ItemClickEventArgs e)
     {
         // A Short opens the dedicated vertical snap-paging Shorts surface (Req 32.4).
-        if (Type.GetType("KasetWin.App.Views.YouTubeShortsPage") is { } pageType)
+        if (Navigation.NavigationHelper.ResolvePageType("KasetWin.App.Views.YouTubeShortsPage") is { } pageType)
         {
             Frame?.Navigate(pageType);
         }

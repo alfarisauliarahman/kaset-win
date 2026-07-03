@@ -55,6 +55,8 @@ public sealed partial class PodcastsPage : Page
         switch (card.Model)
         {
             case PodcastSectionItem.EpisodeItem episode:
+                // THROWAWAY DIAGNOSTIC (Bug A): confirm a podcast episode click reaches the player.
+                KasetWin.Core.Diagnostics.KasetTrace.Log("Play:Podcasts.EpisodeClick");
                 await ViewModel.PlayEpisodeAsync(episode.Episode);
                 break;
 
@@ -92,7 +94,7 @@ public sealed partial class PodcastsPage : Page
             return;
         }
 
-        if (Type.GetType(PodcastShowPageTypeName) is { } pageType)
+        if (Navigation.NavigationHelper.ResolvePageType(PodcastShowPageTypeName) is { } pageType)
         {
             this.Frame.Navigate(pageType, showId);
         }
