@@ -170,6 +170,26 @@
                         IsOn="{x:Bind ViewModel.SyncedLyricsEnabled, Mode=TwoWay}" />
                 </Grid>
             </Border>
+
+            <!-- ── Extensions / Adblock ──────────────────────────────── -->
+            <TextBlock
+                Margin="0,8,0,0"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="Extensions (Adblock)" />
+
+            <Border Style="{StaticResource SettingsCardStyle}">
+                <StackPanel Spacing="10">
+                    <TextBlock
+                        Opacity="0.8"
+                        TextWrapping="Wrap"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Text="Kaset loads unpacked browser extensions (like uBlock Origin) into its playback WebView — the Windows equivalent of the macOS user-managed extensions. Nothing is bundled: put each unpacked extension (a folder containing manifest.json) into the Extensions folder below, then restart Kaset. Extensions are loaded onto the shared browser profile, so their ad/network rules apply to YouTube Music and YouTube playback." />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Click="OnOpenExtensionsFolder" Content="Open extensions folder" />
+                        <Button Click="OnRestartApp" Content="Restart Kaset" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </Page>

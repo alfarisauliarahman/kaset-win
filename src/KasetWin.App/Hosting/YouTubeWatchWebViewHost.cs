@@ -30,6 +30,7 @@ namespace KasetWin.App.Hosting;
 public sealed class YouTubeWatchWebViewHost : IAsyncDisposable
 {
     private readonly YouTubeWatchController _controller;
+    private readonly KasetWin.Platform.Playback.WebViewEnvironmentProvider _environmentProvider;
     private readonly ILogger<YouTubeWatchWebViewHost> _logger;
     private readonly WebView2 _webView;
     private readonly SemaphoreSlim _initGate = new(1, 1);
@@ -45,9 +46,11 @@ public sealed class YouTubeWatchWebViewHost : IAsyncDisposable
     /// <param name="logger">Optional logger; defaults to a no-op logger.</param>
     public YouTubeWatchWebViewHost(
         YouTubeWatchController controller,
+        KasetWin.Platform.Playback.WebViewEnvironmentProvider environmentProvider,
         ILogger<YouTubeWatchWebViewHost>? logger = null)
     {
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _environmentProvider = environmentProvider ?? throw new ArgumentNullException(nameof(environmentProvider));
         _logger = logger ?? NullLogger<YouTubeWatchWebViewHost>.Instance;
 
         // Fills the watch page's video region. Hit-test invisible so YouTube's own chrome (hidden by
@@ -86,7 +89,9 @@ public sealed class YouTubeWatchWebViewHost : IAsyncDisposable
                 return;
             }
 
-            await _webView.EnsureCoreWebView2Async();
+            // Shared environment so extensions + session cookies match the playback/login WebViews.
+            var environment = await _environmentProvider.GetAsync().ConfigureAwait(true);
+            await _webView.EnsureCoreWebView2Async(environment);
             await _controller.AttachAsync(_webView.CoreWebView2).ConfigureAwait(true);
 
             _initialized = true;

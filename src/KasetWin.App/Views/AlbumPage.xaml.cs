@@ -49,6 +49,8 @@ public sealed partial class AlbumPage : Page
     {
         if (e.ClickedItem is Song song)
         {
+            // THROWAWAY DIAGNOSTIC (Bug A): confirm an album track-row click reaches the player.
+            KasetWin.Core.Diagnostics.KasetTrace.Log("Play:AlbumPage.SongClick", $"tracks={ViewModel.Tracks.Count}");
             ViewModel.PlayTrackCommand.Execute(song);
         }
     }

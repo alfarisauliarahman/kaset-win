@@ -77,7 +77,10 @@ public sealed partial class YouTubeFeedViewModel : ViewModelBase
     public Task<bool> LoadAsync(CancellationToken ct = default) =>
         LoadAsync($"yt-feed:{_kind}:{_destination}", async token =>
         {
+            KasetWin.Core.Diagnostics.KasetTrace.Log("BugB:FeedViewModel.LoadAsync.fetch.start", $"kind={_kind}");
             var feed = await FetchAsync(token).ConfigureAwait(true);
+            KasetWin.Core.Diagnostics.KasetTrace.Log(
+                "BugB:FeedViewModel.LoadAsync.fetch.done", $"videos={feed.Videos.Count}");
 
             Videos.Clear();
             foreach (var video in feed.Videos)
@@ -87,6 +90,7 @@ public sealed partial class YouTubeFeedViewModel : ViewModelBase
 
             _continuationToken = feed.ContinuationToken;
             OnPropertyChanged(nameof(HasMore));
+            KasetWin.Core.Diagnostics.KasetTrace.Log("BugB:FeedViewModel.LoadAsync.populated", $"count={Videos.Count}");
         }, ct);
 
     /// <summary>Loads the next page of the feed (Req 32.1), appending to <see cref="Videos"/>.</summary>

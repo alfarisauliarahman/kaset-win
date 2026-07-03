@@ -39,6 +39,8 @@ public sealed partial class QueuePage : Page
     {
         if (e.ClickedItem is Song song)
         {
+            // THROWAWAY DIAGNOSTIC (Bug A): confirm a queue track-row click reaches the player.
+            KasetWin.Core.Diagnostics.KasetTrace.Log("Play:Queue.SongClick", $"tracks={ViewModel.Tracks.Count}");
             ViewModel.PlayTrackCommand.Execute(song);
         }
     }

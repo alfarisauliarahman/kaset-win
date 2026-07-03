@@ -40,6 +40,8 @@ public sealed class PlaybackWebViewHost : IAsyncDisposable
     private const double MiniPlayerHeight = 90;
 
     private readonly WebView2PlaybackController _controller;
+    private readonly WebViewEnvironmentProvider _environmentProvider;
+    private readonly ExtensionsService _extensions;
     private readonly ILogger<PlaybackWebViewHost> _logger;
     private readonly WebView2 _webView;
     private readonly SemaphoreSlim _initGate = new(1, 1);
@@ -59,9 +61,13 @@ public sealed class PlaybackWebViewHost : IAsyncDisposable
     /// <param name="logger">Optional logger; defaults to a no-op logger.</param>
     public PlaybackWebViewHost(
         WebView2PlaybackController controller,
+        WebViewEnvironmentProvider environmentProvider,
+        ExtensionsService extensions,
         ILogger<PlaybackWebViewHost>? logger = null)
     {
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _environmentProvider = environmentProvider ?? throw new ArgumentNullException(nameof(environmentProvider));
+        _extensions = extensions ?? throw new ArgumentNullException(nameof(extensions));
         _logger = logger ?? NullLogger<PlaybackWebViewHost>.Instance;
 
         // The owned element. Top-left aligned with a fixed 1×1 size so it occupies no visible
@@ -109,11 +115,21 @@ public sealed class PlaybackWebViewHost : IAsyncDisposable
                 return;
             }
 
-            // Creating the core requires the element to be live in a window's visual tree.
-            await _webView.EnsureCoreWebView2Async();
+            // Creating the core requires the element to be live in a window's visual tree. Use the
+            // shared environment (extensions enabled + shared session profile) so user extensions
+            // like uBlock apply and the session cookie is shared with the login/watch WebViews.
+            KasetWin.Core.Diagnostics.KasetTrace.Log("BugA:PlaybackHost.InitializeAsync.ensureCore.start");
+            var environment = await _environmentProvider.GetAsync().ConfigureAwait(true);
+            await _webView.EnsureCoreWebView2Async(environment);
+            KasetWin.Core.Diagnostics.KasetTrace.Log("BugA:PlaybackHost.InitializeAsync.ensureCore.done");
             await _controller.AttachAsync(_webView.CoreWebView2).ConfigureAwait(true);
 
+            // Load user-installed browser extensions (uBlock, etc.) onto the shared profile (ADR 0014
+            // equivalent). Best-effort so a missing/unsupported extension never blocks playback.
+            await _extensions.LoadIntoAsync(_webView.CoreWebView2.Profile).ConfigureAwait(true);
+
             _initialized = true;
+            KasetWin.Core.Diagnostics.KasetTrace.Log("BugA:PlaybackHost.InitializeAsync.done");
             _logger.LogInformation("Playback WebView2 host initialized and attached to controller.");
         }
         finally

@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using KasetWin.App.Navigation;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Api;
+using KasetWin.Core.Services.Api.Parsers;
 using KasetWin.Core.Services.Player;
 
 namespace KasetWin.App.ViewModels;
@@ -37,6 +39,7 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
 
     private string? _browseId;
     private string? _continuationToken;
+    private Artist? _author;
 
     /// <summary>Creates the ViewModel from the DI-resolved client and player (resolved by the page).</summary>
     public PlaylistDetailViewModel(IYTMusicClient client, IPlayerService player)
@@ -55,6 +58,26 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
     /// <summary>The author/artist display line shown in the header, or <c>null</c> when unknown.</summary>
     [ObservableProperty]
     private string? _authorDisplay;
+
+    /// <summary>
+    /// The author/artist channel id (<c>UC…</c>) backing the clickable header link (Task 30.1,
+    /// Req 37.1), or <c>null</c> when the source did not carry one. Ids are never fabricated.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAuthorLink))]
+    [NotifyPropertyChangedFor(nameof(AuthorIsPlain))]
+    [NotifyCanExecuteChangedFor(nameof(NavigateToArtistCommand))]
+    private string? _authorId;
+
+    /// <summary>
+    /// Whether the header artist name should render as a clickable artist link (Req 37.1). True only
+    /// for a real navigable channel id (<c>UC…</c>/<c>MPLAUC…</c>) — the playlist parser may fall back
+    /// to a synthetic author id when no link exists, and those must stay non-interactive.
+    /// </summary>
+    public bool HasAuthorLink => ParsingHelpers.IsNavigableArtistId(AuthorId);
+
+    /// <summary>Whether the header artist name should render as plain, non-interactive text.</summary>
+    public bool AuthorIsPlain => !HasAuthorLink;
 
     /// <summary>The header artwork, or <c>null</c> when unavailable.</summary>
     [ObservableProperty]
@@ -121,14 +144,16 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
         var detail = await _client.GetPlaylistAsync(browseId, ct).ConfigureAwait(true);
 
         Title = detail.Playlist.Title;
+        _author = detail.Playlist.Author;
         AuthorDisplay = detail.Playlist.Author?.Name;
+        AuthorId = detail.Playlist.Author?.Id;
         ThumbnailUrl = detail.Playlist.ThumbnailUrl;
         IsOwnedByUser = detail.Playlist.IsOwnedByUser;
 
         Tracks.Clear();
         foreach (var track in detail.Tracks)
         {
-            Tracks.Add(track);
+            Tracks.Add(WithAuthorFallback(track, detail.Playlist.Author));
         }
 
         _continuationToken = detail.ContinuationToken;
@@ -136,10 +161,21 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
         UpdateTrackCountDisplay(detail.Playlist.TrackCount);
     }
 
+    /// <summary>
+    /// Navigates to the header artist's page when a channel id is known (Task 30.1, Req 37.1).
+    /// Disabled (and a no-op) when no author id is present, so the link only lights up for real ids.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(HasAuthorLink))]
+    private void NavigateToArtist() => NavigationHelper.NavigateToArtist(AuthorId);
+
     /// <summary>Plays the whole collection from the top, loading it into the queue (Req 14.4, 8.1/8.2).</summary>
     [RelayCommand]
     private Task PlayAllAsync()
-        => Tracks.Count == 0 ? Task.CompletedTask : _player.PlayCollectionAsync([.. Tracks], startIndex: 0);
+    {
+        // THROWAWAY DIAGNOSTIC (Bug A): confirm the header "Play" button reaches the player.
+        KasetWin.Core.Diagnostics.KasetTrace.Log("Play:PlaylistDetail.PlayAll", $"tracks={Tracks.Count} isAlbum={IsAlbum}");
+        return Tracks.Count == 0 ? Task.CompletedTask : _player.PlayCollectionAsync([.. Tracks], startIndex: 0);
+    }
 
     /// <summary>
     /// Plays the collection starting at <paramref name="song"/>, loading it into the queue (Req 14.4).
@@ -171,7 +207,7 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
             var page = await _client.GetPlaylistContinuationAsync(token, c).ConfigureAwait(true);
             foreach (var track in page.Tracks)
             {
-                Tracks.Add(track);
+                Tracks.Add(WithAuthorFallback(track, _author));
             }
 
             _continuationToken = page.ContinuationToken;
@@ -204,6 +240,17 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
             Deleted?.Invoke(this, EventArgs.Empty);
         }
     }
+
+    /// <summary>
+    /// Fills a track's missing artist from the album/playlist author. Album track rows on YouTube
+    /// Music usually omit the per-track artist (it lives in the header), so without this the track
+    /// list — and the queue / now-playing once played — would show only the title. Only applied when
+    /// the track has no artist of its own, so playlists with real per-track artists are untouched.
+    /// </summary>
+    private static Song WithAuthorFallback(Song track, Artist? author) =>
+        track.Artists.Count == 0 && author is not null
+            ? track with { Artists = [author] }
+            : track;
 
     private void UpdateTrackCountDisplay(int? metadataCount)
     {

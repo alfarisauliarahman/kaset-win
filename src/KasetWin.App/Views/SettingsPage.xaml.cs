@@ -1,6 +1,8 @@
+using KasetWin.App.Hosting;
 using KasetWin.App.ViewModels;
 using KasetWin.Core.Services.Settings;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
 namespace KasetWin.App.Views;
@@ -42,4 +44,29 @@ public sealed partial class SettingsPage : Page
 
     /// <summary>The page ViewModel, bound from XAML via <c>x:Bind</c>.</summary>
     public SettingsViewModel ViewModel { get; }
+
+    /// <summary>
+    /// Opens the extensions folder in File Explorer so the user can drop an unpacked extension
+    /// (e.g. uBlock Origin) into it. The folder is created if it does not exist.
+    /// </summary>
+    private async void OnOpenExtensionsFolder(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var path = ExtensionsService.EnsureExtensionsFolder();
+            var folder = await Windows.Storage.StorageFolder.GetFolderFromPathAsync(path);
+            await Windows.System.Launcher.LaunchFolderAsync(folder);
+        }
+        catch
+        {
+            // Opening Explorer is a convenience; a failure here is non-fatal.
+        }
+    }
+
+    /// <summary>Restarts Kaset so newly-added extensions are loaded at the next launch.</summary>
+    private void OnRestartApp(object sender, RoutedEventArgs e)
+    {
+        // AppInstance.Restart re-launches the packaged app; extensions load during WebView2 init.
+        Microsoft.Windows.AppLifecycle.AppInstance.Restart(string.Empty);
+    }
 }

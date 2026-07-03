@@ -43,6 +43,8 @@ public sealed partial class HistoryPage : Page
     {
         if (e.ClickedItem is Song song)
         {
+            // THROWAWAY DIAGNOSTIC (Bug A): confirm a history track-row click reaches the player.
+            KasetWin.Core.Diagnostics.KasetTrace.Log("Play:History.SongClick");
             ViewModel.PlayTrackCommand.Execute(song);
         }
     }
