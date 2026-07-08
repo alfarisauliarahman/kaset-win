@@ -9,7 +9,8 @@ using Microsoft.UI.Dispatching;
 namespace KasetWin.App.ViewModels;
 
 /// <summary>
-/// Backs the <see cref="Views.LyricsPage"/> (Task 14.9, Req 17.2/17.3/9.1). Observes the singleton
+/// Backs the lyrics view of the <see cref="Controls.NowPlayingPanel"/> (Task 14.9, Req
+/// 17.2/17.3/9.1; originally the standalone LyricsPage). Observes the singleton
 /// <see cref="IPlayerService"/> and <see cref="ILyricsService"/> and projects their state into a
 /// view-friendly shape:
 /// </summary>

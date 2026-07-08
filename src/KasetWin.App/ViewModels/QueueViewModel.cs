@@ -10,7 +10,8 @@ using Microsoft.UI.Dispatching;
 namespace KasetWin.App.ViewModels;
 
 /// <summary>
-/// Backs the <see cref="Views.QueuePage"/> (Task 14.8, Req 6.1–6.4). Presents the playback queue
+/// Backs the queue tabs of the <see cref="Controls.NowPlayingPanel"/> (Task 14.8, Req 6.1–6.4;
+/// originally the standalone QueuePage). Presents the playback queue
 /// from the single-source-of-truth <see cref="IQueueService"/>, highlights the track that is
 /// currently playing (via <see cref="CurrentIndex"/>), and exposes the three queue affordances —
 /// drag-to-reorder, clear, and shuffle — plus click-to-play-from-here.
@@ -54,6 +55,10 @@ public sealed partial class QueueViewModel : ViewModelBase, IDisposable
     // service's PropertyChanged would otherwise trigger (the collection already matches).
     private bool _suppressQueueSync;
 
+    // True while we rebuild the Apple-Music sections (History/UpNext), so the rebuild is not mistaken
+    // for a user reorder of the Up-Next list.
+    private bool _suppressSectionChanged;
+
     private bool _disposed;
 
     /// <summary>Creates the ViewModel from the DI-resolved queue and player (resolved by the page).</summary>
@@ -64,6 +69,7 @@ public sealed partial class QueueViewModel : ViewModelBase, IDisposable
         _dispatcher = DispatcherQueue.GetForCurrentThread();
 
         Tracks.CollectionChanged += OnTracksCollectionChanged;
+        UpNext.CollectionChanged += OnUpNextCollectionChanged;
         _queue.PropertyChanged += OnQueuePropertyChanged;
 
         SyncFromQueue();
@@ -71,6 +77,28 @@ public sealed partial class QueueViewModel : ViewModelBase, IDisposable
 
     /// <summary>The queued tracks, in order. Mirrors <see cref="IQueueService.Tracks"/>.</summary>
     public ObservableCollection<Song> Tracks { get; } = [];
+
+    /// <summary>Apple-Music "Sebelumnya" section: tracks before the current one (already played).</summary>
+    public ObservableCollection<Song> History { get; } = [];
+
+    /// <summary>Apple-Music "Selanjutnya" section: tracks after the current one (reorderable).</summary>
+    public ObservableCollection<Song> UpNext { get; } = [];
+
+    /// <summary>The track playing now, shown prominently at the top of the panel.</summary>
+    [ObservableProperty]
+    private Song? _nowPlaying;
+
+    /// <summary>Whether there are previously-played tracks to show.</summary>
+    public bool HasHistory => History.Count > 0;
+
+    /// <summary>Whether there are upcoming tracks to show.</summary>
+    public bool HasUpNext => UpNext.Count > 0;
+
+    /// <summary>Whether a track is currently playing (drives the now-playing card).</summary>
+    public bool HasNowPlaying => NowPlaying is not null;
+
+    /// <summary>Total number of tracks in the queue, shown as "12 lagu" in the header.</summary>
+    public string QueueCount => $"{Tracks.Count} lagu";
 
     /// <summary>
     /// Index of the track currently playing, or <c>-1</c> when the queue is empty. Bound to the
@@ -81,6 +109,9 @@ public sealed partial class QueueViewModel : ViewModelBase, IDisposable
 
     /// <summary>Whether the queue has any tracks; gates the Clear/Shuffle affordances.</summary>
     public bool HasTracks => Tracks.Count > 0;
+
+    /// <summary>Whether the queue is empty; drives the empty-state placeholder.</summary>
+    public bool IsEmpty => Tracks.Count == 0;
 
     /// <summary>Clears the queue, stopping what would play next (Req 6.3).</summary>
     [RelayCommand]
@@ -141,6 +172,71 @@ public sealed partial class QueueViewModel : ViewModelBase, IDisposable
 
         CurrentIndex = _queue.CurrentIndex;
         OnPropertyChanged(nameof(HasTracks));
+        OnPropertyChanged(nameof(IsEmpty));
+        RebuildSections();
+    }
+
+    /// <summary>
+    /// Rebuilds the Apple-Music sections from <see cref="Tracks"/> and <see cref="CurrentIndex"/>:
+    /// the now-playing track, the "Sebelumnya" history (before it) and the "Selanjutnya" up-next
+    /// (after it).
+    /// </summary>
+    private void RebuildSections()
+    {
+        _suppressSectionChanged = true;
+        try
+        {
+            History.Clear();
+            UpNext.Clear();
+
+            var ci = CurrentIndex;
+            NowPlaying = ci >= 0 && ci < Tracks.Count ? Tracks[ci] : null;
+
+            for (var i = 0; i < Tracks.Count; i++)
+            {
+                if (ci >= 0 && i < ci)
+                {
+                    History.Add(Tracks[i]);
+                }
+                else if (i > ci || ci < 0)
+                {
+                    UpNext.Add(Tracks[i]);
+                }
+            }
+        }
+        finally
+        {
+            _suppressSectionChanged = false;
+        }
+
+        OnPropertyChanged(nameof(HasHistory));
+        OnPropertyChanged(nameof(HasUpNext));
+        OnPropertyChanged(nameof(HasNowPlaying));
+        OnPropertyChanged(nameof(QueueCount));
+    }
+
+    private void OnUpNextCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_suppressSectionChanged || e.Action != NotifyCollectionChangedAction.Move)
+        {
+            return;
+        }
+
+        // Up-Next starts right after the current track; map the section-local move to the queue.
+        var baseIndex = CurrentIndex + 1;
+        _suppressQueueSync = true;
+        try
+        {
+            _queue.Move(baseIndex + e.OldStartingIndex, baseIndex + e.NewStartingIndex);
+            CurrentIndex = _queue.CurrentIndex;
+        }
+        finally
+        {
+            _suppressQueueSync = false;
+        }
+
+        // Re-mirror so Tracks and the sections match the authoritative queue after the move.
+        RunOnUi(SyncFromQueue);
     }
 
     private void OnTracksCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -187,5 +283,6 @@ public sealed partial class QueueViewModel : ViewModelBase, IDisposable
         _disposed = true;
         _queue.PropertyChanged -= OnQueuePropertyChanged;
         Tracks.CollectionChanged -= OnTracksCollectionChanged;
+        UpNext.CollectionChanged -= OnUpNextCollectionChanged;
     }
 }

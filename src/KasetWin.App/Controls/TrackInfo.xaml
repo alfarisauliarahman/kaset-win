@@ -14,46 +14,181 @@
 
     <StackPanel VerticalAlignment="Center">
 
-        <!-- Title: clickable to the album/single page when a browseId exists, plain text otherwise. -->
-        <HyperlinkButton
-            Click="OnTitleClick"
-            Style="{StaticResource InlineLinkButtonStyle}"
-            ToolTipService.ToolTip="Go to album"
-            Visibility="{x:Bind HasAlbumLink, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+        <!-- Title row: title (clickable to the album/single page when a browseId exists, plain
+             otherwise) followed by an "E" explicit badge for explicit tracks. Static/trimmed for
+             track rows; a scrolling marquee variant is used by the player bar (Large). -->
+        <StackPanel
+            Orientation="Horizontal"
+            Visibility="{x:Bind ShowStaticTitle, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+            <HyperlinkButton
+                Click="OnTitleClick"
+                Style="{StaticResource InlineLinkButtonStyle}"
+                ToolTipService.ToolTip="Go to album"
+                Visibility="{x:Bind HasAlbumLink, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock
+                    FontSize="{x:Bind TitleFontSize, Mode=OneWay}"
+                    Foreground="{ThemeResource HyperlinkButtonForeground}"
+                    MaxLines="1"
+                    Text="{x:Bind TitleText, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis"
+                    Style="{StaticResource BodyStrongTextBlockStyle}" />
+            </HyperlinkButton>
             <TextBlock
-                Foreground="{ThemeResource HyperlinkButtonForeground}"
+                FontSize="{x:Bind TitleFontSize, Mode=OneWay}"
                 MaxLines="1"
                 Text="{x:Bind TitleText, Mode=OneWay}"
                 TextTrimming="CharacterEllipsis"
+                Visibility="{x:Bind TitleIsPlain, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
                 Style="{StaticResource BodyStrongTextBlockStyle}" />
-        </HyperlinkButton>
-        <TextBlock
-            MaxLines="1"
-            Text="{x:Bind TitleText, Mode=OneWay}"
-            TextTrimming="CharacterEllipsis"
-            Visibility="{x:Bind TitleIsPlain, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
-            Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <Border
+                Margin="6,0,0,0"
+                Padding="4,0"
+                VerticalAlignment="Center"
+                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                CornerRadius="3"
+                Visibility="{x:Bind ShowExplicit, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock
+                    FontSize="10"
+                    FontWeight="SemiBold"
+                    Opacity="0.8"
+                    Text="E" />
+            </Border>
+        </StackPanel>
 
-        <!-- Artist: clickable to the primary artist page when a channel id exists, plain otherwise. -->
-        <HyperlinkButton
-            Click="OnArtistClick"
-            Style="{StaticResource InlineLinkButtonStyle}"
-            ToolTipService.ToolTip="Go to artist"
-            Visibility="{x:Bind HasArtistLink, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+        <!-- Marquee title (player bar): the full, untrimmed title scrolls horizontally when it is
+             wider than the fixed viewport; the code-behind clips the viewport and drives the slide. -->
+        <Grid
+            x:Name="MarqueeViewport"
+            SizeChanged="OnMarqueeSizeChanged"
+            Visibility="{x:Bind ShowMarqueeTitle, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel x:Name="MarqueeRow" Orientation="Horizontal" SizeChanged="OnMarqueeSizeChanged">
+                <StackPanel.RenderTransform>
+                    <TranslateTransform x:Name="MarqueeShift" />
+                </StackPanel.RenderTransform>
+                <HyperlinkButton
+                    Click="OnTitleClick"
+                    Style="{StaticResource InlineLinkButtonStyle}"
+                    ToolTipService.ToolTip="Buka album">
+                    <TextBlock
+                        x:Name="MarqueeText"
+                        FontSize="{x:Bind TitleFontSize, Mode=OneWay}"
+                        Text="{x:Bind TitleText, Mode=OneWay}"
+                        TextWrapping="NoWrap"
+                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                </HyperlinkButton>
+                <Border
+                    Margin="6,0,0,0"
+                    Padding="4,0"
+                    VerticalAlignment="Center"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    CornerRadius="3"
+                    Visibility="{x:Bind ShowExplicit, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock
+                        FontSize="10"
+                        FontWeight="SemiBold"
+                        Opacity="0.8"
+                        Text="E" />
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <!-- Second line: "Artist — Album" on one row. Artist and album are each clickable when a
+             navigation id exists; the album half only appears when opted in (player bar). -->
+        <StackPanel
+            Orientation="Horizontal"
+            Visibility="{x:Bind ShowStaticTitle, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+            <HyperlinkButton
+                Click="OnArtistClick"
+                Style="{StaticResource InlineLinkButtonStyle}"
+                ToolTipService.ToolTip="Go to artist"
+                Visibility="{x:Bind HasArtistLink, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock
+                    FontSize="{x:Bind SubFontSize, Mode=OneWay}"
+                    Foreground="{ThemeResource HyperlinkButtonForeground}"
+                    MaxLines="1"
+                    Text="{x:Bind ArtistText, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis"
+                    Style="{StaticResource CaptionTextBlockStyle}" />
+            </HyperlinkButton>
             <TextBlock
-                Foreground="{ThemeResource HyperlinkButtonForeground}"
+                FontSize="{x:Bind SubFontSize, Mode=OneWay}"
                 MaxLines="1"
+                Opacity="0.7"
                 Text="{x:Bind ArtistText, Mode=OneWay}"
                 TextTrimming="CharacterEllipsis"
+                Visibility="{x:Bind ArtistIsPlain, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
                 Style="{StaticResource CaptionTextBlockStyle}" />
-        </HyperlinkButton>
-        <TextBlock
-            MaxLines="1"
-            Opacity="0.7"
-            Text="{x:Bind ArtistText, Mode=OneWay}"
-            TextTrimming="CharacterEllipsis"
-            Visibility="{x:Bind ArtistIsPlain, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
-            Style="{StaticResource CaptionTextBlockStyle}" />
+
+            <TextBlock
+                Margin="4,0"
+                Opacity="0.5"
+                Text="—"
+                Visibility="{x:Bind ShowAlbumLine, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                Style="{StaticResource CaptionTextBlockStyle}" />
+
+            <HyperlinkButton
+                Click="OnTitleClick"
+                Style="{StaticResource InlineLinkButtonStyle}"
+                ToolTipService.ToolTip="Go to album"
+                Visibility="{x:Bind AlbumLineIsLink, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock
+                    Foreground="{ThemeResource HyperlinkButtonForeground}"
+                    MaxLines="1"
+                    Opacity="0.75"
+                    Text="{x:Bind AlbumText, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis"
+                    Style="{StaticResource CaptionTextBlockStyle}" />
+            </HyperlinkButton>
+            <TextBlock
+                MaxLines="1"
+                Opacity="0.55"
+                Text="{x:Bind AlbumText, Mode=OneWay}"
+                TextTrimming="CharacterEllipsis"
+                Visibility="{x:Bind AlbumLineIsPlain, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                Style="{StaticResource CaptionTextBlockStyle}" />
+        </StackPanel>
+
+        <!-- Marquee second line (player bar): "Artist — Album" scrolls when wider than the viewport. -->
+        <Grid
+            x:Name="SubViewport"
+            SizeChanged="OnMarqueeSizeChanged"
+            Visibility="{x:Bind ShowMarqueeTitle, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel x:Name="SubRow" Orientation="Horizontal" SizeChanged="OnMarqueeSizeChanged">
+                <StackPanel.RenderTransform>
+                    <TranslateTransform x:Name="SubShift" />
+                </StackPanel.RenderTransform>
+                <HyperlinkButton
+                    Click="OnArtistClick"
+                    Style="{StaticResource InlineLinkButtonStyle}"
+                    ToolTipService.ToolTip="Buka halaman artis">
+                    <TextBlock
+                        FontSize="{x:Bind SubFontSize, Mode=OneWay}"
+                        Opacity="0.85"
+                        Text="{x:Bind ArtistText, Mode=OneWay}"
+                        TextWrapping="NoWrap"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                </HyperlinkButton>
+                <TextBlock
+                    Margin="4,0"
+                    VerticalAlignment="Center"
+                    Opacity="0.5"
+                    Text="—"
+                    Visibility="{x:Bind ShowAlbumLine, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                    Style="{StaticResource CaptionTextBlockStyle}" />
+                <HyperlinkButton
+                    Click="OnTitleClick"
+                    Style="{StaticResource InlineLinkButtonStyle}"
+                    ToolTipService.ToolTip="Buka album"
+                    Visibility="{x:Bind ShowAlbumLine, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock
+                        FontSize="{x:Bind SubFontSize, Mode=OneWay}"
+                        Opacity="0.7"
+                        Text="{x:Bind AlbumText, Mode=OneWay}"
+                        TextWrapping="NoWrap"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                </HyperlinkButton>
+            </StackPanel>
+        </Grid>
 
     </StackPanel>
 </UserControl>

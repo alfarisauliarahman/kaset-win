@@ -141,6 +141,12 @@ internal static class AppHost
         // ── Core: queue source of truth (task 10.1) ──────────────────────────────────────
         services.AddSingleton<IQueueService, QueueService>();
 
+        // ── Core: session-wide like state (like == collection, survives navigation) ──────
+        services.AddSingleton<ILikeStateStore, LikeStateStore>();
+
+        // ── App: right-hand now-playing side panel (queue / lyrics) coordinator ──────────
+        services.AddSingleton<Controls.SidePanelController>();
+
         // ── Core: lyrics (task 6.2) ──────────────────────────────────────────────────────
         // LyricsService consumes every registered ILyricsProvider (IEnumerable<ILyricsProvider>).
         services.AddSingleton<ILyricsProvider>(static sp => new LRCLibProvider(
@@ -200,6 +206,7 @@ internal static class AppHost
         // ── Core: request coalescing (task 13.x) ─────────────────────────────────────────
         // Shared single-flight used by the image cache (and any future deduped async work).
         services.AddSingleton<ISingleFlight, SingleFlight>();
+        services.AddSingleton<Notifications.IInAppNotifier, Notifications.InAppNotifier>();
 
         // ── Settings persistence (task 13.1, Req 18.x) ───────────────────────────────────
         // Prefer the packaged on-disk store (ApplicationData.LocalSettings). When the process runs

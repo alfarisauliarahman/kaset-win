@@ -39,16 +39,56 @@
             Orientation="Horizontal"
             Spacing="12">
             <Border
-                Width="48"
-                Height="48"
+                Width="60"
+                Height="60"
                 CornerRadius="4">
+                <Border.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Click="OnCtxPlayNext" Text="Putar setelah ini">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE893;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Click="OnCtxAddToQueue" Text="Tambahkan ke antrean">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE710;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Click="OnCtxToggleLike" Text="Suka / batal suka">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xEB51;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Click="OnCtxGoToArtist" Text="Buka halaman artis">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE77B;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Click="OnCtxGoToAlbum" Text="Buka album">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE93C;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Click="OnCtxShare" Text="Bagikan">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE72D;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                    </MenuFlyout>
+                </Border.ContextFlyout>
                 <Image
                     Source="{Binding CurrentTrack.ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
                     Stretch="UniformToFill" />
             </Border>
+            <!-- Fixed width so a long/short title never shifts the transport controls or the
+                 action buttons (the region stays a constant size). -->
             <controls:TrackInfo
+                Width="240"
                 VerticalAlignment="Center"
-                MaxWidth="220"
+                Large="True"
+                ShowAlbum="True"
                 Song="{Binding CurrentTrack}" />
             <Border
                 VerticalAlignment="Center"
@@ -62,33 +102,6 @@
                     Text="LIVE"
                     Style="{StaticResource CaptionTextBlockStyle}" />
             </Border>
-            <Button
-                x:Name="ShareButton"
-                VerticalAlignment="Center"
-                Click="OnShareClick"
-                IsEnabled="False"
-                Style="{StaticResource SubtleButtonStyle}"
-                ToolTipService.ToolTip="Share">
-                <FontIcon FontSize="16" Glyph="&#xE72D;" />
-            </Button>
-            <Button
-                x:Name="VideoButton"
-                VerticalAlignment="Center"
-                Click="OnVideoClick"
-                IsEnabled="False"
-                Style="{StaticResource SubtleButtonStyle}"
-                ToolTipService.ToolTip="Pop out video">
-                <FontIcon FontSize="16" Glyph="&#xE714;" />
-            </Button>
-            <Button
-                x:Name="LyricsButton"
-                VerticalAlignment="Center"
-                Click="OnLyricsClick"
-                IsEnabled="False"
-                Style="{StaticResource SubtleButtonStyle}"
-                ToolTipService.ToolTip="Lyrics">
-                <FontIcon FontSize="16" Glyph="&#xE8D2;" />
-            </Button>
             <Button
                 x:Name="LikeButton"
                 VerticalAlignment="Center"
@@ -191,12 +204,29 @@
             </Grid>
         </StackPanel>
 
-        <!-- Volume -->
+        <!-- Right cluster: lyrics / queue / video pop-out, then volume -->
         <StackPanel
             Grid.Column="2"
             VerticalAlignment="Center"
             Orientation="Horizontal"
             Spacing="4">
+            <Button
+                x:Name="LyricsButton"
+                VerticalAlignment="Center"
+                Click="OnLyricsClick"
+                IsEnabled="False"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Lirik">
+                <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+            </Button>
+            <Button
+                x:Name="QueueButton"
+                VerticalAlignment="Center"
+                Click="OnQueueClick"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Antrean">
+                <FontIcon FontSize="16" Glyph="&#xE90B;" />
+            </Button>
             <Button
                 x:Name="MuteButton"
                 Click="OnMuteClick"

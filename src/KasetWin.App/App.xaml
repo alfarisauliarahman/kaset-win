@@ -2,12 +2,18 @@
 <Application
     x:Class="KasetWin.App.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="using:KasetWin.App.Converters">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- App-wide converters for templates hosted outside a Page (e.g. the shell's sidebar
+                 search suggestions, which live on the Window and have no Page.Resources). -->
+            <converters:UriToImageSourceConverter x:Key="GlobalUriToImageSource" />
+            <converters:BoolToVisibilityConverter x:Key="GlobalBoolToVisibility" />
 
             <!--
                 Subtle (chromeless) button used across PlayerBar / Search / Library for icon and

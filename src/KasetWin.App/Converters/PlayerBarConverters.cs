@@ -151,3 +151,136 @@ public sealed partial class BoolToVisibilityConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, string language) =>
         throw new NotSupportedException();
 }
+
+/// <summary>
+/// Maps a track's <see cref="KasetWin.Core.Models.LikeStatus"/> to the like/dislike glyph, swapping
+/// the outline thumb for the SOLID (filled) thumb when this button's rating is active, so a liked
+/// track reads as a filled icon rather than just a brighter outline. The converter parameter selects
+/// the button — <c>"like"</c> or <c>"dislike"</c>.
+/// </summary>
+public sealed partial class LikeStatusToGlyphConverter : IValueConverter
+{
+    // Segoe Fluent Icons: outline thumbs (E8E1/E8E0) vs solid thumbs (E19D/E19E).
+    private const string LikeOutline = "";
+    private const string LikeSolid = "";
+    private const string DislikeOutline = "";
+    private const string DislikeSolid = "";
+
+    /// <inheritdoc />
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        var status = value as KasetWin.Core.Models.LikeStatus?;
+        var isLikeButton = !string.Equals(parameter as string, "dislike", StringComparison.OrdinalIgnoreCase);
+        if (isLikeButton)
+        {
+            return status == KasetWin.Core.Models.LikeStatus.Like ? LikeSolid : LikeOutline;
+        }
+
+        return status == KasetWin.Core.Models.LikeStatus.Dislike ? DislikeSolid : DislikeOutline;
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object value, Type targetType, object parameter, string language) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Maps a track's in-library flag to the collection menu label: "Hapus dari koleksi" when it is
+/// already saved, "Simpan ke koleksi" otherwise.
+/// </summary>
+public sealed partial class LibraryToggleTextConverter : IValueConverter
+{
+    /// <inheritdoc />
+    public object Convert(object value, Type targetType, object parameter, string language) =>
+        value is true ? "Hapus dari koleksi" : "Simpan ke koleksi";
+
+    /// <inheritdoc />
+    public object ConvertBack(object value, Type targetType, object parameter, string language) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Maps a track's <see cref="KasetWin.Core.Models.LikeStatus"/> to <see cref="Visibility"/> for the
+/// filled/outline like/dislike icon swap. Parameter selects the case: <c>"like-on"</c>,
+/// <c>"like-off"</c>, <c>"dislike-on"</c>, <c>"dislike-off"</c> — the "on" icon (solid, white) shows
+/// when that rating is active, the "off" icon (outline) shows otherwise.
+/// </summary>
+public sealed partial class LikeStatusToVisibilityConverter : IValueConverter
+{
+    /// <inheritdoc />
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        var status = value as KasetWin.Core.Models.LikeStatus?;
+        var key = (parameter as string ?? string.Empty).ToLowerInvariant();
+        var isLike = key.StartsWith("like", StringComparison.Ordinal);
+        var wantOn = key.EndsWith("-on", StringComparison.Ordinal);
+
+        var active = isLike
+            ? status == KasetWin.Core.Models.LikeStatus.Like
+            : status == KasetWin.Core.Models.LikeStatus.Dislike;
+
+        return active == wantOn ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object value, Type targetType, object parameter, string language) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Maps the active library filter to a button <see cref="Style"/>: the chip matching the converter
+/// parameter (a filter name) gets the accent style, the rest the default style — so the active filter
+/// is visibly highlighted.
+/// </summary>
+public sealed partial class LibraryFilterToStyleConverter : IValueConverter
+{
+    /// <inheritdoc />
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        var active = string.Equals(value?.ToString(), parameter as string, StringComparison.OrdinalIgnoreCase);
+        var key = active ? "AccentButtonStyle" : "DefaultButtonStyle";
+        return Application.Current.Resources[key];
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object value, Type targetType, object parameter, string language) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Collapses when the bound bool is true, shows when false (the inverse of the above).</summary>
+public sealed partial class InvertedBoolToVisibilityConverter : IValueConverter
+{
+    /// <inheritdoc />
+    public object Convert(object value, Type targetType, object parameter, string language) =>
+        value is true ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <inheritdoc />
+    public object ConvertBack(object value, Type targetType, object parameter, string language) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Maps a track's <see cref="KasetWin.Core.Models.LikeStatus"/> to a foreground brush for the
+/// like/dislike glyphs: the active rating shows white (fully opaque), the rest stay muted. The
+/// converter parameter selects which button this is — <c>"like"</c> or <c>"dislike"</c>.
+/// </summary>
+public sealed partial class LikeStatusToBrushConverter : IValueConverter
+{
+    private static readonly SolidColorBrush Active = new(Microsoft.UI.Colors.White);
+    private static readonly SolidColorBrush Muted = new(Microsoft.UI.Colors.White) { Opacity = 0.55 };
+
+    /// <inheritdoc />
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        var status = value as KasetWin.Core.Models.LikeStatus?;
+        var isLikeButton = !string.Equals(parameter as string, "dislike", StringComparison.OrdinalIgnoreCase);
+        var active = isLikeButton
+            ? status == KasetWin.Core.Models.LikeStatus.Like
+            : status == KasetWin.Core.Models.LikeStatus.Dislike;
+        return active ? Active : Muted;
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object value, Type targetType, object parameter, string language) =>
+        throw new NotSupportedException();
+}

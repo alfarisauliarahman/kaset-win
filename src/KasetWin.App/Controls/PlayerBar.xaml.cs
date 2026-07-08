@@ -31,10 +31,20 @@ namespace KasetWin.App.Controls;
 public sealed partial class PlayerBar : UserControl
 {
     private readonly IPlayerService? _player;
-    private readonly VideoWindowController? _videoController;
 
     /// <summary>Music client used to persist a like/unlike mutation for the current track (Req 37.3).</summary>
     private readonly IYTMusicClient? _music;
+
+    private readonly Notifications.IInAppNotifier? _notifier;
+
+    /// <summary>Play queue used by the cover context menu (add-to-queue / play-next).</summary>
+    private readonly IQueueService? _queue;
+
+    /// <summary>Session like state, shared with track lists so like/collection stays in sync.</summary>
+    private readonly ILikeStateStore? _likeStore;
+
+    /// <summary>Controls the docked right-hand queue/lyrics panel toggled by the buttons here.</summary>
+    private readonly SidePanelController? _sidePanel;
 
     /// <summary>Local like state for the current track, updated optimistically on toggle.</summary>
     private LikeStatus? _currentLike;
@@ -48,17 +58,29 @@ public sealed partial class PlayerBar : UserControl
         // Resolve the shared player service and bind directly to it. Guarded so the control still
         // instantiates in design-time / unexpected contexts where the host is unavailable.
         _player = (Application.Current as App)?.Services.GetService<IPlayerService>();
-        _videoController = (Application.Current as App)?.Services.GetService<VideoWindowController>();
         _music = (Application.Current as App)?.Services.GetService<IYTMusicClient>();
+        _notifier = (Application.Current as App)?.Services.GetService<Notifications.IInAppNotifier>();
+        _queue = (Application.Current as App)?.Services.GetService<IQueueService>();
+        _likeStore = (Application.Current as App)?.Services.GetService<ILikeStateStore>();
+        _sidePanel = (Application.Current as App)?.Services.GetService<SidePanelController>();
+        if (_sidePanel is not null)
+        {
+            _sidePanel.Changed += OnSidePanelChanged;
+        }
+
         if (_player is not null)
         {
             DataContext = _player;
             _player.PropertyChanged += OnPlayerPropertyChanged;
             SeekSlider.IsEnabled = !_player.IsLive;
-            UpdateShareAvailability();
-            UpdateVideoAvailability();
             UpdateLyricsAvailability();
             UpdateLikeAvailability();
+        }
+
+        // Live like sync: refresh the heart when the current track's like is changed elsewhere.
+        if (_likeStore is not null)
+        {
+            _likeStore.Changed += OnLikeStoreChanged;
         }
 
         // Commit a seek only after the user finishes interacting with the slider. Handled events are
@@ -88,6 +110,25 @@ public sealed partial class PlayerBar : UserControl
         if (_player is not null)
         {
             _player.PropertyChanged -= OnPlayerPropertyChanged;
+        }
+
+        if (_likeStore is not null)
+        {
+            _likeStore.Changed -= OnLikeStoreChanged;
+        }
+
+        if (_sidePanel is not null)
+        {
+            _sidePanel.Changed -= OnSidePanelChanged;
+        }
+    }
+
+    /// <summary>Refreshes the like button when the current track's like state changes elsewhere.</summary>
+    private void OnLikeStoreChanged(string videoId)
+    {
+        if (string.Equals(videoId, _player?.CurrentTrack?.VideoId, StringComparison.Ordinal))
+        {
+            DispatcherQueue.TryEnqueue(UpdateLikeAvailability);
         }
     }
 
@@ -121,12 +162,6 @@ public sealed partial class PlayerBar : UserControl
 
         if (e.PropertyName is nameof(IPlayerService.CurrentTrack) or null)
         {
-            // The shareable URL depends on the current track (Req 34.2). Marshal to the UI thread.
-            DispatcherQueue.TryEnqueue(UpdateShareAvailability);
-
-            // Video pop-out is only offered when the current track has real video (Req 26.1).
-            DispatcherQueue.TryEnqueue(UpdateVideoAvailability);
-
             // The Lyrics affordance is only meaningful when something is playing (Bug 3).
             DispatcherQueue.TryEnqueue(UpdateLyricsAvailability);
 
@@ -142,7 +177,11 @@ public sealed partial class PlayerBar : UserControl
     private void UpdateLikeAvailability()
     {
         var track = _player?.CurrentTrack;
-        _currentLike = track?.LikeStatus;
+        // Prefer the session store so a like made elsewhere (or on a previous view of this track)
+        // is reflected here even if the player's track record predates it.
+        _currentLike = track?.VideoId is { Length: > 0 } id && _likeStore?.TryGet(id, out var stored) == true
+            ? stored
+            : track?.LikeStatus;
         LikeButton.IsEnabled = _music is not null && !string.IsNullOrEmpty(track?.VideoId);
         ApplyLikeVisual();
     }
@@ -155,6 +194,11 @@ public sealed partial class PlayerBar : UserControl
     {
         bool liked = _currentLike == LikeStatus.Like;
         LikeButton.Opacity = liked ? 1.0 : 0.5;
+        // Filled red heart when liked, plain outline heart otherwise.
+        LikeIcon.Glyph = liked ? "" : "";
+        LikeIcon.Foreground = liked
+            ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0xE0, 0x24, 0x5E))
+            : (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["TextFillColorPrimaryBrush"];
         ToolTipService.SetToolTip(LikeButton, liked ? "Unlike" : "Like");
     }
 
@@ -181,25 +225,18 @@ public sealed partial class PlayerBar : UserControl
         try
         {
             await _music.RateSongAsync(videoId, next);
+            _likeStore?.Set(videoId, next);
+            var title = _player?.CurrentTrack?.Title ?? "lagu ini";
+            _notifier?.Show(next == LikeStatus.Like ? $"Disukai: {title}" : $"Dihapus dari suka: {title}");
         }
         catch (Exception)
         {
             // Persisting the rating failed â€” revert the optimistic visual so it matches the server.
             _currentLike = previous;
             ApplyLikeVisual();
+            _notifier?.Show("Gagal menyimpan suka.");
         }
     }
-
-    /// <summary>
-    /// Enables the pop-out video button only when the current track exposes genuine video content
-    /// (OMV, per <see cref="VideoAvailability"/>); disables it for audio-only tracks (ATV/UGC), when
-    /// nothing is playing, or when the floating-video controller is unavailable (Req 26.1).
-    /// </summary>
-    private void UpdateVideoAvailability() =>
-        VideoButton.IsEnabled = _videoController is not null
-            && VideoAvailability.IsVideoAvailable(_player?.CurrentTrack);
-
-    private void OnVideoClick(object sender, RoutedEventArgs e) => _ = _videoController?.TogglePopOutAsync();
 
     /// <summary>
     /// Enables the Lyrics button only when a track is loaded; clicking it navigates the shell's
@@ -210,21 +247,58 @@ public sealed partial class PlayerBar : UserControl
     private void UpdateLyricsAvailability() =>
         LyricsButton.IsEnabled = _player?.CurrentTrack is not null;
 
-    private void OnLyricsClick(object sender, RoutedEventArgs e) => NavigationHelper.NavigateToLyrics();
+    private void OnLyricsClick(object sender, RoutedEventArgs e) => _sidePanel?.ToggleLyrics();
 
-    /// <summary>
-    /// Enables the Share button only when the current track resolves to a shareable URL; disables it
-    /// when nothing is playing or the track has no shareable id (Req 34.2).
-    /// </summary>
-    private void UpdateShareAvailability() =>
-        ShareButton.IsEnabled = ShareUrlBuilder.TryCreate(_player?.CurrentTrack) is not null;
+    private void OnQueueClick(object sender, RoutedEventArgs e) => _sidePanel?.ToggleQueue();
 
-    private void OnShareClick(object sender, RoutedEventArgs e)
+    /// <summary>Highlights the Lyrics/Queue buttons to match whichever panel (if any) is open.</summary>
+    private void OnSidePanelChanged()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            LyricsButton.Opacity = _sidePanel?.Mode == SidePanelMode.Lyrics ? 1.0 : 0.75;
+            QueueButton.Opacity = _sidePanel?.Mode == SidePanelMode.Queue ? 1.0 : 0.75;
+        });
+    }
+
+    // ── Cover context menu (right-click on the now-playing artwork) ───────────────────────────────
+
+    private void OnCtxPlayNext(object sender, RoutedEventArgs e)
+    {
+        if (_player?.CurrentTrack is { } track && _queue is not null)
+        {
+            _queue.InsertNext([track]);
+            _notifier?.Show($"Diputar setelah ini: {track.Title}");
+        }
+    }
+
+    private void OnCtxAddToQueue(object sender, RoutedEventArgs e)
+    {
+        if (_player?.CurrentTrack is { } track && _queue is not null)
+        {
+            var added = _queue.AppendDeduplicated([track]);
+            _notifier?.Show(added == 0 ? "Lagu sudah ada di antrean." : $"Ditambahkan ke antrean: {track.Title}");
+        }
+    }
+
+    private void OnCtxToggleLike(object sender, RoutedEventArgs e) => OnLikeClick(sender, e);
+
+    private void OnCtxGoToArtist(object sender, RoutedEventArgs e) =>
+        NavigationHelper.NavigateToSongArtist(_player?.CurrentTrack);
+
+    private void OnCtxGoToAlbum(object sender, RoutedEventArgs e) =>
+        NavigationHelper.NavigateToSongAlbum(_player?.CurrentTrack);
+
+    private void OnCtxShare(object sender, RoutedEventArgs e)
     {
         var target = ShareUrlBuilder.TryCreate(_player?.CurrentTrack);
         if (target is not null)
         {
             ShareInvoker.TryShow((Application.Current as App)?.MainWindow, target);
+        }
+        else
+        {
+            _notifier?.Show("Tidak ada tautan untuk dibagikan.");
         }
     }
 

@@ -51,20 +51,6 @@ internal static class NavigationHelper
     /// <summary>Navigates to the playlist page for <paramref name="playlistId"/> (a <c>VL…/PL…</c> id).</summary>
     public static bool NavigateToPlaylist(string? playlistId) => NavigateToDetail(PlaylistPageTypeName, playlistId);
 
-    /// <summary>
-    /// Navigates the shell's content frame to the Lyrics panel for whatever is currently playing.
-    /// Used by the <c>PlayerBar</c> Lyrics affordance (Feature/Bug 3); the page itself reads the
-    /// current track from <see cref="KasetWin.Core.Services.Player.IPlayerService"/> and resolves
-    /// lyrics via <see cref="KasetWin.Core.Services.Lyrics.ILyricsService"/>, so no parameter is
-    /// needed. <see cref="Views.LyricsPage"/> lives in this assembly, so it is referenced directly
-    /// rather than late-bound. No-op when the navigation service is unavailable.
-    /// </summary>
-    public static bool NavigateToLyrics()
-    {
-        var nav = (Application.Current as App)?.Services.GetService<INavigationService>();
-        return nav?.NavigateTo(typeof(Views.LyricsPage)) ?? false;
-    }
-
     /// <summary>Navigates to the first artist on <paramref name="song"/> that carries a real channel id.</summary>
     public static bool NavigateToSongArtist(Song? song) => NavigateToArtist(song?.PrimaryArtistId);
 

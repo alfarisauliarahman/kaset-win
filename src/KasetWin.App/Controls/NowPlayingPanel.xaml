@@ -1,0 +1,369 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="KasetWin.App.Controls.NowPlayingPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:KasetWin.App.Controls"
+    xmlns:converters="using:KasetWin.App.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:KasetWin.Core.Models"
+    xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
+    xmlns:vm="using:KasetWin.App.ViewModels"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:DurationToTextConverter x:Key="DurationToText" />
+        <converters:BoolToOpacityConverter x:Key="BoolToOpacity" />
+        <converters:ActiveLineToFontWeightConverter x:Key="ActiveLineToFontWeight" />
+        <converters:ActiveLineToScaleConverter x:Key="ActiveLineToScale" />
+
+        <DataTemplate x:Key="PanelRowTemplate" x:DataType="models:Song">
+            <Grid Padding="8,6" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="40" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Width="40" Height="40" CornerRadius="4">
+                    <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                </Border>
+                <controls:TrackInfo Grid.Column="1" Song="{x:Bind}" />
+                <TextBlock
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Opacity="0.6"
+                    Text="{x:Bind Duration, Converter={StaticResource DurationToText}}"
+                    Style="{StaticResource CaptionTextBlockStyle}" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid
+        Background="{ThemeResource LayerFillColorDefaultBrush}"
+        BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+        BorderThickness="1,0,0,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header: mode tabs + close -->
+        <Grid Grid.Row="0" Padding="16,14,12,8" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Queue sub-tabs (Berikutnya / Riwayat), shown in queue mode. -->
+            <SelectorBar
+                x:Name="QueueTabs"
+                Grid.Column="0"
+                SelectionChanged="OnQueueTabChanged"
+                Visibility="{x:Bind IsQueue, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <SelectorBarItem x:Name="UpNextTab" IsSelected="True" Text="Berikutnya" />
+                <SelectorBarItem x:Name="HistoryTab" Text="Riwayat" />
+                <SelectorBarItem x:Name="RelatedTab" Text="Terkait" />
+            </SelectorBar>
+
+            <TextBlock
+                Grid.Column="0"
+                VerticalAlignment="Center"
+                Text="Lirik"
+                Visibility="{x:Bind IsLyrics, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                Style="{StaticResource BodyStrongTextBlockStyle}" />
+
+            <Button
+                Grid.Column="1"
+                Click="OnCloseClick"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Tutup">
+                <FontIcon FontSize="14" Glyph="&#xE711;" />
+            </Button>
+        </Grid>
+
+        <!-- ══ QUEUE ══ -->
+        <Grid
+            Grid.Row="1"
+            Visibility="{x:Bind IsQueue, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+
+            <!-- Berikutnya: now playing + up next (reorderable) -->
+            <ScrollViewer
+                x:Name="UpNextScroller"
+                Padding="12,0,12,16"
+                Visibility="{x:Bind ShowUpNext, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel Spacing="4">
+                    <TextBlock
+                        Margin="8,8,0,0"
+                        Opacity="0.6"
+                        Text="Sedang diputar"
+                        Visibility="{x:Bind Queue.HasNowPlaying, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                    <Grid
+                        Padding="8"
+                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                        CornerRadius="8"
+                        ColumnSpacing="12"
+                        Visibility="{x:Bind Queue.HasNowPlaying, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="48" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Width="4" Height="40" VerticalAlignment="Center" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="2" />
+                        <Border Grid.Column="1" Width="48" Height="48" CornerRadius="4">
+                            <Image Source="{x:Bind Queue.NowPlaying.ThumbnailUrl, Converter={StaticResource UriToImageSource}, Mode=OneWay}" Stretch="UniformToFill" />
+                        </Border>
+                        <controls:TrackInfo Grid.Column="2" VerticalAlignment="Center" Song="{x:Bind Queue.NowPlaying, Mode=OneWay}" />
+                    </Grid>
+
+                    <TextBlock
+                        Margin="8,8,0,0"
+                        Opacity="0.6"
+                        Text="Selanjutnya"
+                        Visibility="{x:Bind Queue.HasUpNext, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                    <ListView
+                        AllowDrop="True"
+                        CanDragItems="True"
+                        CanReorderItems="True"
+                        IsItemClickEnabled="True"
+                        ItemClick="OnTrackClick"
+                        ItemTemplate="{StaticResource PanelRowTemplate}"
+                        ItemsSource="{x:Bind Queue.UpNext, Mode=OneWay}"
+                        PointerWheelChanged="OnUpNextWheel"
+                        ReorderMode="Enabled"
+                        ScrollViewer.VerticalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        SelectionMode="None" />
+
+                    <StackPanel
+                        Margin="0,48,0,0"
+                        HorizontalAlignment="Center"
+                        Spacing="6"
+                        Visibility="{x:Bind Queue.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock HorizontalAlignment="Center" Opacity="0.6" Text="Tidak ada lagu berikutnya." Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Riwayat -->
+            <ListView
+                Padding="12,4,12,16"
+                IsItemClickEnabled="True"
+                ItemClick="OnTrackClick"
+                ItemTemplate="{StaticResource PanelRowTemplate}"
+                ItemsSource="{x:Bind Queue.History, Mode=OneWay}"
+                SelectionMode="None"
+                Visibility="{x:Bind ShowHistory, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+
+            <!-- Terkait (related): watch-next carousels for the current track. -->
+            <Grid Visibility="{x:Bind ShowRelated, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <Grid.Resources>
+                    <!-- All-song sections: compact rows, 4 down then across (column-major). -->
+                    <DataTemplate x:Key="RelatedSongsTemplate" x:DataType="vm:HomeSectionView">
+                        <StackPanel Margin="0,0,0,8" Spacing="8">
+                            <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <ScrollViewer
+                                Padding="0,0,0,14"
+                                HorizontalScrollBarVisibility="Auto"
+                                HorizontalScrollMode="Enabled"
+                                VerticalScrollBarVisibility="Disabled"
+                                VerticalScrollMode="Disabled">
+                                <muxc:ItemsRepeater ItemsSource="{x:Bind Items}">
+                                    <muxc:ItemsRepeater.Layout>
+                                        <muxc:UniformGridLayout
+                                            MaximumRowsOrColumns="4"
+                                            MinColumnSpacing="12"
+                                            MinRowSpacing="2"
+                                            Orientation="Vertical" />
+                                    </muxc:ItemsRepeater.Layout>
+                                    <muxc:ItemsRepeater.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:HomeCardItem">
+                                            <Grid
+                                                Width="300"
+                                                Height="56"
+                                                Padding="4"
+                                                Background="Transparent"
+                                                ColumnSpacing="10"
+                                                CornerRadius="6"
+                                                DataContext="{x:Bind}"
+                                                Tapped="OnRelatedItemClick">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="44" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Width="44" Height="44" VerticalAlignment="Center" CornerRadius="4">
+                                                    <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock
+                                                        MaxLines="1"
+                                                        Text="{x:Bind Title}"
+                                                        TextTrimming="CharacterEllipsis"
+                                                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                    <TextBlock
+                                                        MaxLines="1"
+                                                        Opacity="0.6"
+                                                        Text="{x:Bind Subtitle}"
+                                                        TextTrimming="CharacterEllipsis"
+                                                        Style="{StaticResource CaptionTextBlockStyle}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </muxc:ItemsRepeater.ItemTemplate>
+                                </muxc:ItemsRepeater>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </DataTemplate>
+
+                    <!-- Playlist / artist / album sections: horizontal card rail. -->
+                    <DataTemplate x:Key="RelatedCardsTemplate" x:DataType="vm:HomeSectionView">
+                        <StackPanel Margin="0,0,0,8" Spacing="8">
+                            <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <ScrollViewer
+                                Padding="0,0,0,14"
+                                HorizontalScrollBarVisibility="Auto"
+                                HorizontalScrollMode="Enabled"
+                                VerticalScrollBarVisibility="Disabled"
+                                VerticalScrollMode="Disabled">
+                                <ItemsControl ItemsSource="{x:Bind Items}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="12" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:HomeCardItem">
+                                            <StackPanel
+                                                Width="120"
+                                                Background="Transparent"
+                                                Spacing="2"
+                                                Tapped="OnRelatedItemClick">
+                                                <Border
+                                                    Width="120"
+                                                    Height="120"
+                                                    Margin="0,0,0,4"
+                                                    CornerRadius="{x:Bind ImageCornerRadius}">
+                                                    <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                                                </Border>
+                                                <TextBlock
+                                                    MaxLines="2"
+                                                    Text="{x:Bind Title}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    TextWrapping="Wrap"
+                                                    Style="{StaticResource CaptionTextBlockStyle}" />
+                                                <TextBlock
+                                                    MaxLines="1"
+                                                    Opacity="0.6"
+                                                    Text="{x:Bind Subtitle}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    Style="{StaticResource CaptionTextBlockStyle}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </DataTemplate>
+
+                    <controls:RelatedSectionTemplateSelector
+                        x:Key="RelatedTemplateSelector"
+                        CardsTemplate="{StaticResource RelatedCardsTemplate}"
+                        SongsTemplate="{StaticResource RelatedSongsTemplate}" />
+                </Grid.Resources>
+
+                <ScrollViewer Padding="12,4,12,16">
+                    <StackPanel>
+                        <ItemsControl ItemTemplateSelector="{StaticResource RelatedTemplateSelector}" ItemsSource="{x:Bind RelatedSections, Mode=OneWay}" />
+
+                        <!-- Tentang artis (bio) at the bottom, matching YT Music's Related tab. -->
+                        <StackPanel
+                            Margin="0,8,0,0"
+                            Spacing="8"
+                            Visibility="{x:Bind HasAbout, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="{x:Bind AboutTitle, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <TextBlock
+                                Opacity="0.75"
+                                Text="{x:Bind AboutText, Mode=OneWay}"
+                                TextWrapping="Wrap"
+                                Style="{StaticResource CaptionTextBlockStyle}" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <ProgressRing
+                    Width="32"
+                    Height="32"
+                    VerticalAlignment="Top"
+                    Margin="0,24,0,0"
+                    IsActive="{x:Bind IsRelatedLoading, Mode=OneWay}"
+                    Visibility="{x:Bind IsRelatedLoading, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+
+                <TextBlock
+                    Margin="20"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Opacity="0.6"
+                    Text="Tidak ada konten terkait."
+                    TextAlignment="Center"
+                    Visibility="{x:Bind RelatedIsEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                    Style="{StaticResource BodyTextBlockStyle}" />
+            </Grid>
+        </Grid>
+
+        <!-- ══ LYRICS ══ -->
+        <Grid
+            Grid.Row="1"
+            Visibility="{x:Bind IsLyrics, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+            <ListView
+                x:Name="LyricsList"
+                Padding="20,4,20,24"
+                IsItemClickEnabled="False"
+                ItemsSource="{x:Bind Lyrics.Lines, Mode=OneWay}"
+                SelectionMode="None"
+                Visibility="{x:Bind Lyrics.ShowSynced, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LyricLineItem">
+                        <!-- Scale + opacity transitions animate the active line growing/brightening as
+                             the current line changes (Apple-Music style). -->
+                        <TextBlock
+                            Margin="0,8"
+                            FontSize="22"
+                            FontWeight="{x:Bind IsActive, Converter={StaticResource ActiveLineToFontWeight}, Mode=OneWay}"
+                            Opacity="{x:Bind IsActive, Converter={StaticResource BoolToOpacity}, Mode=OneWay}"
+                            Scale="{x:Bind IsActive, Converter={StaticResource ActiveLineToScale}, Mode=OneWay}"
+                            Text="{x:Bind Text}"
+                            TextWrapping="Wrap"
+                            Style="{StaticResource SubtitleTextBlockStyle}">
+                            <TextBlock.OpacityTransition>
+                                <ScalarTransition Duration="0:0:0.35" />
+                            </TextBlock.OpacityTransition>
+                            <TextBlock.ScaleTransition>
+                                <Vector3Transition Duration="0:0:0.35" />
+                            </TextBlock.ScaleTransition>
+                        </TextBlock>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <ScrollViewer
+                Padding="20,4,20,24"
+                Visibility="{x:Bind Lyrics.ShowPlain, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="{x:Bind Lyrics.PlainText, Mode=OneWay}" TextWrapping="Wrap" Style="{StaticResource BodyTextBlockStyle}" />
+            </ScrollViewer>
+
+            <TextBlock
+                Margin="20"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Opacity="0.6"
+                Text="Putar lagu untuk melihat lirik di sini."
+                TextAlignment="Center"
+                Visibility="{x:Bind Lyrics.ShowEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                Style="{StaticResource BodyTextBlockStyle}" />
+        </Grid>
+    </Grid>
+</UserControl>
