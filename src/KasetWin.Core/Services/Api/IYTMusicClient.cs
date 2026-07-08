@@ -42,15 +42,34 @@ public interface IYTMusicClient
     Task<SongMetadata> GetSongMetadataAsync(string videoId, CancellationToken ct = default);    // next (video type, feedback tokens)
     Task<RadioQueueResult> GetRadioQueueAsync(string videoId, CancellationToken ct = default);  // RDAMVM{videoId}
     Task<RadioQueueResult> GetMixQueueAsync(string playlistId, CancellationToken ct = default); // RDEM... (Req 25.1)
+
+    /// <summary>Related content for a track ("Terkait"/watch-next): the "next" tabs' Related browse,
+    /// parsed into home-style carousels (you-might-also-like / playlists / similar artists / …).</summary>
+    Task<HomeResponse> GetSongRelatedAsync(string videoId, CancellationToken ct = default);
+
+    /// <summary>Search-as-you-type suggestions including rich entity rows (song/artist with
+    /// thumbnail + subtitle), for the sidebar search box.</summary>
+    Task<IReadOnlyList<SearchSuggestion>> GetRichSearchSuggestionsAsync(string input, CancellationToken ct = default);
+
+    /// <summary>Artists derived from the user's saved/liked songs (library corpus), each with a
+    /// "N lagu" subtitle — the YT Music Library ▸ Artists list.</summary>
+    Task<IReadOnlyList<Artist>> GetLibrarySongArtistsAsync(CancellationToken ct = default);
+
+    /// <summary>Edits a playlist's metadata (name / description / privacy); only supplied fields change.</summary>
+    Task EditPlaylistMetadataAsync(string playlistId, string? title = null, string? description = null, PlaylistPrivacy? privacy = null, CancellationToken ct = default);
+
+    /// <summary>Browses an artist rail's "See all" target and classifies its items (albums/videos/playlists/artists).</summary>
+    Task<ArtistSectionResult> GetArtistSectionAsync(string browseId, string artistName, CancellationToken ct = default);
     Task<RadioQueueResult> GetMixContinuationAsync(string token, CancellationToken ct = default); // Req 25.2
 
     // ── Mutations (core + advanced) ─────────────────────────────────────────────────────
     Task RateSongAsync(string videoId, LikeStatus rating, CancellationToken ct = default);    // like/like|dislike|removelike
+    Task RatePlaylistAsync(string playlistId, LikeStatus rating, CancellationToken ct = default); // like/like|removelike for playlist/album targets
     Task SendFeedbackAsync(IReadOnlyList<string> feedbackTokens, CancellationToken ct = default); // feedback
     Task SubscribeArtistAsync(string channelId, CancellationToken ct = default);              // subscription/subscribe (Req 15.3)
     Task UnsubscribeArtistAsync(string channelId, CancellationToken ct = default);
     Task<AddToPlaylistMenu> GetAddToPlaylistOptionsAsync(string videoId, CancellationToken ct = default); // playlist/get_add_to_playlist
-    Task AddSongToPlaylistAsync(string videoId, string playlistId, CancellationToken ct = default);       // browse/edit_playlist (Req 13.3)
+    Task AddSongToPlaylistAsync(string videoId, string playlistId, bool allowDuplicates = false, CancellationToken ct = default); // browse/edit_playlist (Req 13.3)
     Task<string> CreatePlaylistAsync(string title, string? description, PlaylistPrivacy privacy, IReadOnlyList<string>? videoIds, CancellationToken ct = default); // playlist/create (Req 13.2)
     Task DeletePlaylistAsync(string playlistId, CancellationToken ct = default);              // playlist/delete (Req 13.4)
     Task<IReadOnlyList<UserAccount>> GetAccountsListAsync(CancellationToken ct = default);    // account/accounts_list (brand)

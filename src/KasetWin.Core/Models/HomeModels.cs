@@ -64,6 +64,12 @@ public sealed record HomeResponse
     public IReadOnlyList<HomeSection> Sections { get; init; } = [];
 
     public string? ContinuationToken { get; init; }
+
+    /// <summary>Header of a trailing description shelf (e.g. "Tentang artis" on the Related surface).</summary>
+    public string? AboutTitle { get; init; }
+
+    /// <summary>Body text of the trailing description shelf (artist bio on the Related surface).</summary>
+    public string? AboutText { get; init; }
 }
 
 /// <summary>
@@ -92,3 +98,30 @@ public sealed record SearchResponse
 /// Search parser task.
 /// </summary>
 public sealed record SearchFilter(string Label, string? Params = null);
+
+/// <summary>
+/// One search-as-you-type suggestion from <c>music/get_search_suggestions</c>: either a plain query
+/// completion / history entry, or a rich entity row (song/artist/album) with a thumbnail and a
+/// subtitle like "Lagu • DAY6 • 351 jt pemutaran • Every DAY6 February".
+/// </summary>
+public sealed record SearchSuggestion(
+    string Query,
+    string? Subtitle = null,
+    Uri? ThumbnailUrl = null,
+    bool IsHistory = false)
+{
+    /// <summary>Browse target for a rich row (artist <c>UC…</c>, album <c>MPRE…</c>, playlist), when present.</summary>
+    public string? BrowseId { get; init; }
+
+    /// <summary>InnerTube page type of <see cref="BrowseId"/> (e.g. <c>MUSIC_PAGE_TYPE_ARTIST</c>).</summary>
+    public string? PageType { get; init; }
+
+    /// <summary>Video id for a rich song row, when present.</summary>
+    public string? VideoId { get; init; }
+
+    /// <summary>Whether this is a rich entity row (thumbnail + subtitle) rather than a plain query.</summary>
+    public bool IsRich => ThumbnailUrl is not null || !string.IsNullOrEmpty(Subtitle);
+
+    /// <summary>Whether a subtitle line is available to show.</summary>
+    public bool HasSubtitle => !string.IsNullOrEmpty(Subtitle);
+}

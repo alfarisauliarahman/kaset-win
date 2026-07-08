@@ -303,12 +303,15 @@ public static class HomeResponseParser
         var videoId = Str(Prop(navigationEndpoint, "watchEndpoint"), "videoId");
         if (videoId is not null)
         {
+            // ExtractArtists filters view-count runs OUT of the artist list, so the count must be
+            // read separately from the subtitle for display ("Artis • 2,5 jt x ditonton").
             return new HomeSectionItem.SongItem(new Song
             {
                 Id = videoId,
                 VideoId = videoId,
                 Title = title,
                 Artists = ParsingHelpers.ExtractArtists(data),
+                ListenerCountText = ParsingHelpers.ExtractViewsFromSubtitle(data),
                 ThumbnailUrl = thumbnail,
                 VideoType = ExtractMusicVideoType(navigationEndpoint),
                 IsExplicit = ParsingHelpers.ExtractIsExplicit(data),
@@ -327,6 +330,67 @@ public static class HomeResponseParser
                 thumbnail,
                 ParsingHelpers.ExtractArtists(data),
                 playlistAuthor: ParsingHelpers.JoinRunTexts(data));
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Splits a trailing view-count run (e.g. "2,5 jt x ditonton", "1.2M views") out of the artist
+    /// list — subtitle runs are preserved as pseudo-artists, so video shelves would otherwise show
+    /// the view count as an artist name (and never as a view count).
+    /// </summary>
+    private static (IReadOnlyList<Artist> Artists, string? Views) SplitViewsFromArtists(IReadOnlyList<Artist> artists)
+    {
+        string? views = null;
+        var kept = new List<Artist>(artists.Count);
+        foreach (var artist in artists)
+        {
+            var name = artist.Name;
+            if (views is null
+                && (name.Contains("ditonton", StringComparison.OrdinalIgnoreCase)
+                    || name.Contains("views", StringComparison.OrdinalIgnoreCase)
+                    || name.Contains("tayangan", StringComparison.OrdinalIgnoreCase)))
+            {
+                views = name;
+            }
+            else
+            {
+                kept.Add(artist);
+            }
+        }
+
+        return (kept, views);
+    }
+
+    /// <summary>Scans every flex column's runs for a view-count text ("2,5 jt x ditonton" / "1.2M views").</summary>
+    private static string? ExtractViewsFromFlexColumns(JsonNode data)
+    {
+        var columns = Arr(Prop(data, "flexColumns"));
+        if (columns is null)
+        {
+            return null;
+        }
+
+        foreach (var column in columns)
+        {
+            var runs = Arr(Prop(Prop(Prop(column, "musicResponsiveListItemFlexColumnRenderer"), "text"), "runs"));
+            if (runs is null)
+            {
+                continue;
+            }
+
+            foreach (var run in runs)
+            {
+                var text = Str(run, "text");
+                if (text is not null
+                    && (text.Contains("ditonton", StringComparison.OrdinalIgnoreCase)
+                        || text.Contains("views", StringComparison.OrdinalIgnoreCase)
+                        || text.Contains("tayangan", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return text;
+                }
+            }
         }
 
         return null;
@@ -356,14 +420,16 @@ public static class HomeResponseParser
         }
 
         var title = ExtractTitleFromFlexColumns(data) ?? "Unknown";
+        var (rowArtists, rowViews) = SplitViewsFromArtists(ParsingHelpers.ExtractArtistsFromFlexColumns(data));
         return new HomeSectionItem.SongItem(new Song
         {
             Id = videoId,
             VideoId = videoId,
             Title = title,
-            Artists = ParsingHelpers.ExtractArtistsFromFlexColumns(data),
+            Artists = rowArtists,
             Album = ParsingHelpers.ExtractAlbumFromFlexColumns(data),
             Duration = ExtractDurationFromFlexColumns(data),
+            ListenerCountText = rowViews ?? ExtractViewsFromFlexColumns(data),
             ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(data),
             VideoType = ExtractMusicVideoType(Prop(data, "navigationEndpoint")),
             IsExplicit = ParsingHelpers.ExtractIsExplicit(data),
@@ -483,7 +549,45 @@ public static class HomeResponseParser
             return null;
         }
 
-        return ParsingHelpers.ExtractText(Prop(header, "musicCarouselShelfBasicHeaderRenderer"));
+        var basic = Prop(header, "musicCarouselShelfBasicHeaderRenderer");
+        var title = ParsingHelpers.ExtractText(basic);
+
+        // Some shelves (e.g. Related's "LAINNYA DARI / <artist>") split the label into a strapline
+        // above the title; combine them so the section reads "Lainnya dari <artist>".
+        var strapline = ParsingHelpers.ExtractText(basic, "strapline");
+        if (!string.IsNullOrWhiteSpace(strapline) && !string.IsNullOrWhiteSpace(title))
+        {
+            return $"{Capitalize(strapline)} {title}";
+        }
+
+        return title;
+    }
+
+    /// <summary>Lower-cases an ALL-CAPS strapline into sentence case ("LAINNYA DARI" → "Lainnya dari").</summary>
+    private static string Capitalize(string text)
+    {
+        var lowered = text.ToLowerInvariant();
+        return lowered.Length == 0 ? lowered : char.ToUpperInvariant(lowered[0]) + lowered[1..];
+    }
+
+    /// <summary>
+    /// Extracts a trailing description shelf ("Tentang artis" + bio on the Related surface).
+    /// Returns nulls when the response carries none.
+    /// </summary>
+    public static (string? Title, string? Text) ParseDescriptionShelf(JsonNode? root)
+    {
+        if (root is null)
+        {
+            return (null, null);
+        }
+
+        var shelf = ResponseTreeSearch.FindFirst(root, "musicDescriptionShelfRenderer");
+        if (shelf is null)
+        {
+            return (null, null);
+        }
+
+        return (ParsingHelpers.ExtractText(shelf, "header"), ParsingHelpers.ExtractText(shelf, "description"));
     }
 
     private static string? ExtractPageType(JsonNode? browseEndpoint) =>

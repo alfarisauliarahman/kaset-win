@@ -101,6 +101,7 @@ public static class ArtistParser
             var albums = new List<Album>();
             var singles = new List<Album>();
             var videos = new List<Song>();
+            var livePerformances = new List<Song>();
             var featured = new List<Playlist>();
             var related = new List<Artist>();
             var seeAll = new ArtistSeeAllDestinations();
@@ -150,14 +151,30 @@ public static class ArtistParser
 
                     if (section.Videos.Count > 0)
                     {
-                        videos.AddRange(section.Videos);
-                        if (more is not null)
+                        // YouTube Music splits performance clips into a distinctly titled
+                        // "Live performances" shelf; route those to their own rail.
+                        if (IsLiveShelf(title))
                         {
-                            seeAll = seeAll with { VideosBrowseId = more };
+                            livePerformances.AddRange(section.Videos);
+                            if (more is not null)
+                            {
+                                seeAll = seeAll with { LiveBrowseId = more };
+                            }
+                        }
+                        else
+                        {
+                            videos.AddRange(section.Videos);
+                            if (more is not null)
+                            {
+                                seeAll = seeAll with { VideosBrowseId = more };
+                            }
                         }
                     }
 
-                    if (section.Playlists.Count > 0)
+                    // Only the genuine "Featured on" shelf populates the Featured rail; other
+                    // playlist carousels (recommendations etc.) are intentionally dropped so the rail
+                    // is pure "featured on" content.
+                    if (section.Playlists.Count > 0 && IsFeaturedShelf(title))
                     {
                         featured.AddRange(section.Playlists);
                         if (more is not null)
@@ -190,6 +207,7 @@ public static class ArtistParser
                 Albums = albums,
                 SinglesAndEps = singles,
                 Videos = videos,
+                LivePerformances = livePerformances,
                 FeaturedPlaylists = featured,
                 RelatedArtists = related,
                 Episodes = Array.Empty<ArtistEpisode>(),
@@ -206,6 +224,46 @@ public static class ArtistParser
         {
             throw new KasetError(KasetErrorKind.ParseError, "Failed to parse Artist response.", ex);
         }
+    }
+
+    /// <summary>
+    /// Parses an artist "See all" browse response into classified buckets (albums, videos, playlists,
+    /// related artists) by collecting every <c>musicTwoRowItemRenderer</c> in the tree and routing it
+    /// the same way the artist-page carousels do. Videos carry their "Artist • views" subtitle so the
+    /// grid can show it. Used by the per-rail "See all" surfaces.
+    /// </summary>
+    public static ArtistSectionResult ParseSectionItems(JsonNode? root, Artist pageArtist)
+    {
+        ArgumentNullException.ThrowIfNull(pageArtist);
+
+        var section = new CarouselSection
+        {
+            Albums = new List<Album>(),
+            Singles = new List<Album>(),
+            Videos = new List<Song>(),
+            Playlists = new List<Playlist>(),
+            Artists = new List<Artist>(),
+        };
+
+        if (root is not null)
+        {
+            foreach (var twoRow in ResponseTreeSearch.FindAll(root, "musicTwoRowItemRenderer"))
+            {
+                ClassifyCarouselItem(twoRow, pageArtist, isSinglesShelf: false, section);
+            }
+        }
+
+        // Singles are Album records too; fold them into Albums for the "See all" grid.
+        var albums = new List<Album>(section.Albums);
+        albums.AddRange(section.Singles);
+
+        return new ArtistSectionResult
+        {
+            Albums = albums,
+            Videos = section.Videos,
+            Playlists = section.Playlists,
+            Artists = section.Artists,
+        };
     }
 
     // MARK: - Header / artist identity
@@ -352,9 +410,49 @@ public static class ArtistParser
             Artists = ParsingHelpers.ExtractArtistsFromFlexColumns(row),
             Album = ParsingHelpers.ExtractAlbumFromFlexColumns(row),
             Duration = ExtractDurationFromColumns(row),
+            ListenerCountText = ExtractPlaysFromColumns(row),
             ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(row),
             IsExplicit = ParsingHelpers.ExtractIsExplicit(row),
         };
+    }
+
+    /// <summary>
+    /// Extracts the plays/streams count text from a top-song row's flex columns (e.g.
+    /// "1.2M plays" / "1,2 jt kali diputar"), or <c>null</c> when the row carries none. Skips
+    /// duration-shaped tokens so the plays column, not the length, is captured.
+    /// </summary>
+    private static string? ExtractPlaysFromColumns(JsonNode row)
+    {
+        var flexColumns = Arr(Prop(row, "flexColumns"));
+        if (flexColumns is null)
+        {
+            return null;
+        }
+
+        foreach (var column in flexColumns)
+        {
+            var renderer = Prop(column, "musicResponsiveListItemFlexColumnRenderer");
+            foreach (var text in ParsingHelpers.ExtractRunTexts(renderer, "text"))
+            {
+                if (string.IsNullOrWhiteSpace(text) || ParsingHelpers.ParseDuration(text) is not null)
+                {
+                    continue;
+                }
+
+                var lowered = text.ToLowerInvariant();
+                var looksLikeCount = lowered.Contains("play", StringComparison.Ordinal)
+                    || lowered.Contains("stream", StringComparison.Ordinal)
+                    || lowered.Contains("putar", StringComparison.Ordinal)
+                    || lowered.Contains("diputar", StringComparison.Ordinal)
+                    || lowered.Contains("pendengar", StringComparison.Ordinal);
+                if (looksLikeCount)
+                {
+                    return text.Trim();
+                }
+            }
+        }
+
+        return null;
     }
 
     // MARK: - Carousels (musicCarouselShelfRenderer → musicTwoRowItemRenderer)
@@ -420,14 +518,15 @@ public static class ArtistParser
     /// </summary>
     private static void ClassifyCarouselItem(JsonNode twoRow, Artist pageArtist, bool isSinglesShelf, CarouselSection section)
     {
-        // A video carousel item plays directly via watchEndpoint (no browseId).
+        // A video carousel item plays directly via watchEndpoint. Prioritise this: a music-video
+        // tile often ALSO carries a browseId (the artist channel from its "CORTIS" subtitle link),
+        // and treating that as the primary target would misfile the video under the artist bucket —
+        // which is exactly what put CORTIS's own videos into "Fans might also like". Only channels,
+        // albums and playlists (browse-only, no watchEndpoint) reach the classifier below.
         var watch = ResponseTreeSearch.FindFirst(twoRow, "watchEndpoint");
         var videoId = Str(watch, "videoId");
 
-        var browseId = ParsingHelpers.ExtractBrowseId(twoRow)
-            ?? Str(ResponseTreeSearch.FindFirst(twoRow, "browseEndpoint"), "browseId");
-
-        if (browseId is null && videoId is not null)
+        if (videoId is not null)
         {
             var video = ParseVideoItem(twoRow, videoId, pageArtist);
             if (video is not null)
@@ -437,6 +536,9 @@ public static class ArtistParser
 
             return;
         }
+
+        var browseId = ParsingHelpers.ExtractBrowseId(twoRow)
+            ?? Str(ResponseTreeSearch.FindFirst(twoRow, "browseEndpoint"), "browseId");
 
         if (browseId is null)
         {
@@ -504,6 +606,8 @@ public static class ArtistParser
     private static Song? ParseVideoItem(JsonNode data, string videoId, Artist pageArtist)
     {
         var title = ParsingHelpers.ExtractText(data) ?? "Unknown";
+        // The subtitle carries "Artist • 1.2M views" — surface it so the card can show views.
+        var subtitle = ParsingHelpers.JoinRunTexts(data, "subtitle");
         return new Song
         {
             Id = videoId,
@@ -511,6 +615,7 @@ public static class ArtistParser
             Title = title,
             Artists = new[] { pageArtist },
             ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(data),
+            ListenerCountText = subtitle,
             HasVideo = true,
             IsExplicit = ParsingHelpers.ExtractIsExplicit(data),
         };
@@ -546,6 +651,8 @@ public static class ArtistParser
             Id = browseId,
             Name = name,
             ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(data),
+            // The subtitle carries the "44.2M monthly listeners" line for related-artist tiles.
+            SubtitleText = ParsingHelpers.JoinRunTexts(data, "subtitle"),
         };
     }
 
@@ -561,6 +668,43 @@ public static class ArtistParser
         var lowered = title.ToLowerInvariant();
         return lowered.Contains("single", StringComparison.Ordinal)
             || lowered.Contains("ep", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Whether a video carousel is the "Live performances" shelf (localized variants included),
+    /// so it can be shown as a rail separate from plain "Videos".
+    /// </summary>
+    private static bool IsLiveShelf(string? title)
+    {
+        if (string.IsNullOrEmpty(title))
+        {
+            return false;
+        }
+
+        var lowered = title.ToLowerInvariant();
+        return lowered.Contains("live", StringComparison.Ordinal)
+            || lowered.Contains("langsung", StringComparison.Ordinal)
+            || lowered.Contains("performance", StringComparison.Ordinal)
+            || lowered.Contains("pertunjukan", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Whether a playlist carousel is the artist's "Featured on" shelf (localized variants included),
+    /// so only genuine "featured on" playlists populate that rail — not recommendation carousels that
+    /// also hold playlists (e.g. "Fans might also like").
+    /// </summary>
+    private static bool IsFeaturedShelf(string? title)
+    {
+        if (string.IsNullOrEmpty(title))
+        {
+            return false;
+        }
+
+        var lowered = title.ToLowerInvariant();
+        return lowered.Contains("featured", StringComparison.Ordinal)
+            || lowered.Contains("ditampilkan", StringComparison.Ordinal)
+            || lowered.Contains("tampil di", StringComparison.Ordinal)
+            || lowered.Contains("diunggulkan", StringComparison.Ordinal);
     }
 
     private static string? ExtractCarouselTitle(JsonNode carousel) =>

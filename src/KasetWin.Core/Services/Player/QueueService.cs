@@ -364,6 +364,58 @@ public sealed class QueueService : ObservableObject, IQueueService
         return added;
     }
 
+    /// <inheritdoc />
+    public int InsertNext(IEnumerable<Song> songs)
+    {
+        ArgumentNullException.ThrowIfNull(songs);
+
+        int added;
+        bool currentBecameValid = false;
+
+        lock (_gate)
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (Song existing in _tracks)
+            {
+                seen.Add(existing.VideoId);
+            }
+
+            // Insert right after the current track; for an empty queue, start at the front.
+            int insertAt = _currentIndex >= 0 ? _currentIndex + 1 : _tracks.Count;
+            int before = _tracks.Count;
+            foreach (Song song in songs)
+            {
+                if (seen.Add(song.VideoId))
+                {
+                    _tracks.Insert(insertAt++, song);
+                }
+            }
+
+            added = _tracks.Count - before;
+            if (added == 0)
+            {
+                return 0;
+            }
+
+            if (_currentIndex == -1)
+            {
+                _currentIndex = 0;
+                currentBecameValid = true;
+            }
+
+            RebuildSnapshotLocked();
+        }
+
+        OnPropertyChanged(nameof(Tracks));
+        if (currentBecameValid)
+        {
+            OnPropertyChanged(nameof(CurrentIndex));
+            OnPropertyChanged(nameof(CurrentTrack));
+        }
+
+        return added;
+    }
+
     // ── helpers (all callers hold _gate) ──────────────────────────────────────────────
 
     private Song? CurrentTrackLocked() =>

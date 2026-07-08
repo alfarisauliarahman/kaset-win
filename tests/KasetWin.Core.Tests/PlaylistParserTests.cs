@@ -33,6 +33,73 @@ public class PlaylistParserTests
     }
 
     [Fact]
+    public void Parses_album_header_metadata_and_track_counts_when_present()
+    {
+        var node = JsonNode.Parse("""
+        {
+          "header": {
+            "musicDetailHeaderRenderer": {
+              "title": { "runs": [ { "text": "Sample Album" } ] },
+              "thumbnail": { "musicThumbnailRenderer": { "thumbnail": { "thumbnails": [ { "url": "https://example.invalid/album.jpg", "width": 544, "height": 544 } ] } } },
+              "straplineThumbnail": { "musicThumbnailRenderer": { "thumbnail": { "thumbnails": [ { "url": "https://example.invalid/artist.jpg", "width": 100, "height": 100 } ] } } },
+              "subtitle": {
+                "runs": [
+                  { "text": "Album" },
+                  { "text": " • " },
+                  { "text": "Sample Artist", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCsampleartist" } } },
+                  { "text": " • " },
+                  { "text": "12 November 2026" },
+                  { "text": " • " },
+                  { "text": "2 songs" }
+                ]
+              }
+            }
+          },
+          "contents": {
+            "sectionListRenderer": {
+              "contents": [
+                {
+                  "musicDescriptionShelfRenderer": {
+                    "description": { "runs": [ { "text": "Album description." } ] }
+                  }
+                },
+                {
+                  "musicPlaylistShelfRenderer": {
+                    "contents": [
+                      {
+                        "musicResponsiveListItemRenderer": {
+                          "playlistItemData": { "videoId": "video0000001" },
+                          "flexColumns": [
+                            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "Track One" } ] } } },
+                            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "Sample Artist" } ] } } }
+                          ],
+                          "fixedColumns": [
+                            { "musicResponsiveListItemFixedColumnRenderer": { "text": { "runs": [ { "text": "1" } ] } } },
+                            { "musicResponsiveListItemFixedColumnRenderer": { "text": { "runs": [ { "text": "1,234 plays" } ] } } },
+                            { "musicResponsiveListItemFixedColumnRenderer": { "text": { "runs": [ { "text": "3:14" } ] } } }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+        """);
+
+        var detail = PlaylistParser.ParsePlaylistDetail(node, "MPREb_sample_album");
+
+        Assert.Equal("Album", detail.Playlist.ContentType);
+        Assert.Equal("12 November 2026", detail.Playlist.ReleaseDateText);
+        Assert.Equal("Album description.", detail.Playlist.Description);
+        Assert.Equal(new Uri("https://example.invalid/artist.jpg"), detail.Playlist.Author?.ThumbnailUrl);
+        Assert.Equal(1, detail.Tracks[0].TrackNumber);
+        Assert.Equal("1,234 plays", detail.Tracks[0].ListenerCountText);
+    }
+
+    [Fact]
     public void Parses_track_rows_in_order()
     {
         var detail = PlaylistParser.ParsePlaylistDetail(FixtureNode(), PlaylistId);

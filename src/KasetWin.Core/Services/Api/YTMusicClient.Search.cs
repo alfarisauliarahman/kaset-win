@@ -45,6 +45,19 @@ public sealed partial class YTMusicClient
         return ParseSuggestions(node);
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SearchSuggestion>> GetRichSearchSuggestionsAsync(string input, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return Array.Empty<SearchSuggestion>();
+        }
+
+        var body = new JsonObject { ["input"] = input };
+        var node = await RequestAsync("music/get_search_suggestions", body, ttl: null, ct).ConfigureAwait(false);
+        return SearchSuggestionsParser.Parse(node);
+    }
+
     /// <summary>
     /// Extracts the suggestion query strings from a <c>music/get_search_suggestions</c> response.
     /// The suggestion text lives on <c>searchSuggestionRenderer.suggestion.runs[].text</c> (and,

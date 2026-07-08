@@ -91,4 +91,12 @@ public interface IQueueService : INotifyPropertyChanged
     /// (Req 25.3). Guarantees no duplicate videoId in the resulting queue.
     /// </summary>
     int AppendDeduplicated(IEnumerable<Song> songs);
+
+    /// <summary>
+    /// Inserts the songs immediately after the current track ("play next"), skipping any whose
+    /// <see cref="Song.VideoId"/> is already present (in the queue or earlier in the batch), and
+    /// returns the number actually inserted. When the queue is empty the songs are appended and the
+    /// first becomes current. Guarantees no duplicate videoId in the resulting queue.
+    /// </summary>
+    int InsertNext(IEnumerable<Song> songs);
 }

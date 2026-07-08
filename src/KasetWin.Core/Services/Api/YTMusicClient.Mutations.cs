@@ -116,6 +116,17 @@ public sealed partial class YTMusicClient
     }
 
     /// <inheritdoc />
+    public async Task RatePlaylistAsync(string playlistId, LikeStatus rating, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(playlistId);
+
+        var endpoint = rating == LikeStatus.Like ? "like/like" : "like/removelike";
+        await RequestAsync(endpoint, PlaylistTargetBody(YTMusicIds.StripVlPrefix(playlistId)), ttl: null, ct)
+            .ConfigureAwait(false);
+        _cache.InvalidateMutationCaches();
+    }
+
+    /// <inheritdoc />
     public async Task SendFeedbackAsync(IReadOnlyList<string> feedbackTokens, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(feedbackTokens);
@@ -200,23 +211,73 @@ public sealed partial class YTMusicClient
     }
 
     /// <inheritdoc />
-    public async Task AddSongToPlaylistAsync(string videoId, string playlistId, CancellationToken ct = default)
+    public async Task AddSongToPlaylistAsync(string videoId, string playlistId, bool allowDuplicates = false, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(videoId);
         ArgumentException.ThrowIfNullOrEmpty(playlistId);
+
+        // ytmusicapi (the proven reference client) sets dedupeOption ON THE ACTION (not the body
+        // root) with DEDUPE_OPTION_SKIP, which skips the server's duplicate check so the song is
+        // added again ("Tetap Tambahkan"). Placing it on the root (an earlier attempt) is ignored.
+        var action = new JsonObject
+        {
+            ["action"] = "ACTION_ADD_VIDEO",
+            ["addedVideoId"] = videoId,
+        };
+
+        if (allowDuplicates)
+        {
+            action["dedupeOption"] = "DEDUPE_OPTION_SKIP";
+        }
 
         // Mutation endpoints reject the VL browse prefix; strip it before sending.
         var body = new JsonObject
         {
             ["playlistId"] = YTMusicIds.StripVlPrefix(playlistId),
-            ["actions"] = new JsonArray
-            {
-                new JsonObject
-                {
-                    ["action"] = "ACTION_ADD_VIDEO",
-                    ["addedVideoId"] = videoId,
-                },
-            },
+            ["actions"] = new JsonArray { action },
+        };
+
+        await RequestAsync("browse/edit_playlist", body, ttl: null, ct).ConfigureAwait(false);
+        _cache.InvalidateMutationCaches();
+    }
+
+    /// <inheritdoc />
+    public async Task EditPlaylistMetadataAsync(
+        string playlistId,
+        string? title = null,
+        string? description = null,
+        PlaylistPrivacy? privacy = null,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(playlistId);
+
+        // ytmusicapi edit_playlist: browse/edit_playlist with SET_PLAYLIST_NAME / _DESCRIPTION /
+        // _PRIVACY actions; only the provided fields are sent.
+        var actions = new JsonArray();
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            actions.Add(new JsonObject { ["action"] = "ACTION_SET_PLAYLIST_NAME", ["playlistName"] = title });
+        }
+
+        if (description is not null)
+        {
+            actions.Add(new JsonObject { ["action"] = "ACTION_SET_PLAYLIST_DESCRIPTION", ["playlistDescription"] = description });
+        }
+
+        if (privacy is { } p)
+        {
+            actions.Add(new JsonObject { ["action"] = "ACTION_SET_PLAYLIST_PRIVACY", ["playlistPrivacy"] = PrivacyStatus(p) });
+        }
+
+        if (actions.Count == 0)
+        {
+            return;
+        }
+
+        var body = new JsonObject
+        {
+            ["playlistId"] = YTMusicIds.StripVlPrefix(playlistId),
+            ["actions"] = actions,
         };
 
         await RequestAsync("browse/edit_playlist", body, ttl: null, ct).ConfigureAwait(false);

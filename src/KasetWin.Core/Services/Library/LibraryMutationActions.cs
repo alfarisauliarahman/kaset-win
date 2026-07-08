@@ -107,7 +107,7 @@ public sealed class LibraryMutationActions
                     break;
 
                 case AddSongToPlaylistMutation m:
-                    await _client.AddSongToPlaylistAsync(m.Song.VideoId, m.PlaylistId, ct).ConfigureAwait(false);
+                    await _client.AddSongToPlaylistAsync(m.Song.VideoId, m.PlaylistId, allowDuplicates: false, ct).ConfigureAwait(false);
                     break;
 
                 case FollowArtistMutation m:

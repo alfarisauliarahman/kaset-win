@@ -76,6 +76,10 @@ public static class PlaylistParser
         var tracks = ParseTracks(obj, header.ThumbnailUrl);
         var trackCount = Math.Max(header.TrackCount ?? 0, tracks.Count);
 
+        // The header sometimes omits the explicit badge even when the album clearly is (e.g. it lives
+        // only on the tracks); treat the album as explicit when any track is, as a robust fallback.
+        var isExplicit = header.IsExplicit || tracks.Any(t => t.IsExplicit == true);
+
         var playlist = new Playlist
         {
             Id = playlistId,
@@ -83,7 +87,11 @@ public static class PlaylistParser
             Author = header.Author,
             ThumbnailUrl = header.ThumbnailUrl,
             TrackCount = trackCount == 0 ? null : trackCount,
+            ReleaseDateText = header.ReleaseDateText,
+            ContentType = header.ContentType,
+            Description = header.Description,
             IsOwnedByUser = PlaylistEditability.IsOwnedByUser(obj),
+            IsExplicit = isExplicit,
         };
 
         return new PlaylistDetail
@@ -91,7 +99,53 @@ public static class PlaylistParser
             Playlist = playlist,
             Tracks = tracks,
             ContinuationToken = ExtractContinuationToken(obj),
+            LikePlaylistId = ExtractLikeablePlaylistId(obj),
         };
+    }
+
+    /// <summary>
+    /// Finds the likeable playlist id for "add to library": an album's audio-playlist id
+    /// (<c>OLAK…</c>) or a real <c>VL/PL</c> playlist id, searching the response tree. Returns
+    /// <c>null</c> when none is present so the caller falls back to the requested browseId.
+    /// </summary>
+    private static string? ExtractLikeablePlaylistId(JsonNode? node)
+    {
+        switch (node)
+        {
+            case JsonObject obj:
+                var direct = NormalizeId(GetString(obj, "playlistId"));
+                if (direct is not null
+                    && (direct.StartsWith("OLAK", StringComparison.Ordinal)
+                        || direct.StartsWith("VL", StringComparison.Ordinal)
+                        || direct.StartsWith("PL", StringComparison.Ordinal)))
+                {
+                    return direct;
+                }
+
+                foreach (var (_, child) in obj)
+                {
+                    if (ExtractLikeablePlaylistId(child) is { } found)
+                    {
+                        return found;
+                    }
+                }
+
+                return null;
+
+            case JsonArray array:
+                foreach (var item in array)
+                {
+                    if (ExtractLikeablePlaylistId(item) is { } found)
+                    {
+                        return found;
+                    }
+                }
+
+                return null;
+
+            default:
+                return null;
+        }
     }
 
     /// <summary>
@@ -237,6 +291,16 @@ public static class PlaylistParser
         public Artist? Author { get; set; }
 
         public int? TrackCount { get; set; }
+
+        public string? ReleaseDateText { get; set; }
+
+        public string? ContentType { get; set; }
+
+        public string? Description { get; set; }
+
+        public Uri? AuthorThumbnailUrl { get; set; }
+
+        public bool IsExplicit { get; set; }
     }
 
     private static HeaderData ParseHeader(JsonObject root)
@@ -250,8 +314,40 @@ public static class PlaylistParser
         ApplyHeaderRenderer(ResponseTreeSearch.FindFirst(root, "musicResponsiveHeaderRenderer"), header);
         ApplyHeaderRenderer(ResponseTreeSearch.FindFirst(root, "musicImmersiveHeaderRenderer"), header);
         ApplyHeaderRenderer(ResponseTreeSearch.FindFirst(root, "musicVisualHeaderRenderer"), header);
+        ApplyDescription(root, header);
+
+        // 2025 headers carry the owner's photo in an avatarStackViewModel → avatarViewModel with
+        // image.sources (not the classic thumbnails array); fall back to that when nothing matched.
+        header.AuthorThumbnailUrl ??= AvatarViewModelUrl(root);
+
+        if (header.Author is not null && header.AuthorThumbnailUrl is not null && header.Author.ThumbnailUrl is null)
+        {
+            header.Author = header.Author with { ThumbnailUrl = header.AuthorThumbnailUrl };
+        }
 
         return header;
+    }
+
+    /// <summary>First <c>avatarViewModel.image.sources[].url</c> in the response, or null.</summary>
+    private static Uri? AvatarViewModelUrl(JsonObject root)
+    {
+        var avatar = ResponseTreeSearch.FindFirst(root, "avatarViewModel");
+        var sources = AsArray(Prop(Prop(avatar, "image"), "sources"));
+        if (sources is null)
+        {
+            return null;
+        }
+
+        foreach (var source in sources)
+        {
+            var url = GetString(source, "url");
+            if (url is not null && Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                return uri;
+            }
+        }
+
+        return null;
     }
 
     private static void ApplyEditableHeader(JsonNode? renderer, HeaderData header)
@@ -276,7 +372,14 @@ public static class PlaylistParser
             }
         }
 
+        if (!header.IsExplicit)
+        {
+            header.IsExplicit = ParsingHelpers.ExtractIsExplicit(renderer);
+        }
+
         header.ThumbnailUrl ??= ParsingHelpers.BestThumbnailUrl(renderer);
+        header.AuthorThumbnailUrl ??= BestNestedThumbnailUrl(Prop(renderer, "straplineThumbnail"))
+                                      ?? BestNestedThumbnailUrl(Prop(renderer, "facepile"));
 
         foreach (var key in new[] { "subtitle", "secondSubtitle", "straplineTextOne" })
         {
@@ -288,6 +391,27 @@ public static class PlaylistParser
 
             header.Author ??= ExtractHeaderAuthor(runs);
             ApplyMetadata(runs, header);
+        }
+    }
+
+    private static void ApplyDescription(JsonObject root, HeaderData header)
+    {
+        if (!string.IsNullOrWhiteSpace(header.Description))
+        {
+            return;
+        }
+
+        foreach (var key in new[] { "musicDescriptionShelfRenderer", "descriptionShelfRenderer" })
+        {
+            var renderer = ResponseTreeSearch.FindFirst(root, key);
+            var description = ParsingHelpers.ExtractText(renderer, "description")
+                              ?? ParsingHelpers.ExtractText(renderer, "descriptionText")
+                              ?? ParsingHelpers.ExtractText(renderer, "text");
+            if (!string.IsNullOrWhiteSpace(description))
+            {
+                header.Description = description.Trim();
+                return;
+            }
         }
     }
 
@@ -322,21 +446,80 @@ public static class PlaylistParser
 
     private static void ApplyMetadata(JsonArray runs, HeaderData header)
     {
-        if (header.TrackCount is not null)
-        {
-            return;
-        }
-
         foreach (var run in runs)
         {
-            var count = ParsingHelpers.ExtractSongCount(GetString(run, "text"));
-            if (count is not null)
+            var text = GetString(run, "text")?.Trim();
+            if (string.IsNullOrEmpty(text) || IsArtistSeparatorText(text))
             {
-                header.TrackCount = count;
-                return;
+                continue;
+            }
+
+            header.ContentType ??= ExtractContentType(text);
+            header.ReleaseDateText ??= ExtractReleaseDateText(text);
+
+            if (header.TrackCount is null)
+            {
+                var count = ParsingHelpers.ExtractSongCount(text);
+                if (count is not null)
+                {
+                    header.TrackCount = count;
+                }
             }
         }
     }
+
+    private static string? ExtractContentType(string text)
+    {
+        var lower = text.Trim().ToLowerInvariant();
+        if (Array.IndexOf(HeaderContentKinds, lower) < 0)
+        {
+            return null;
+        }
+
+        return lower switch
+        {
+            "ep" => "EP",
+            "album" => "Album",
+            "single" => "Single",
+            "playlist" => "Playlist",
+            "song" => "Song",
+            "uploads" => "Uploads",
+            _ => text,
+        };
+    }
+
+    private static string? ExtractReleaseDateText(string text)
+    {
+        var trimmed = text.Trim();
+        if (trimmed.Length == 4 && trimmed.All(char.IsDigit))
+        {
+            return trimmed;
+        }
+
+        if (!DateTime.TryParse(trimmed, out var date))
+        {
+            return null;
+        }
+
+        return $"{date.Day} {IndonesianMonthName(date.Month)} {date.Year}";
+    }
+
+    private static string IndonesianMonthName(int month) => month switch
+    {
+        1 => "Januari",
+        2 => "Februari",
+        3 => "Maret",
+        4 => "April",
+        5 => "Mei",
+        6 => "Juni",
+        7 => "Juli",
+        8 => "Agustus",
+        9 => "September",
+        10 => "Oktober",
+        11 => "November",
+        12 => "Desember",
+        _ => string.Empty,
+    };
 
     private static bool IsHeaderAuthorCandidate(string? text)
     {
@@ -408,19 +591,21 @@ public static class PlaylistParser
     private static List<Song> ParseTrackRows(JsonArray rows, Uri? fallbackThumb)
     {
         var tracks = new List<Song>(rows.Count);
+        var position = 1;
         foreach (var row in rows)
         {
-            var song = ParseTrackRow(row, fallbackThumb);
+            var song = ParseTrackRow(row, fallbackThumb, position);
             if (song is not null)
             {
                 tracks.Add(song);
+                position++;
             }
         }
 
         return tracks;
     }
 
-    private static Song? ParseTrackRow(JsonNode? row, Uri? fallbackThumb)
+    private static Song? ParseTrackRow(JsonNode? row, Uri? fallbackThumb, int fallbackTrackNumber)
     {
         var renderer = Prop(row, "musicResponsiveListItemRenderer");
         if (renderer is null)
@@ -442,9 +627,122 @@ public static class PlaylistParser
             Artists = ParsingHelpers.ExtractArtistsFromFlexColumns(renderer),
             Album = AlbumFromFlexColumns(renderer),
             Duration = DurationFromRow(renderer),
+            TrackNumber = TrackNumberFromRow(renderer) ?? fallbackTrackNumber,
+            ListenerCountText = ListenerCountFromRow(renderer),
             ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(renderer) ?? fallbackThumb,
             IsExplicit = ParsingHelpers.ExtractIsExplicit(renderer),
         };
+    }
+
+    private static int? TrackNumberFromRow(JsonNode? renderer)
+    {
+        foreach (var text in RowTexts(renderer))
+        {
+            if (int.TryParse(text.Trim(), out var number) && number is > 0 and < 1000)
+            {
+                return number;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ListenerCountFromRow(JsonNode? renderer)
+    {
+        foreach (var text in RowTexts(renderer))
+        {
+            var lower = text.ToLowerInvariant();
+            if (lower.Contains(" listener", StringComparison.Ordinal)
+                || lower.Contains(" play", StringComparison.Ordinal)
+                || lower.Contains(" view", StringComparison.Ordinal))
+            {
+                return text.Trim();
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> RowTexts(JsonNode? renderer)
+    {
+        foreach (var columnKey in new[] { "fixedColumns", "flexColumns" })
+        {
+            var columns = AsArray(Prop(renderer, columnKey));
+            if (columns is null)
+            {
+                continue;
+            }
+
+            foreach (var column in columns)
+            {
+                foreach (var rendererKey in new[]
+                {
+                    "musicResponsiveListItemFixedColumnRenderer",
+                    "musicResponsiveListItemFlexColumnRenderer",
+                })
+                {
+                    var runs = AsArray(Prop(Prop(Prop(column, rendererKey), "text"), "runs"));
+                    if (runs is null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var run in runs)
+                    {
+                        var text = GetString(run, "text");
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            yield return text;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static Uri? BestNestedThumbnailUrl(JsonNode? node)
+    {
+        var direct = ParsingHelpers.BestThumbnailUrl(node);
+        if (direct is not null)
+        {
+            return direct;
+        }
+
+        foreach (var rendererKey in new[] { "musicThumbnailRenderer", "croppedSquareThumbnailRenderer" })
+        {
+            var thumbnails = AsArray(Prop(Prop(Prop(node, rendererKey), "thumbnail"), "thumbnails"));
+            if (thumbnails is null)
+            {
+                continue;
+            }
+
+            Uri? best = null;
+            var bestArea = -1;
+            foreach (var thumbnail in thumbnails)
+            {
+                var url = GetString(thumbnail, "url");
+                if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                {
+                    continue;
+                }
+
+                var width = GetInt(thumbnail, "width") ?? 0;
+                var height = GetInt(thumbnail, "height") ?? 0;
+                var area = width * height;
+                if (area > bestArea)
+                {
+                    best = uri;
+                    bestArea = area;
+                }
+            }
+
+            if (best is not null)
+            {
+                return best;
+            }
+        }
+
+        return null;
     }
 
     private static string? ExtractVideoId(JsonNode? renderer) =>
@@ -795,5 +1093,16 @@ public static class PlaylistParser
     {
         var value = Prop(node, key);
         return value is JsonValue jv && jv.TryGetValue<string>(out var s) ? s : null;
+    }
+
+    private static int? GetInt(JsonNode? node, string key)
+    {
+        var value = Prop(node, key);
+        if (value is JsonValue jv && jv.TryGetValue<int>(out var i))
+        {
+            return i;
+        }
+
+        return null;
     }
 }

@@ -20,6 +20,13 @@ public sealed record Song
 
     public TimeSpan? Duration { get; init; }
 
+    public int? TrackNumber { get; init; }
+
+    public string? ListenerCountText { get; init; }
+
+    /// <summary>Whether a non-empty <see cref="ListenerCountText"/> (plays / views line) is available.</summary>
+    public bool HasListenerCount => !string.IsNullOrWhiteSpace(ListenerCountText);
+
     public Uri? ThumbnailUrl { get; init; }
 
     public bool IsPlayable { get; init; } = true;
@@ -76,6 +83,15 @@ public sealed record Artist
     public required string Name { get; init; }
 
     public Uri? ThumbnailUrl { get; init; }
+
+    /// <summary>
+    /// Optional subtitle line carried by an artist card, e.g. the "44.2M monthly listeners" text on
+    /// a "Fans might also like" related-artist tile. <c>null</c> when the source carried none.
+    /// </summary>
+    public string? SubtitleText { get; init; }
+
+    /// <summary>Whether a non-empty <see cref="SubtitleText"/> is available to show.</summary>
+    public bool HasSubtitle => !string.IsNullOrWhiteSpace(SubtitleText);
 }
 
 /// <summary>
@@ -92,6 +108,12 @@ public sealed record Album
     public Uri? ThumbnailUrl { get; init; }
 
     public string? Year { get; init; }
+
+    public string? ReleaseDateText { get; init; }
+
+    public string? ContentType { get; init; }
+
+    public string? Description { get; init; }
 
     public IReadOnlyList<Song> Tracks { get; init; } = [];
 
@@ -114,8 +136,17 @@ public sealed record Playlist
 
     public int? TrackCount { get; init; }
 
+    public string? ReleaseDateText { get; init; }
+
+    public string? ContentType { get; init; }
+
+    public string? Description { get; init; }
+
     /// <summary>Whether the current user owns the playlist (delete affordance, Req 14.3).</summary>
     public bool IsOwnedByUser { get; init; }
+
+    /// <summary>Whether the album/playlist is flagged explicit (header badge).</summary>
+    public bool IsExplicit { get; init; }
 }
 
 /// <summary>
@@ -128,6 +159,14 @@ public sealed record PlaylistDetail
     public IReadOnlyList<Song> Tracks { get; init; } = [];
 
     public string? ContinuationToken { get; init; }
+
+    /// <summary>
+    /// The likeable playlist id for "add to library" (an album's <c>OLAK…</c> audio-playlist id, or a
+    /// real <c>VL/PL</c> playlist id). The <c>like/like</c> endpoint rejects an album's <c>MPRE…</c>
+    /// browseId with HTTP 400, so this is the id to send when saving an album/playlist to the
+    /// collection. <c>null</c> when the response carried none (callers fall back to the browseId).
+    /// </summary>
+    public string? LikePlaylistId { get; init; }
 }
 
 /// <summary>
@@ -187,6 +226,12 @@ public sealed record ArtistDetail
     /// <summary>Video shelf items (carousel items whose endpoint is a <c>watchEndpoint</c>).</summary>
     public IReadOnlyList<Song> Videos { get; init; } = [];
 
+    /// <summary>
+    /// "Live performances" shelf items — a separate video carousel YouTube Music titles distinctly
+    /// from the plain "Videos" shelf. Empty when the artist page carries no such shelf.
+    /// </summary>
+    public IReadOnlyList<Song> LivePerformances { get; init; } = [];
+
     /// <summary>"Featured on" / playlists-by-artist carousels (playlist browse ids).</summary>
     public IReadOnlyList<Playlist> FeaturedPlaylists { get; init; } = [];
 
@@ -218,6 +263,21 @@ public sealed record ArtistDetail
 public sealed record ArtistEpisode(string Id, string Title, Uri? ThumbnailUrl = null);
 
 /// <summary>
+/// The classified items of an artist "See all" browse (albums/singles, videos, playlists, related
+/// artists). Each rail's "See all" resolves to one of these buckets.
+/// </summary>
+public sealed record ArtistSectionResult
+{
+    public IReadOnlyList<Album> Albums { get; init; } = [];
+
+    public IReadOnlyList<Song> Videos { get; init; } = [];
+
+    public IReadOnlyList<Playlist> Playlists { get; init; } = [];
+
+    public IReadOnlyList<Artist> Artists { get; init; } = [];
+}
+
+/// <summary>
 /// Minimal placeholder for the "See all" navigation targets on an artist page.
 /// Holds optional browseIds for each rail; expanded in the Artist parser task.
 /// </summary>
@@ -231,6 +291,9 @@ public sealed record ArtistSeeAllDestinations
 
     /// <summary>"See all" browse target for the Videos shelf, when present.</summary>
     public string? VideosBrowseId { get; init; }
+
+    /// <summary>"See all" browse target for the Live performances shelf, when present.</summary>
+    public string? LiveBrowseId { get; init; }
 
     /// <summary>"See all" browse target for the Featured/playlists shelf, when present.</summary>
     public string? FeaturedBrowseId { get; init; }

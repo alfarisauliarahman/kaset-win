@@ -30,6 +30,53 @@ public sealed partial class YTMusicClient
     }
 
     /// <inheritdoc />
+    public async Task<HomeResponse> GetSongRelatedAsync(string videoId, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(videoId);
+
+        // 1) The watch-next response carries the tabs; the Related tab exposes a browseId.
+        // NOTE: ConfigureAwait(true) — the SECOND request below must start on the caller's (UI)
+        // thread because the WebView2 cookie source is thread-affine; resuming on the threadpool
+        // made it throw COMException ("method can only be called from the thread that created it").
+        var next = await RequestAsync(
+            "next",
+            new JsonObject
+            {
+                ["videoId"] = videoId,
+                ["enablePersistentPlaylistPanel"] = true,
+                ["isAudioOnly"] = true,
+                ["tunerSettingValue"] = "AUTOMIX_SETTING_NORMAL",
+            },
+            ApiCacheTtl.SongMetadata,
+            ct).ConfigureAwait(true);
+
+        var relatedBrowseId = SongMetadataParser.ExtractRelatedBrowseId(next);
+        Diag.Write($"related videoId={videoId} browseId={relatedBrowseId ?? "<null>"}");
+        if (string.IsNullOrEmpty(relatedBrowseId))
+        {
+            return new HomeResponse();
+        }
+
+        // 2) Browse the Related target; it is a section-based response like Home/Explore.
+        // Related is best-effort end to end: request or parse failures degrade to "no related
+        // content" (and are logged) rather than surfacing an exception.
+        try
+        {
+            var node = await RequestAsync("browse", BrowseBody(relatedBrowseId), ApiCacheTtl.SongMetadata, ct)
+                .ConfigureAwait(false);
+            var parsed = HomeResponseParser.Parse(node);
+            var (aboutTitle, aboutText) = HomeResponseParser.ParseDescriptionShelf(node);
+            Diag.Write($"related parsed sections={parsed.Sections.Count} about={(aboutText is null ? "no" : "yes")}");
+            return parsed with { AboutTitle = aboutTitle, AboutText = aboutText };
+        }
+        catch (System.Exception ex)
+        {
+            Diag.Write($"related FAILED: {ex.GetType().Name}: {ex.Message}");
+            return new HomeResponse();
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<HomeResponse> GetHomeContinuationAsync(string token, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(token);
@@ -134,6 +181,47 @@ public sealed partial class YTMusicClient
         return PlaylistParser.ParsePlaylistDetail(node, "FEmusic_library_privately_owned_tracks").Tracks;
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<Artist>> GetLibrarySongArtistsAsync(CancellationToken ct = default)
+    {
+        // The library "Artists" corpus: artists derived from the user's saved/liked songs, each row
+        // carrying a "N lagu" subtitle (unlike the landing shelf, which lists channel subscriptions).
+        var node = await RequestAsync("browse", BrowseBody("FEmusic_library_corpus_track_artists"), ApiCacheTtl.Library, ct)
+            .ConfigureAwait(false);
+
+        var artists = new List<Artist>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var row in Parsers.ResponseTreeSearch.FindAll(node, "musicResponsiveListItemRenderer"))
+        {
+            var browseId = Parsers.ResponseTreeSearch.FindFirst(row, "browseEndpoint") is JsonObject be
+                && be.TryGetPropertyValue("browseId", out var idNode)
+                && idNode is JsonValue idValue && idValue.TryGetValue<string>(out var id)
+                ? id
+                : null;
+            if (browseId is null || !seen.Add(browseId))
+            {
+                continue;
+            }
+
+            var name = Parsers.ParsingHelpers.ExtractTitleFromFlexColumns(row);
+            if (string.IsNullOrEmpty(name))
+            {
+                continue;
+            }
+
+            artists.Add(new Artist
+            {
+                Id = browseId,
+                Name = name,
+                ThumbnailUrl = Parsers.ParsingHelpers.BestThumbnailUrl(row),
+                SubtitleText = Parsers.ParsingHelpers.ExtractSecondFlexColumnText(row),
+            });
+        }
+
+        Diag.Write($"library-artists count={artists.Count}");
+        return artists;
+    }
+
     // ── Detail ──────────────────────────────────────────────────────────────────────────
 
     /// <inheritdoc />
@@ -145,7 +233,38 @@ public sealed partial class YTMusicClient
             .ConfigureAwait(false);
 
         // Identity stays the caller-supplied id (without any synthesized VL prefix).
-        return PlaylistParser.ParsePlaylistDetail(node, playlistId);
+        var detail = PlaylistParser.ParsePlaylistDetail(node, playlistId);
+        var explicitCount = detail.Tracks.Count(t => t.IsExplicit == true);
+        Diag.Write($"playlist id={playlistId} tracks={detail.Tracks.Count} explicit={explicitCount} title={detail.Playlist.Title}");
+
+        // TEMPORARY: creator avatars still don't surface for other users' playlists — record which
+        // avatar-bearing renderers the response actually contains so the right path can be parsed.
+        if (detail.Playlist.Author is { ThumbnailUrl: null })
+        {
+            var json = node.ToJsonString();
+            var probes = new[] { "avatarViewModel", "straplineThumbnail", "facepile", "accountPhoto", "channelThumbnail", "ownerBadge", "musicVisualHeaderRenderer" };
+            Diag.Write("avatar-probe " + string.Join(" ", probes.Select(k => $"{k}={(json.Contains(k, StringComparison.Ordinal) ? 1 : 0)}")));
+        }
+
+        // TEMPORARY diagnosis: some albums report zero explicit tracks even though the web shows
+        // badges (their rows carry no "badges" key at all) — locate where the marker actually lives.
+        if (explicitCount == 0 && detail.Tracks.Count > 0)
+        {
+            var json = node.ToJsonString();
+            var idx = json.IndexOf("MUSIC_EXPLICIT_BADGE", StringComparison.Ordinal);
+            if (idx < 0)
+            {
+                Diag.Write("explicit-marker: NONE anywhere in the response");
+            }
+            else
+            {
+                var start = Math.Max(0, idx - 300);
+                var ctx = json.Substring(start, Math.Min(500, json.Length - start)).Replace('\n', ' ');
+                Diag.Write($"explicit-ctx: …{ctx}…");
+            }
+        }
+
+        return detail;
     }
 
     /// <inheritdoc />
@@ -177,6 +296,17 @@ public sealed partial class YTMusicClient
         var node = await RequestAsync("browse", BrowseBody(channelId), ApiCacheTtl.Artist, ct)
             .ConfigureAwait(false);
         return ArtistParser.Parse(node);
+    }
+
+    /// <inheritdoc />
+    public async Task<ArtistSectionResult> GetArtistSectionAsync(string browseId, string artistName, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(browseId);
+
+        var node = await RequestAsync("browse", BrowseBody(browseId), ApiCacheTtl.Artist, ct)
+            .ConfigureAwait(false);
+        var pageArtist = new Artist { Id = browseId, Name = artistName ?? string.Empty };
+        return ArtistParser.ParseSectionItems(node, pageArtist);
     }
 
     // ── Podcasts (advanced, Req 27) ─────────────────────────────────────────────────────

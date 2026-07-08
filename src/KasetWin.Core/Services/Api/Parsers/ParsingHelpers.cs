@@ -292,9 +292,9 @@ public static class ParsingHelpers
         foreach (var run in runs)
         {
             var text = GetString(run, "text");
-            if (string.IsNullOrEmpty(text) || IsArtistSeparator(text))
+            if (string.IsNullOrEmpty(text) || IsArtistSeparator(text) || LooksLikeCountText(text))
             {
-                continue;
+                continue; // skip separators and view/play-count runs (e.g. "540K views")
             }
 
             var browseId = ExtractBrowseId(run);
@@ -304,6 +304,80 @@ public static class ParsingHelpers
         }
 
         return artists;
+    }
+
+    /// <summary>Joined text of the FIRST flex column (the row's title), or <c>null</c>.</summary>
+    public static string? ExtractTitleFromFlexColumns(JsonNode? node) => FlexColumnText(node, 0);
+
+    /// <summary>Joined text of the SECOND flex column (subtitle, e.g. "12 lagu"), or <c>null</c>.</summary>
+    public static string? ExtractSecondFlexColumnText(JsonNode? node) => FlexColumnText(node, 1);
+
+    private static string? FlexColumnText(JsonNode? node, int index)
+    {
+        var columns = AsArray(Prop(node, "flexColumns"));
+        if (columns is null || columns.Count <= index)
+        {
+            return null;
+        }
+
+        var runs = AsArray(Prop(Prop(Prop(columns[index], "musicResponsiveListItemFlexColumnRenderer"), "text"), "runs"));
+        if (runs is null)
+        {
+            return null;
+        }
+
+        var parts = new List<string>();
+        foreach (var run in runs)
+        {
+            var text = GetString(run, "text");
+            if (!string.IsNullOrEmpty(text))
+            {
+                parts.Add(text);
+            }
+        }
+
+        var joined = string.Concat(parts).Trim();
+        return joined.Length == 0 ? null : joined;
+    }
+
+    /// <summary>
+    /// Returns the view/play-count run from a two-row item's subtitle (e.g. "2,5 jt x ditonton"),
+    /// or <c>null</c> when none is present. <see cref="ExtractArtists"/> deliberately filters these
+    /// out of the artist list, so callers that want to DISPLAY the count read it via this instead.
+    /// </summary>
+    public static string? ExtractViewsFromSubtitle(JsonNode? node)
+    {
+        var runs = AsArray(Prop(Prop(node, "subtitle"), "runs"));
+        if (runs is null)
+        {
+            return null;
+        }
+
+        foreach (var run in runs)
+        {
+            var text = GetString(run, "text");
+            if (!string.IsNullOrEmpty(text) && !IsArtistSeparator(text) && LooksLikeCountText(text))
+            {
+                return text;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether a subtitle run is a view/play/stream count (in English or Indonesian) rather than an
+    /// artist name, so it can be excluded from the artist list. Linked artist runs never match.
+    /// </summary>
+    private static bool LooksLikeCountText(string text)
+    {
+        var lowered = text.ToLowerInvariant();
+        return lowered.Contains("view", StringComparison.Ordinal)
+            || lowered.Contains("ditonton", StringComparison.Ordinal)
+            || lowered.Contains("play", StringComparison.Ordinal)
+            || lowered.Contains("diputar", StringComparison.Ordinal)
+            || lowered.Contains("stream", StringComparison.Ordinal)
+            || lowered.Contains("pendengar", StringComparison.Ordinal);
     }
 
     /// <summary>

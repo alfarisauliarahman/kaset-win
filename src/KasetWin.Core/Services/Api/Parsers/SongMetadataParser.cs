@@ -189,7 +189,9 @@ public static class SongMetadataParser
             VideoId = videoId,
             Title = ParsingHelpers.ExtractText(renderer, "title") ?? "Unknown",
             Artists = ParseArtistsFromByline(renderer),
-            Album = null,
+            // The panel's byline/menu carries the album browse target (MPREb…); surfacing it lets
+            // "open the song's album" affordances work from watch-next metadata.
+            Album = AlbumFromRenderer(renderer),
             Duration = ParsingHelpers.ParseDuration(ParsingHelpers.ExtractText(renderer, "lengthText")),
             ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(renderer),
             VideoType = videoType,
@@ -199,6 +201,21 @@ public static class SongMetadataParser
             FeedbackTokens = menu.FeedbackTokens,
             IsExplicit = ParsingHelpers.ExtractIsExplicit(renderer),
         };
+    }
+
+    /// <summary>The song's album (first <c>MPREb…</c> browse target under the renderer), if any.</summary>
+    private static Album? AlbumFromRenderer(JsonObject renderer)
+    {
+        foreach (var endpoint in ResponseTreeSearch.FindAll(renderer, "browseEndpoint"))
+        {
+            var browseId = GetString(endpoint, "browseId");
+            if (browseId is not null && browseId.StartsWith("MPREb", StringComparison.Ordinal))
+            {
+                return new Album { Id = browseId, Title = string.Empty };
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -345,6 +362,33 @@ public static class SongMetadataParser
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Extracts the "Related" tab browseId from the watch-next tabs: the first tab that carries a
+    /// browseId other than the Lyrics tab (<c>MPLYt…</c>). The "Up next" tab carries no browseId, so
+    /// this reliably lands on the Related tab. Returns <c>null</c> when no related tab is present.
+    /// </summary>
+    public static string? ExtractRelatedBrowseId(JsonNode? root)
+    {
+        if (root is not JsonObject obj)
+        {
+            return null;
+        }
+
+        // The watch-next tabs are [Up next, Lyrics (MPLYt…), Related]. The Related tab is last, so
+        // take the LAST tab that carries a non-lyrics browseId (robust even if Up next also has one).
+        string? related = null;
+        foreach (var tabRenderer in ResponseTreeSearch.FindAll(obj, "tabRenderer"))
+        {
+            var browseId = BrowseIdFromTab(tabRenderer);
+            if (browseId is not null && !browseId.StartsWith(LyricsBrowseIdPrefix, StringComparison.Ordinal))
+            {
+                related = browseId;
+            }
+        }
+
+        return related;
     }
 
     private static string? BrowseIdFromTab(JsonNode? tabRenderer)
