@@ -1,4 +1,6 @@
-﻿using KasetWin.App.ViewModels;
+﻿using System;
+using System.Linq;
+using KasetWin.App.ViewModels;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services;
 using KasetWin.Core.Services.Api;
@@ -91,14 +93,61 @@ public sealed partial class ArtistPage : Page
 
     private void OnVideoCardClick(object sender, TappedRoutedEventArgs e)
     {
-        // A video plays like any other track, loading the full Videos rail into the queue so the
-        // user can continue past the clicked item (Req 15.4).
+        // A video plays like any other track, loading the full rail into the queue so the user can
+        // continue past the clicked item (Req 15.4). The Videos and Live-performances shelves share
+        // this template, so route the click to whichever rail actually holds the item.
         if (sender is FrameworkElement { DataContext: Song video })
         {
-            if (ViewModel.PlayVideoCommand.CanExecute(video))
+            PlayVideoOrLive(video);
+        }
+    }
+
+    private void PlayVideoOrLive(Song video)
+    {
+        var isLive = ViewModel.LivePerformances.Any(v => string.Equals(v.Id, video.Id, StringComparison.Ordinal))
+            && !ViewModel.Videos.Any(v => string.Equals(v.Id, video.Id, StringComparison.Ordinal));
+
+        if (isLive)
+        {
+            if (ViewModel.PlayLivePerformanceCommand.CanExecute(video))
             {
-                ViewModel.PlayVideoCommand.Execute(video);
+                ViewModel.PlayLivePerformanceCommand.Execute(video);
             }
+        }
+        else if (ViewModel.PlayVideoCommand.CanExecute(video))
+        {
+            ViewModel.PlayVideoCommand.Execute(video);
+        }
+    }
+
+    /// <summary>
+    /// Keeps the header banner at the YouTube-Music cover ratio (1920×800 ≈ 2.4:1) as the window
+    /// resizes, so the art fills the width without being cropped by a fixed height.
+    /// </summary>
+    private void OnBannerSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        const double BannerAspectRatio = 1920.0 / 800.0;
+        if (sender is FrameworkElement banner && e.NewSize.Width > 0)
+        {
+            var height = e.NewSize.Width / BannerAspectRatio;
+            // Clamp so a very wide window doesn't push the whole page below the fold.
+            banner.Height = Math.Clamp(height, 220, 520);
+        }
+    }
+
+    private void OnSeeAllLiveClick(object sender, RoutedEventArgs e) =>
+        Frame?.Navigate(typeof(ArtistVideosPage), new ArtistSeeAllRequest("Pertunjukan langsung", Videos: [.. ViewModel.LivePerformances]));
+
+    /// <summary>
+    /// Shows the "Show more" toggle only when the collapsed description is actually clipped. Fires
+    /// as the text's trim state changes; once clipping is seen the toggle stays available so the user
+    /// can also collapse again. A description that fits within the line cap never enables it.
+    /// </summary>
+    private void OnDescriptionTrimmedChanged(TextBlock sender, IsTextTrimmedChangedEventArgs args)
+    {
+        if (sender.IsTextTrimmed)
+        {
+            ViewModel.CanExpandDescription = true;
         }
     }
 
@@ -146,8 +195,8 @@ public sealed partial class ArtistPage : Page
                 Frame?.Navigate(typeof(ArtistPage), artist.Id);
                 e.Handled = true;
                 break;
-            case Song video when ViewModel.PlayVideoCommand.CanExecute(video):
-                ViewModel.PlayVideoCommand.Execute(video);
+            case Song video:
+                PlayVideoOrLive(video);
                 e.Handled = true;
                 break;
         }
@@ -187,19 +236,19 @@ public sealed partial class ArtistPage : Page
         NavigateToSeeAll(ViewModel.SongsSeeAllBrowseId);
 
     private void OnSeeAllAlbumsClick(object sender, RoutedEventArgs e) =>
-        NavigateToSeeAll(ViewModel.AlbumsSeeAllBrowseId);
+        Frame?.Navigate(typeof(ArtistVideosPage), new ArtistSeeAllRequest("Album", Albums: [.. ViewModel.Albums]));
 
     private void OnSeeAllSinglesClick(object sender, RoutedEventArgs e) =>
-        NavigateToSeeAll(ViewModel.SinglesSeeAllBrowseId);
+        Frame?.Navigate(typeof(ArtistVideosPage), new ArtistSeeAllRequest("Single & EP", Albums: [.. ViewModel.SinglesAndEps]));
 
     private void OnSeeAllVideosClick(object sender, RoutedEventArgs e) =>
-        NavigateToSeeAll(ViewModel.VideosSeeAllBrowseId);
+        Frame?.Navigate(typeof(ArtistVideosPage), new ArtistSeeAllRequest("Video", Videos: [.. ViewModel.Videos]));
 
     private void OnSeeAllFeaturedClick(object sender, RoutedEventArgs e) =>
-        NavigateToSeeAll(ViewModel.FeaturedSeeAllBrowseId);
+        Frame?.Navigate(typeof(ArtistVideosPage), new ArtistSeeAllRequest("Tampil di", Playlists: [.. ViewModel.FeaturedPlaylists]));
 
     private void OnSeeAllRelatedClick(object sender, RoutedEventArgs e) =>
-        NavigateToSeeAll(ViewModel.RelatedSeeAllBrowseId);
+        Frame?.Navigate(typeof(ArtistVideosPage), new ArtistSeeAllRequest("Penggemar mungkin juga suka", Artists: [.. ViewModel.RelatedArtists]));
 
     /// <summary>
     /// Navigates a "See all" rail to its full list. Artist discography "See all" targets are

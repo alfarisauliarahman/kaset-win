@@ -120,10 +120,14 @@ public sealed partial class LibraryViewModel : ViewModelBase
             var liked = await TryGetAsync(t => _client.GetLikedSongsAsync(t), token).ConfigureAwait(true);
             var uploaded = await TryGetListAsync(t => _client.GetUploadedSongsAsync(t), token).ConfigureAwait(true);
 
+            // Artists come from the saved-songs corpus (with "N lagu" subtitles) rather than the
+            // landing shelf, which lists channel subscriptions; fall back to the landing on failure.
+            var corpusArtists = await TryGetListAsync(t => _client.GetLibrarySongArtistsAsync(t), token).ConfigureAwait(true);
+
             _state = new LibraryState
             {
                 Playlists = landing.Playlists,
-                FollowedArtists = landing.Artists,
+                FollowedArtists = corpusArtists is { Count: > 0 } ? corpusArtists : landing.Artists,
                 LikedSongs = liked?.Tracks ?? [],
                 UploadedSongs = uploaded ?? [],
             };
@@ -189,6 +193,17 @@ public sealed partial class LibraryViewModel : ViewModelBase
         }
 
         return RunMutationAsync(new AddSongToPlaylistMutation(SelectedPlaylist.Id, song));
+    }
+
+    /// <summary>Adds <paramref name="song"/> to the playlist chosen from the picker (Req 13.3).</summary>
+    public Task AddSongToPlaylistAsync(Song song, string playlistId)
+    {
+        if (song is null || string.IsNullOrEmpty(playlistId))
+        {
+            return Task.CompletedTask;
+        }
+
+        return RunMutationAsync(new AddSongToPlaylistMutation(playlistId, song));
     }
 
     /// <summary>Plays a single song (Req 8 convenience for liked/uploaded lists).</summary>
@@ -306,7 +321,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
         }
     }
 
-    private static async Task<IReadOnlyList<Song>?> TryGetListAsync(Func<CancellationToken, Task<IReadOnlyList<Song>>> get, CancellationToken ct)
+    private static async Task<IReadOnlyList<T>?> TryGetListAsync<T>(Func<CancellationToken, Task<IReadOnlyList<T>>> get, CancellationToken ct)
     {
         try
         {

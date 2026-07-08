@@ -98,9 +98,6 @@ public sealed partial class ArtistDetailViewModel : ViewModelBase
 
     // â”€â”€ Description expander (Req 15.1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    /// <summary>Heuristic threshold above which the description is collapsible.</summary>
-    private const int DescriptionCollapseThreshold = 140;
-
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DescriptionMaxLines))]
     [NotifyPropertyChangedFor(nameof(DescriptionToggleLabel))]
@@ -110,10 +107,15 @@ public sealed partial class ArtistDetailViewModel : ViewModelBase
     public int DescriptionMaxLines => IsDescriptionExpanded ? 0 : 3;
 
     /// <summary>Toggle label: "Show more" when collapsed, "Show less" when expanded.</summary>
-    public string DescriptionToggleLabel => IsDescriptionExpanded ? "Show less" : "Show more";
+    public string DescriptionToggleLabel => IsDescriptionExpanded ? "Ringkas" : "Selengkapnya";
 
-    /// <summary>True when the description is long enough to warrant a Show more/less toggle.</summary>
-    public bool CanExpandDescription => (Description?.Length ?? 0) > DescriptionCollapseThreshold;
+    /// <summary>
+    /// True only when the collapsed description is actually clipped (measured by the view via
+    /// <c>TextBlock.IsTextTrimmed</c>), so "Show more" appears only when the text really overflows —
+    /// never for a short description that already fits.
+    /// </summary>
+    [ObservableProperty]
+    private bool _canExpandDescription;
 
     /// <summary>Toggles the description between collapsed (~3 lines) and fully expanded.</summary>
     [RelayCommand]
@@ -127,7 +129,7 @@ public sealed partial class ArtistDetailViewModel : ViewModelBase
     private bool _isSubscribed;
 
     /// <summary>Subscribe/Subscribed label that reflects <see cref="IsSubscribed"/> (YouTube Music wording).</summary>
-    public string SubscribeLabel => IsSubscribed ? "Subscribed" : "Subscribe";
+    public string SubscribeLabel => IsSubscribed ? "Diikuti" : "Ikuti";
 
     /// <summary>Segoe Fluent glyph: checkmark when following, add otherwise.</summary>
     public string SubscribeGlyph => IsSubscribed ? "\uE73E" : "\uE710";
@@ -145,6 +147,9 @@ public sealed partial class ArtistDetailViewModel : ViewModelBase
 
     /// <summary>Videos rail; identity is <c>Song.Id</c> (videoId).</summary>
     public ObservableCollection<Song> Videos { get; } = [];
+
+    /// <summary>Live-performances rail; identity is <c>Song.Id</c> (videoId).</summary>
+    public ObservableCollection<Song> LivePerformances { get; } = [];
 
     /// <summary>Featured-on / playlists-by-artist rail; identity is <c>Playlist.Id</c> (browseId).</summary>
     public ObservableCollection<Playlist> FeaturedPlaylists { get; } = [];
@@ -169,6 +174,10 @@ public sealed partial class ArtistDetailViewModel : ViewModelBase
     private bool _hasVideosValue;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLive))]
+    private bool _hasLiveValue;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasFeatured))]
     private bool _hasFeaturedValue;
 
@@ -187,6 +196,9 @@ public sealed partial class ArtistDetailViewModel : ViewModelBase
 
     /// <summary>True when the Videos rail has content (section visibility).</summary>
     public bool HasVideos => HasVideosValue;
+
+    /// <summary>True when the Live performances rail has content (section visibility).</summary>
+    public bool HasLive => HasLiveValue;
 
     /// <summary>True when the Featured rail has content (section visibility).</summary>
     public bool HasFeatured => HasFeaturedValue;
@@ -213,6 +225,10 @@ public sealed partial class ArtistDetailViewModel : ViewModelBase
     private string? _videosSeeAllBrowseId;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSeeAllLive))]
+    private string? _liveSeeAllBrowseId;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSeeAllFeatured))]
     private string? _featuredSeeAllBrowseId;
 
@@ -231,6 +247,9 @@ public sealed partial class ArtistDetailViewModel : ViewModelBase
 
     /// <summary>True when a "See all" target exists for the Videos rail.</summary>
     public bool CanSeeAllVideos => !string.IsNullOrEmpty(VideosSeeAllBrowseId);
+
+    /// <summary>True when a "See all" target exists for the Live performances rail.</summary>
+    public bool CanSeeAllLive => !string.IsNullOrEmpty(LiveSeeAllBrowseId);
 
     /// <summary>True when a "See all" target exists for the Featured rail.</summary>
     public bool CanSeeAllFeatured => !string.IsNullOrEmpty(FeaturedSeeAllBrowseId);
@@ -273,6 +292,8 @@ public sealed partial class ArtistDetailViewModel : ViewModelBase
         HeaderImageUrl = detail.HeaderImageUrl ?? detail.Artist.ThumbnailUrl;
         Description = detail.Description;
         IsDescriptionExpanded = false;
+        // Recomputed by the view once the collapsed text is measured (IsTextTrimmed).
+        CanExpandDescription = false;
         SubscriberText = detail.SubscriberText;
         MonthlyListenersText = detail.MonthlyListenersText;
         IsSubscribed = detail.IsSubscribed;
@@ -284,10 +305,32 @@ public sealed partial class ArtistDetailViewModel : ViewModelBase
         _radioVideoId = detail.RadioVideoId;
         HasRadioValue = !string.IsNullOrEmpty(_radioPlaylistId) || !string.IsNullOrEmpty(_radioVideoId);
 
-        ReplaceAll(TopSongs, detail.TopSongs);
+        // The inline artist "Top songs" shelf only carries ~5 rows; when a "See all" songs target
+        // exists, load the full song list so the 5-row grid actually wraps into multiple columns
+        // (the shelf's own "See all" button still points at the same target). Falls back to the
+        // inline five when the full list can't be loaded.
+        var topSongs = detail.TopSongs;
+        if (!string.IsNullOrEmpty(detail.SeeAll.SongsBrowseId))
+        {
+            try
+            {
+                var full = await _client.GetPlaylistAsync(detail.SeeAll.SongsBrowseId, ct).ConfigureAwait(true);
+                if (full.Tracks.Count > topSongs.Count)
+                {
+                    topSongs = full.Tracks;
+                }
+            }
+            catch (Core.Errors.KasetError)
+            {
+                // Keep the inline five on failure.
+            }
+        }
+
+        ReplaceAll(TopSongs, topSongs);
         ReplaceAll(Albums, detail.Albums);
         ReplaceAll(SinglesAndEps, detail.SinglesAndEps);
         ReplaceAll(Videos, detail.Videos);
+        ReplaceAll(LivePerformances, detail.LivePerformances);
         ReplaceAll(FeaturedPlaylists, detail.FeaturedPlaylists);
         ReplaceAll(RelatedArtists, detail.RelatedArtists);
 
@@ -295,6 +338,7 @@ public sealed partial class ArtistDetailViewModel : ViewModelBase
         HasAlbumsValue = Albums.Count > 0;
         HasSinglesValue = SinglesAndEps.Count > 0;
         HasVideosValue = Videos.Count > 0;
+        HasLiveValue = LivePerformances.Count > 0;
         HasFeaturedValue = FeaturedPlaylists.Count > 0;
         HasRelatedValue = RelatedArtists.Count > 0;
 
@@ -302,8 +346,35 @@ public sealed partial class ArtistDetailViewModel : ViewModelBase
         AlbumsSeeAllBrowseId = detail.SeeAll.AlbumsBrowseId;
         SinglesSeeAllBrowseId = detail.SeeAll.SinglesBrowseId;
         VideosSeeAllBrowseId = detail.SeeAll.VideosBrowseId;
+        LiveSeeAllBrowseId = detail.SeeAll.LiveBrowseId;
         FeaturedSeeAllBrowseId = detail.SeeAll.FeaturedBrowseId;
         RelatedSeeAllBrowseId = detail.SeeAll.RelatedBrowseId;
+    }
+
+    /// <summary>
+    /// Plays the Live-performances rail starting at <paramref name="video"/> (Req 15.4); the whole
+    /// rail is loaded into the queue so playback can continue past the clicked clip.
+    /// </summary>
+    [RelayCommand]
+    private Task PlayLivePerformanceAsync(Song? video)
+    {
+        if (video is null || LivePerformances.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var index = 0;
+        for (var i = 0; i < LivePerformances.Count; i++)
+        {
+            if (string.Equals(LivePerformances[i].Id, video.Id, StringComparison.Ordinal))
+            {
+                index = i;
+                break;
+            }
+        }
+
+        var live = LivePerformances.ToList();
+        return RunSafeAsync(_ => _player.PlayCollectionAsync(live, index));
     }
 
     // â”€â”€ Play (Req 15.4) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

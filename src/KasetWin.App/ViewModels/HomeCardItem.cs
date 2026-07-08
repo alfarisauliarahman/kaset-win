@@ -28,7 +28,7 @@ public sealed class HomeCardItem
     private const double SquareRadius = 6;
     private const double RoundRadius = 80; // artist avatars read as circular
 
-    private HomeCardItem(HomeSectionItem model, string title, string subtitle, Uri? thumbnailUrl, bool isArtist, bool canPlay)
+    private HomeCardItem(HomeSectionItem model, string title, string subtitle, Uri? thumbnailUrl, bool isArtist, bool canPlay, string? artistId = null, bool isMood = false)
     {
         Model = model;
         Title = title;
@@ -37,7 +37,71 @@ public sealed class HomeCardItem
         ImageCornerRadius = new CornerRadius(isArtist ? RoundRadius : SquareRadius);
         CanShare = ShareUrlBuilder.TryCreate(model) is not null;
         CanPlay = canPlay;
+        ArtistId = artistId;
+        IsMood = isMood;
+        ChipBrush = isMood ? MoodBrush(title) : null;
     }
+
+    /// <summary>Colours used for mood/genre chips (they carry no cover art), keyed by a title hash.</summary>
+    private static readonly Windows.UI.Color[] MoodPalette =
+    [
+        Windows.UI.Color.FromArgb(0xFF, 0xE0, 0x3E, 0x52),
+        Windows.UI.Color.FromArgb(0xFF, 0xD9, 0x6A, 0x2B),
+        Windows.UI.Color.FromArgb(0xFF, 0xC9, 0x9A, 0x00),
+        Windows.UI.Color.FromArgb(0xFF, 0x2E, 0x9E, 0x5B),
+        Windows.UI.Color.FromArgb(0xFF, 0x1F, 0x8A, 0x9E),
+        Windows.UI.Color.FromArgb(0xFF, 0x2C, 0x6B, 0xD6),
+        Windows.UI.Color.FromArgb(0xFF, 0x6A, 0x4C, 0xC4),
+        Windows.UI.Color.FromArgb(0xFF, 0xB0, 0x3C, 0xA8),
+    ];
+
+    private static Microsoft.UI.Xaml.Media.Brush MoodBrush(string title)
+    {
+        // Deterministic FNV-1a hash: string.GetHashCode() is randomized per process, which made the
+        // chip colours change on every launch.
+        uint hash = 2166136261;
+        foreach (var c in title ?? string.Empty)
+        {
+            hash = (hash ^ c) * 16777619;
+        }
+
+        return new Microsoft.UI.Xaml.Media.SolidColorBrush(MoodPalette[hash % (uint)MoodPalette.Length]);
+    }
+
+    /// <summary>Whether this card is a mood/genre category (rendered as a solid colour chip).</summary>
+    public bool IsMood { get; }
+
+    /// <summary>Whether this card is NOT a mood chip (drives the normal cover art layout).</summary>
+    public bool IsNotMood => !IsMood;
+
+    /// <summary>The chip colour for a mood/genre card; <c>null</c> for normal cards.</summary>
+    public Microsoft.UI.Xaml.Media.Brush? ChipBrush { get; }
+
+    /// <summary>Whether this card is a video (OMV/UGC song) — rendered with a wide 16:9 thumbnail.</summary>
+    public bool IsVideo => Model is HomeSectionItem.SongItem si
+        && si.Song.VideoType is MusicVideoType.Omv or MusicVideoType.Ugc;
+
+    /// <summary>Outer card width: videos are wide, moods slightly wide, the rest square.</summary>
+    public double CardWidth => IsVideo ? 264 : IsMood ? 176 : 168;
+
+    /// <summary>Tile width: 16:9 for videos, wide-but-short chips for moods, square otherwise.</summary>
+    public double TileWidth => IsVideo ? 248 : IsMood ? 160 : 152;
+
+    /// <summary>Tile height: 16:9 for videos, short chips for moods, square otherwise.</summary>
+    public double TileHeight => IsVideo ? 139 : IsMood ? 84 : 152;
+
+    /// <summary>
+    /// The subtitle artist's navigable channel id (when the card's subtitle names a real artist), so
+    /// the subtitle can be a clickable link to the artist page. <c>null</c> for artist cards (the card
+    /// itself navigates) and when no navigable id exists.
+    /// </summary>
+    public string? ArtistId { get; }
+
+    /// <summary>Whether the subtitle should render as a clickable artist link.</summary>
+    public bool HasArtistLink => Core.Services.Api.Parsers.ParsingHelpers.IsNavigableArtistId(ArtistId);
+
+    /// <summary>Whether the subtitle should render as plain text.</summary>
+    public bool SubtitleIsPlain => !HasArtistLink;
 
     /// <summary>The original Core union item, used by the page to route activation/navigation.</summary>
     public HomeSectionItem Model { get; }
@@ -54,6 +118,15 @@ public sealed class HomeCardItem
 
     /// <summary>Stable, kind-prefixed identity for list virtualization (Req 16.1).</summary>
     public string Key => Model.Id;
+
+    /// <summary>1-based chart position for a Trending/chart card; 0 for non-chart cards.</summary>
+    public int Rank { get; set; }
+
+    /// <summary>Whether this card should show its chart rank number.</summary>
+    public bool HasRank => Rank > 0;
+
+    /// <summary>The rank shown in the Trending grid (e.g. "1").</summary>
+    public string RankText => Rank.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     public string Title { get; }
 
@@ -74,10 +147,11 @@ public sealed class HomeCardItem
             HomeSectionItem.SongItem s => new HomeCardItem(
                 item,
                 s.Song.Title,
-                s.Song.ArtistsDisplay,
+                SongSubtitle(s.Song),
                 s.Song.ThumbnailUrl ?? s.Song.FallbackThumbnailUrl,
                 isArtist: false,
-                canPlay: true),
+                canPlay: true,
+                artistId: s.Song.PrimaryArtistId),
 
             HomeSectionItem.AlbumItem a => new HomeCardItem(
                 item,
@@ -85,7 +159,8 @@ public sealed class HomeCardItem
                 AlbumSubtitle(a.Album),
                 a.Album.ThumbnailUrl,
                 isArtist: false,
-                canPlay: true),
+                canPlay: true,
+                artistId: FirstArtistId(a.Album.Artists)),
 
             HomeSectionItem.PlaylistItem p => new HomeCardItem(
                 item,
@@ -94,7 +169,9 @@ public sealed class HomeCardItem
                 p.Pl.ThumbnailUrl,
                 isArtist: false,
                 // Moods/genres entry points browse like an Explore section rather than play.
-                canPlay: !MoodCategoryId.IsMoodCategory(p.Pl.Id)),
+                canPlay: !MoodCategoryId.IsMoodCategory(p.Pl.Id),
+                artistId: p.Pl.Author?.Id,
+                isMood: MoodCategoryId.IsMoodCategory(p.Pl.Id) && p.Pl.ThumbnailUrl is null),
 
             HomeSectionItem.ArtistItem ar => new HomeCardItem(
                 item,
@@ -107,6 +184,28 @@ public sealed class HomeCardItem
 
             _ => new HomeCardItem(item, "Unknown", string.Empty, null, isArtist: false, canPlay: false),
         };
+    }
+
+    private static string? FirstArtistId(System.Collections.Generic.IReadOnlyList<Artist> artists)
+    {
+        foreach (var a in artists)
+        {
+            if (!string.IsNullOrEmpty(a.Id))
+            {
+                return a.Id;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Artist(s), plus the view count for video cards ("Artis • 2,5 jt x ditonton").</summary>
+    private static string SongSubtitle(Song song)
+    {
+        var artists = song.ArtistsDisplay;
+        return string.IsNullOrEmpty(song.ListenerCountText)
+            ? artists
+            : string.IsNullOrEmpty(artists) ? song.ListenerCountText : $"{artists} • {song.ListenerCountText}";
     }
 
     private static string AlbumSubtitle(Album album)
@@ -127,21 +226,58 @@ public sealed class HomeCardItem
 /// </summary>
 public sealed class HomeSectionView
 {
-    public HomeSectionView(string title, IReadOnlyList<HomeCardItem> items)
+    public HomeSectionView(string title, IReadOnlyList<HomeCardItem> items, bool isChart = false, bool isTrending = false, bool isVideoSection = false)
     {
         Title = title;
         Items = items;
+        IsChart = isChart;
+        IsTrending = isTrending;
+        IsVideoSection = isVideoSection;
     }
 
     public string Title { get; }
 
     public IReadOnlyList<HomeCardItem> Items { get; }
 
+    /// <summary>Whether this is a chart section (any chart keyword).</summary>
+    public bool IsChart { get; }
+
+    /// <summary>
+    /// Whether this is specifically the "Trending" shelf, which alone is rendered as the numbered
+    /// column-major grid (other chart sections like "Charts" stay normal shelves).
+    /// </summary>
+    public bool IsTrending { get; }
+
+    /// <summary>Whether this is a "New music videos" style shelf, rendered as wide 16:9 video cards.</summary>
+    public bool IsVideoSection { get; }
+
+    /// <summary>Whether every card is a mood/genre chip — rendered as a wrapping grid of colour chips.</summary>
+    public bool IsMoodSection => Items.Count > 0 && Items.All(i => i.IsMood);
+
+    /// <summary>Whether every item is a song/video — the Related panel lists these as compact rows.</summary>
+    public bool IsAllSongs => Items.Count > 0 && Items.All(i => i.Model is HomeSectionItem.SongItem);
+
     /// <summary>Projects a Core <see cref="HomeSection"/> (skipping empty shelves).</summary>
     public static HomeSectionView FromModel(HomeSection section)
     {
         ArgumentNullException.ThrowIfNull(section);
         var cards = section.Items.Select(HomeCardItem.FromModel).ToList();
-        return new HomeSectionView(section.Title, cards);
+
+        var isTrending = section.Title.Contains("trending", StringComparison.OrdinalIgnoreCase);
+        // "video" in the title alone is fragile (could match playlist shelves); require the items to
+        // actually be songs/videos so only genuine video rails get the wide 16:9 cards.
+        var isVideoSection = section.Title.Contains("video", StringComparison.OrdinalIgnoreCase)
+            && section.Items.All(i => i is HomeSectionItem.SongItem);
+
+        // Only the Trending shelf shows a 1-based rank number in its numbered grid.
+        if (isTrending)
+        {
+            for (var i = 0; i < cards.Count; i++)
+            {
+                cards[i].Rank = i + 1;
+            }
+        }
+
+        return new HomeSectionView(section.Title, cards, section.IsChart, isTrending, isVideoSection);
     }
 }

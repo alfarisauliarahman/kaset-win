@@ -36,17 +36,82 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
 {
     private readonly IYTMusicClient _client;
     private readonly IPlayerService _player;
+    private readonly IQueueService? _queue;
+    private readonly Notifications.IInAppNotifier? _notifier;
+    private readonly ILikeStateStore? _likeStore;
 
     private string? _browseId;
+    private string? _likePlaylistId;
     private string? _continuationToken;
     private Artist? _author;
     private Album? _albumContext;
 
     /// <summary>Creates the ViewModel from the DI-resolved client and player (resolved by the page).</summary>
-    public PlaylistDetailViewModel(IYTMusicClient client, IPlayerService player)
+    public PlaylistDetailViewModel(
+        IYTMusicClient client,
+        IPlayerService player,
+        IQueueService? queue = null,
+        Notifications.IInAppNotifier? notifier = null,
+        ILikeStateStore? likeStore = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _player = player ?? throw new ArgumentNullException(nameof(player));
+        _queue = queue;
+        _notifier = notifier;
+        _likeStore = likeStore;
+    }
+
+    /// <summary>
+    /// Overlays the session-remembered like/collection state onto the loaded tracks so a like made
+    /// earlier in the session (on this or another page) is still reflected after navigating back,
+    /// even if the server response for this reload didn't carry per-track like state.
+    /// </summary>
+    /// <summary>Re-applies session like state to the loaded tracks (call when the store changes).</summary>
+    public void RefreshLikeOverlay() => OverlayLikeStates();
+
+    /// <summary>Share target for the loaded playlist/album (title + public URL), or null pre-load.</summary>
+    public Core.Services.Sharing.ShareTarget? ShareTarget =>
+        string.IsNullOrEmpty(_browseId)
+            ? null
+            : Core.Services.Sharing.ShareUrlBuilder.TryCreate(new Playlist { Id = _browseId, Title = Title ?? "Playlist" });
+
+    private void OverlayLikeStates()
+    {
+        if (_likeStore is null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < Tracks.Count; i++)
+        {
+            var track = Tracks[i];
+            if (string.IsNullOrEmpty(track.VideoId) || !_likeStore.TryGet(track.VideoId, out var status))
+            {
+                continue;
+            }
+
+            var liked = status == LikeStatus.Like;
+            Tracks[i] = track with
+            {
+                LikeStatus = status == LikeStatus.Indifferent ? (LikeStatus?)null : status,
+                IsInLibrary = liked,
+            };
+        }
+    }
+
+    /// <summary>
+    /// Surfaces a short message both as the inline page status and as a global in-app toast (the
+    /// little pop near the sidebar), so every action gives feedback in one place.
+    /// </summary>
+    private void Notify(string message) => ActionStatus = message;
+
+    /// <summary>Every status update also fires the global in-app toast (feedback for all actions).</summary>
+    partial void OnActionStatusChanged(string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            _notifier?.Show(value);
+        }
     }
 
     /// <summary>The tracks of the playlist/album, in order. Stable identity via <see cref="Song.Id"/>.</summary>
@@ -84,9 +149,66 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
     [ObservableProperty]
     private Uri? _thumbnailUrl;
 
+    /// <summary>The artist avatar shown next to the album artist name when the header carries one.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasArtistThumbnail))]
+    private Uri? _artistThumbnailUrl;
+
+    public bool HasArtistThumbnail => ArtistThumbnailUrl is not null;
+
+    /// <summary>Album/single/EP label from the YouTube Music header, when present.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasContentType))]
+    private string? _contentTypeDisplay;
+
+    public bool HasContentType => !string.IsNullOrWhiteSpace(ContentTypeDisplay);
+
+    /// <summary>Release date/year text from the header, formatted defensively when parseable.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasReleaseDate))]
+    private string? _releaseDateDisplay;
+
+    public bool HasReleaseDate => !string.IsNullOrWhiteSpace(ReleaseDateDisplay);
+
+    /// <summary>Album description, shown only when YouTube Music sends one.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDescription))]
+    private string? _description;
+
+    public bool HasDescription => !string.IsNullOrWhiteSpace(Description);
+
+    /// <summary>True only when the collapsed description is actually clipped (set by the view via
+    /// <c>TextBlock.IsTextTrimmed</c>), so "Selengkapnya" appears only when the text really overflows.</summary>
+    [ObservableProperty]
+    private bool _canExpandDescription;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActionStatus))]
+    private string? _actionStatus;
+
+    public bool HasActionStatus => !string.IsNullOrWhiteSpace(ActionStatus);
+
+    /// <summary>Whether this album/playlist is currently saved to the user's collection.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CollectionButtonLabel))]
+    private bool _isInCollection;
+
+    /// <summary>Label for the header collection button, toggling with <see cref="IsInCollection"/>.</summary>
+    public string CollectionButtonLabel => IsInCollection ? "Hapus dari koleksi" : "Tambahkan ke koleksi";
+
     /// <summary>The "N songs" summary line for the header.</summary>
     [ObservableProperty]
     private string? _trackCountDisplay;
+
+    /// <summary>
+    /// Total running time of the loaded tracks, e.g. "1 jam 12 mnt" or "43 mnt", shown in the header.
+    /// Reflects only tracks currently loaded (grows as continuation pages are paged in).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAlbumDuration))]
+    private string? _albumDurationDisplay;
+
+    public bool HasAlbumDuration => !string.IsNullOrWhiteSpace(AlbumDurationDisplay);
 
     /// <summary>Whether the current surface is an album (suppresses the delete affordance, Req 14.3).</summary>
     [ObservableProperty]
@@ -97,6 +219,10 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanDelete))]
     private bool _isOwnedByUser;
+
+    /// <summary>Whether the album/playlist header carries an explicit badge (shown beside the title).</summary>
+    [ObservableProperty]
+    private bool _isHeaderExplicit;
 
     /// <summary>Whether another page of tracks can be loaded via continuation (Req 8.4).</summary>
     [ObservableProperty]
@@ -144,12 +270,20 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
     {
         var detail = await _client.GetPlaylistAsync(browseId, ct).ConfigureAwait(true);
 
+        _likePlaylistId = detail.LikePlaylistId;
         Title = detail.Playlist.Title;
         _author = detail.Playlist.Author;
         AuthorDisplay = detail.Playlist.Author?.Name;
         AuthorId = detail.Playlist.Author?.Id;
         ThumbnailUrl = detail.Playlist.ThumbnailUrl;
+        ArtistThumbnailUrl = detail.Playlist.Author?.ThumbnailUrl;
+        ContentTypeDisplay = detail.Playlist.ContentType ?? (IsAlbum ? "Album" : "Playlist");
+        ReleaseDateDisplay = detail.Playlist.ReleaseDateText;
+        Description = detail.Playlist.Description;
+        CanExpandDescription = false; // re-measured by the view once collapsed text is laid out
+        IsInCollection = false; // server state unknown on load; reflects user actions this session
         IsOwnedByUser = detail.Playlist.IsOwnedByUser;
+        IsHeaderExplicit = detail.Playlist.IsExplicit;
         _albumContext = IsAlbum
             ? new Album
             {
@@ -157,8 +291,12 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
                 Title = detail.Playlist.Title,
                 Artists = detail.Playlist.Author is null ? [] : [detail.Playlist.Author],
                 ThumbnailUrl = detail.Playlist.ThumbnailUrl,
+                ReleaseDateText = detail.Playlist.ReleaseDateText,
+                ContentType = detail.Playlist.ContentType,
+                Description = detail.Playlist.Description,
             }
             : null;
+        OnPropertyChanged(nameof(CurrentAlbum));
 
         Tracks.Clear();
         foreach (var track in detail.Tracks)
@@ -166,9 +304,12 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
             Tracks.Add(WithPlaylistContext(track, detail.Playlist.Author, _albumContext));
         }
 
+        OverlayLikeStates();
+
         _continuationToken = detail.ContinuationToken;
         HasMore = !string.IsNullOrEmpty(_continuationToken);
         UpdateTrackCountDisplay(detail.Playlist.TrackCount);
+        UpdateDurationDisplay();
     }
 
     /// <summary>
@@ -182,7 +323,6 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
     [RelayCommand]
     private Task PlayAllAsync()
     {
-        // THROWAWAY DIAGNOSTIC (Bug A): confirm the header "Play" button reaches the player.
         return Tracks.Count == 0 ? Task.CompletedTask : _player.PlayCollectionAsync([.. Tracks], startIndex: 0);
     }
 
@@ -199,6 +339,351 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
 
         var index = Tracks.IndexOf(song);
         return index < 0 ? Task.CompletedTask : _player.PlayCollectionAsync([.. Tracks], startIndex: index);
+    }
+
+    public Album? CurrentAlbum => _albumContext;
+
+    [RelayCommand]
+    private Task ShufflePlayAsync()
+    {
+        if (Tracks.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var shuffled = Tracks.OrderBy(_ => Random.Shared.Next()).ToList();
+        ActionStatus = "Memutar acak album.";
+        return _player.PlayCollectionAsync(shuffled, startIndex: 0);
+    }
+
+    [RelayCommand]
+    private async Task StartMixAsync(CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(_browseId))
+        {
+            return;
+        }
+
+        await RunSafeAsync(async c =>
+        {
+            var mix = await _client.GetMixQueueAsync(_browseId, c).ConfigureAwait(true);
+            if (mix.Songs.Count == 0)
+            {
+                ActionStatus = "Mix belum tersedia untuk album ini.";
+                return;
+            }
+
+            ActionStatus = "Memulai mix.";
+            await _player.PlayCollectionAsync(mix.Songs).ConfigureAwait(true);
+        }, ct).ConfigureAwait(true);
+    }
+
+    /// <summary>Queues every loaded track right after the current one ("Putar setelah ini").</summary>
+    [RelayCommand]
+    private void PlayAllNext()
+    {
+        if (_queue is null || Tracks.Count == 0)
+        {
+            ActionStatus = "Antrean belum tersedia.";
+            return;
+        }
+
+        var added = _queue.InsertNext(Tracks);
+        ActionStatus = added == 0 ? "Semua lagu sudah ada di antrean." : $"{added} lagu diputar setelah ini.";
+    }
+
+    [RelayCommand]
+    private void AddAlbumToQueue()
+    {
+        if (_queue is null || Tracks.Count == 0)
+        {
+            ActionStatus = "Antrean belum tersedia.";
+            return;
+        }
+
+        var added = _queue.AppendDeduplicated(Tracks);
+        ActionStatus = added == 0 ? "Semua lagu sudah ada di antrean." : $"{added} lagu ditambahkan ke antrean.";
+    }
+
+    [RelayCommand]
+    private Task RateTrackAsync(SongRatingRequest? request)
+    {
+        if (request?.Song is null || string.IsNullOrEmpty(request.Song.VideoId))
+        {
+            return Task.CompletedTask;
+        }
+
+        // Optimistic: reflect the rating in the UI/store immediately (so like⇄collection light up
+        // instantly and stay in sync), then persist. Revert if the server rejects it.
+        var song = request.Song;
+        var previous = song.LikeStatus ?? LikeStatus.Indifferent;
+        ReplaceTrackLikeStatus(song, request.Rating);
+        ActionStatus = request.Rating switch
+        {
+            LikeStatus.Like => $"Disukai: {song.Title}",
+            LikeStatus.Dislike => $"Tidak disukai: {song.Title}",
+            _ => $"Dihapus dari suka: {song.Title}",
+        };
+
+        return RunSafeAsync(async c =>
+        {
+            try
+            {
+                await _client.RateSongAsync(song.VideoId, request.Rating, c).ConfigureAwait(true);
+            }
+            catch (Exception)
+            {
+                ReplaceTrackLikeStatus(song, previous);
+                Notify("Gagal menyimpan suka.");
+            }
+        });
+    }
+
+    [RelayCommand]
+    private void OpenTrackArtist(Song? song) => NavigationHelper.NavigateToSongArtist(song);
+
+    /// <summary>Appends a single track to the play queue ("Tambahkan ke antrean").</summary>
+    [RelayCommand]
+    private void AddTrackToQueue(Song? song)
+    {
+        if (song is null)
+        {
+            return;
+        }
+
+        if (_queue is null)
+        {
+            ActionStatus = "Antrean belum tersedia.";
+            return;
+        }
+
+        var added = _queue.AppendDeduplicated([song]);
+        ActionStatus = added == 0 ? "Lagu sudah ada di antrean." : $"Ditambahkan ke antrean: {song.Title}";
+    }
+
+    /// <summary>Queues a single track to play right after the current one ("Putar setelah ini").</summary>
+    [RelayCommand]
+    private void PlayTrackNext(Song? song)
+    {
+        if (song is null)
+        {
+            return;
+        }
+
+        if (_queue is null)
+        {
+            ActionStatus = "Antrean belum tersedia.";
+            return;
+        }
+
+        var added = _queue.InsertNext([song]);
+        ActionStatus = added == 0 ? "Lagu sudah ada di antrean." : $"Diputar setelah ini: {song.Title}";
+    }
+
+    /// <summary>
+    /// Toggles a track's presence in the user's collection ("Simpan ke koleksi" ⇄ "Hapus dari
+    /// koleksi"). The available mutation is the song rating, so saving likes the track (which places
+    /// it in the Liked-songs library) and removing clears it; the row's <c>IsInLibrary</c> flag is
+    /// updated so the menu label flips.
+    /// </summary>
+    [RelayCommand]
+    private Task ToggleTrackCollectionAsync(Song? song)
+    {
+        if (song is null || string.IsNullOrEmpty(song.VideoId))
+        {
+            return Task.CompletedTask;
+        }
+
+        var inCollection = song.IsInLibrary == true || song.LikeStatus == LikeStatus.Like;
+        var rating = inCollection ? LikeStatus.Indifferent : LikeStatus.Like;
+
+        // Optimistic (same rationale as RateTrackAsync): flip the collection/like state now, persist
+        // after, revert on failure.
+        ReplaceTrackCollection(song, added: !inCollection);
+        ActionStatus = inCollection
+            ? $"Dihapus dari koleksi: {song.Title}"
+            : $"Disimpan ke koleksi: {song.Title}";
+
+        return RunSafeAsync(async c =>
+        {
+            try
+            {
+                await _client.RateSongAsync(song.VideoId, rating, c).ConfigureAwait(true);
+            }
+            catch (Exception)
+            {
+                ReplaceTrackCollection(song, added: inCollection);
+                Notify("Gagal memperbarui koleksi.");
+            }
+        });
+    }
+
+    /// <summary>
+    /// The user's library playlists offered as save targets ("Simpan ke playlist"). Owned playlists
+    /// only, so items can actually be added; empty when signed out or none exist.
+    /// </summary>
+    public async Task<IReadOnlyList<Playlist>> GetSaveTargetsAsync(string? sampleVideoId = null, CancellationToken ct = default)
+    {
+        try
+        {
+            // Prefer the add-to-playlist menu for a real track: it returns exactly the playlists the
+            // song can be added to (the correct, editable set). Fall back to the library playlists
+            // (unfiltered — the ownership flag isn't populated for library tiles, which is what made
+            // the picker come up empty before).
+            if (!string.IsNullOrEmpty(sampleVideoId))
+            {
+                var menu = await _client.GetAddToPlaylistOptionsAsync(sampleVideoId, ct).ConfigureAwait(true);
+                if (menu.Playlists.Count > 0)
+                {
+                    return menu.Playlists;
+                }
+            }
+
+            var playlists = await _client.GetLibraryPlaylistsAsync(ct).ConfigureAwait(true);
+            return [.. playlists.Where(p => !string.IsNullOrEmpty(p.Id))];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    /// <summary>The first loaded track's videoId, used to seed the add-to-playlist menu for the album.</summary>
+    public string? FirstTrackVideoId => Tracks.FirstOrDefault(t => !string.IsNullOrEmpty(t.VideoId))?.VideoId;
+
+    /// <summary>All loaded track videoIds (for saving the whole album to a playlist).</summary>
+    public IReadOnlyList<string> AllTrackVideoIds =>
+        [.. Tracks.Where(t => !string.IsNullOrEmpty(t.VideoId)).Select(t => t.VideoId)];
+
+    /// <summary>Whether <paramref name="videoId"/> is already present in the target playlist.</summary>
+    public async Task<bool> IsTrackInPlaylistAsync(string videoId, string playlistId)
+    {
+        try
+        {
+            var detail = await _client.GetPlaylistAsync(playlistId, CancellationToken.None).ConfigureAwait(true);
+            return detail.Tracks.Any(t => string.Equals(t.VideoId, videoId, StringComparison.Ordinal));
+        }
+        catch
+        {
+            return false; // if we can't check, don't block the add
+        }
+    }
+
+    /// <summary>Creates a new playlist seeded with <paramref name="videoIds"/> and reports the result.</summary>
+    public Task CreatePlaylistWithTracksAsync(string name, IReadOnlyList<string> videoIds)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return Task.CompletedTask;
+        }
+
+        return RunSafeAsync(async c =>
+        {
+            await _client.CreatePlaylistAsync(name, null, PlaylistPrivacy.Private, videoIds, c).ConfigureAwait(true);
+            Notify($"Playlist \"{name}\" dibuat.");
+        });
+    }
+
+    /// <summary>Pushes an actionable notification (with a button) through the global notifier.</summary>
+    public void NotifyAction(string message, string actionText, Action onAction) =>
+        _notifier?.Show(new Notifications.InAppNotification(message, ActionText: actionText, OnAction: onAction));
+
+    /// <summary>Adds a single track to the chosen library playlist.</summary>
+    public Task SaveTrackToPlaylistAsync(Song song, string playlistId, bool allowDuplicates = false)
+    {
+        if (song is null || string.IsNullOrEmpty(song.VideoId) || string.IsNullOrEmpty(playlistId))
+        {
+            return Task.CompletedTask;
+        }
+
+        return AddSingleToPlaylistAsync(song.VideoId, song.Title, playlistId, allowDuplicates);
+    }
+
+    /// <summary>Adds one track to a playlist, reporting both success and failure (never silent).</summary>
+    private async Task AddSingleToPlaylistAsync(string videoId, string title, string playlistId, bool allowDuplicates)
+    {
+        try
+        {
+            await _client.AddSongToPlaylistAsync(videoId, playlistId, allowDuplicates, CancellationToken.None).ConfigureAwait(true);
+            Notify($"Ditambahkan ke playlist: {title}");
+        }
+        catch (Exception ex)
+        {
+            // Never silent — surface any failure (not just KasetError) so "Tetap Tambahkan" always
+            // gives feedback instead of swallowing the error in an async void handler.
+            Notify($"Gagal menambah ke playlist: {ex.Message}");
+        }
+    }
+
+    /// <summary>Adds every loaded album/playlist track to the chosen library playlist.</summary>
+    public Task SaveAlbumToPlaylistAsync(string playlistId)
+    {
+        if (string.IsNullOrEmpty(playlistId) || Tracks.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var videoIds = Tracks.Where(t => !string.IsNullOrEmpty(t.VideoId)).Select(t => t.VideoId).ToList();
+        return RunSafeAsync(async c =>
+        {
+            var added = 0;
+            var failed = 0;
+            foreach (var videoId in videoIds)
+            {
+                try
+                {
+                    await _client.AddSongToPlaylistAsync(videoId, playlistId, allowDuplicates: false, c).ConfigureAwait(true);
+                    added++;
+                }
+                catch (Exception)
+                {
+                    // Keep going on a single failed track so one bad row doesn't abort the whole
+                    // album save (the earlier version stopped silently, leaving no notification).
+                    failed++;
+                }
+            }
+
+            Notify(failed == 0
+                ? $"{added} lagu disimpan ke playlist."
+                : $"{added} lagu disimpan, {failed} gagal.");
+        });
+    }
+
+    [RelayCommand]
+    private async Task ToggleAlbumCollectionAsync()
+    {
+        // The like/like endpoint rejects an album's MPRE… browseId with HTTP 400; the correct target
+        // is the album's audio-playlist id (OLAK…) parsed from the detail response. Fall back to the
+        // browseId only when the response carried no likeable id.
+        var target = !string.IsNullOrEmpty(_likePlaylistId) ? _likePlaylistId : _browseId;
+        if (string.IsNullOrEmpty(target))
+        {
+            return;
+        }
+
+        var removing = IsInCollection;
+        var rating = removing ? LikeStatus.Indifferent : LikeStatus.Like;
+
+        // Report success and failure explicitly (the base RunSafeAsync routes errors to ErrorMessage,
+        // which this page doesn't surface) so the button is never silent.
+        try
+        {
+            await _client.RatePlaylistAsync(target, rating, CancellationToken.None).ConfigureAwait(true);
+            IsInCollection = !removing;
+            Notify(removing ? "Dihapus dari koleksi." : "Ditambahkan ke koleksi.");
+        }
+        catch (Core.Errors.KasetError ex)
+        {
+            Notify($"Gagal: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void ShowUnavailable(string? action)
+    {
+        ActionStatus = string.IsNullOrWhiteSpace(action)
+            ? "Fitur ini belum tersedia."
+            : $"{action} belum tersedia.";
     }
 
     /// <summary>Loads the next page of tracks via the continuation token and appends them (Req 8.4).</summary>
@@ -219,9 +704,12 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
                 Tracks.Add(WithPlaylistContext(track, _author, _albumContext));
             }
 
+            OverlayLikeStates();
+
             _continuationToken = page.ContinuationToken;
             HasMore = !string.IsNullOrEmpty(_continuationToken);
             UpdateTrackCountDisplay(Tracks.Count);
+            UpdateDurationDisplay();
         }, ct).ConfigureAwait(true);
     }
 
@@ -274,4 +762,91 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
         var count = Tracks.Count > 0 ? Tracks.Count : metadataCount ?? 0;
         TrackCountDisplay = count == 1 ? "1 song" : $"{count} songs";
     }
+
+    /// <summary>Sums the durations of the loaded tracks into a friendly header line (Indonesian).</summary>
+    private void UpdateDurationDisplay()
+    {
+        var total = TimeSpan.Zero;
+        foreach (var track in Tracks)
+        {
+            if (track.Duration is { } d)
+            {
+                total += d;
+            }
+        }
+
+        if (total <= TimeSpan.Zero)
+        {
+            AlbumDurationDisplay = null;
+            return;
+        }
+
+        var hours = (int)total.TotalHours;
+        var minutes = total.Minutes;
+        AlbumDurationDisplay = hours > 0 ? $"{hours} jam {minutes} menit" : $"{minutes} menit";
+    }
+
+    /// <summary>
+    /// Reflects a like/dislike/remove locally by swapping the track record in-place, so the row's
+    /// bound like state updates without a reload (the mutation itself already hit the server).
+    /// </summary>
+    private void ReplaceTrackLikeStatus(Song song, LikeStatus rating)
+    {
+        // like == love == collection: a thumb-up also puts the track in the library so the row's
+        // collection affordance stays in sync (and vice versa); a dislike/remove clears both.
+        _likeStore?.Set(song.VideoId, rating);
+
+        var index = IndexOfVideo(song.VideoId);
+        if (index < 0)
+        {
+            return;
+        }
+
+        var newStatus = rating == LikeStatus.Indifferent ? (LikeStatus?)null : rating;
+        Tracks[index] = Tracks[index] with
+        {
+            LikeStatus = newStatus,
+            IsInLibrary = rating == LikeStatus.Like,
+        };
+    }
+
+    /// <summary>Index of the first loaded track with the given videoId, or -1 (records are swapped
+    /// in place, so lookups must be by id rather than reference identity).</summary>
+    private int IndexOfVideo(string? videoId)
+    {
+        if (string.IsNullOrEmpty(videoId))
+        {
+            return -1;
+        }
+
+        for (var i = 0; i < Tracks.Count; i++)
+        {
+            if (string.Equals(Tracks[i].VideoId, videoId, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>Reflects a collection add/remove locally by flipping the track's library flag.</summary>
+    private void ReplaceTrackCollection(Song song, bool added)
+    {
+        _likeStore?.Set(song.VideoId, added ? LikeStatus.Like : LikeStatus.Indifferent);
+
+        var index = IndexOfVideo(song.VideoId);
+        if (index < 0)
+        {
+            return;
+        }
+
+        Tracks[index] = Tracks[index] with
+        {
+            IsInLibrary = added,
+            LikeStatus = added ? LikeStatus.Like : (LikeStatus?)null,
+        };
+    }
 }
+
+public sealed record SongRatingRequest(Song Song, LikeStatus Rating);

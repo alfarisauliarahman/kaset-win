@@ -86,7 +86,7 @@
                                     SIBLING layered over the cover image inside the inner Grid.
                                 -->
                                 <Grid
-                                    Width="168"
+                                    Width="{x:Bind CardWidth}"
                                     Padding="8"
                                     Background="Transparent"
                                     CornerRadius="8"
@@ -108,8 +108,12 @@
                                         Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                         CornerRadius="8"
                                         Opacity="0" />
-                                    <StackPanel Spacing="8">
-                                        <Grid Width="152" Height="152" HorizontalAlignment="Center">
+                                    <StackPanel Spacing="2">
+                                        <Grid
+                                            Width="{x:Bind TileWidth}"
+                                            Height="{x:Bind TileHeight}"
+                                            Margin="0,0,0,4"
+                                            HorizontalAlignment="Center">
                                             <Border
                                                 Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                                 CornerRadius="{x:Bind ImageCornerRadius}">
@@ -136,16 +140,33 @@
                                             </Button>
                                         </Grid>
                                         <TextBlock
+                                            FontSize="15"
                                             MaxLines="2"
                                             Text="{x:Bind Title}"
                                             TextTrimming="CharacterEllipsis"
                                             TextWrapping="Wrap"
                                             Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                        <!-- Subtitle: clickable to the artist page when it names a real artist. -->
+                                        <HyperlinkButton
+                                            Padding="0"
+                                            Click="OnSubtitleArtistClick"
+                                            Tag="{x:Bind ArtistId}"
+                                            Visibility="{x:Bind HasArtistLink, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock
+                                                FontSize="13"
+                                                Foreground="{ThemeResource HyperlinkButtonForeground}"
+                                                MaxLines="1"
+                                                Text="{x:Bind Subtitle}"
+                                                TextTrimming="CharacterEllipsis"
+                                                Style="{StaticResource CaptionTextBlockStyle}" />
+                                        </HyperlinkButton>
                                         <TextBlock
+                                            FontSize="13"
                                             MaxLines="1"
                                             Opacity="0.7"
                                             Text="{x:Bind Subtitle}"
                                             TextTrimming="CharacterEllipsis"
+                                            Visibility="{x:Bind SubtitleIsPlain, Converter={StaticResource BoolToVisibility}}"
                                             Style="{StaticResource CaptionTextBlockStyle}" />
                                     </StackPanel>
                                 </Grid>
@@ -189,12 +210,6 @@
                         <controls:StackLayout Orientation="Vertical" Spacing="24" />
                     </controls:ItemsRepeater.Layout>
                 </controls:ItemsRepeater>
-
-                <Button
-                    HorizontalAlignment="Center"
-                    Click="OnLoadMoreClick"
-                    Content="Load more"
-                    Visibility="{x:Bind ViewModel.CanLoadMore, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
             </StackPanel>
         </ScrollViewer>
 

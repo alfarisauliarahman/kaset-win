@@ -39,6 +39,7 @@
                 VerticalAlignment="Top"
                 CornerRadius="8">
                 <Image
+                    x:Name="CoverImage"
                     Source="{x:Bind ViewModel.ThumbnailUrl, Converter={StaticResource UriToImageSource}, Mode=OneWay}"
                     Stretch="UniformToFill" />
             </Border>
@@ -53,33 +54,69 @@
                     TextTrimming="CharacterEllipsis"
                     TextWrapping="Wrap"
                     Style="{StaticResource TitleTextBlockStyle}" />
-                <!-- Artist: clickable to the artist page when a channel id exists, plain otherwise (Req 37.1). -->
-                <HyperlinkButton
-                    Command="{x:Bind ViewModel.NavigateToArtistCommand}"
-                    Style="{StaticResource InlineLinkButtonStyle}"
-                    ToolTipService.ToolTip="Go to artist"
-                    Visibility="{x:Bind ViewModel.HasAuthorLink, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <!-- Creator: avatar + name (clickable to the artist page when a channel id exists). -->
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Ellipse
+                        Width="28"
+                        Height="28"
+                        VerticalAlignment="Center"
+                        Visibility="{x:Bind ViewModel.HasArtistThumbnail, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <Ellipse.Fill>
+                            <ImageBrush ImageSource="{x:Bind ViewModel.ArtistThumbnailUrl, Converter={StaticResource UriToImageSource}, Mode=OneWay}" Stretch="UniformToFill" />
+                        </Ellipse.Fill>
+                    </Ellipse>
+                    <HyperlinkButton
+                        VerticalAlignment="Center"
+                        Command="{x:Bind ViewModel.NavigateToArtistCommand}"
+                        Style="{StaticResource InlineLinkButtonStyle}"
+                        ToolTipService.ToolTip="Go to artist"
+                        Visibility="{x:Bind ViewModel.HasAuthorLink, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock
+                            Foreground="{ThemeResource HyperlinkButtonForeground}"
+                            MaxLines="1"
+                            Text="{x:Bind ViewModel.AuthorDisplay, Mode=OneWay}"
+                            TextTrimming="CharacterEllipsis"
+                            Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    </HyperlinkButton>
                     <TextBlock
-                        Foreground="{ThemeResource HyperlinkButtonForeground}"
+                        VerticalAlignment="Center"
                         MaxLines="1"
+                        Opacity="0.8"
                         Text="{x:Bind ViewModel.AuthorDisplay, Mode=OneWay}"
                         TextTrimming="CharacterEllipsis"
+                        Visibility="{x:Bind ViewModel.AuthorIsPlain, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
                         Style="{StaticResource BodyStrongTextBlockStyle}" />
-                </HyperlinkButton>
+                </StackPanel>
+
+                <!-- Description, when the playlist carries one. -->
                 <TextBlock
-                    MaxLines="1"
-                    Opacity="0.8"
-                    Text="{x:Bind ViewModel.AuthorDisplay, Mode=OneWay}"
+                    MaxLines="3"
+                    Opacity="0.72"
+                    Text="{x:Bind ViewModel.Description, Mode=OneWay}"
                     TextTrimming="CharacterEllipsis"
-                    Visibility="{x:Bind ViewModel.AuthorIsPlain, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
-                    Style="{StaticResource BodyStrongTextBlockStyle}" />
-                <TextBlock
-                    Opacity="0.6"
-                    Text="{x:Bind ViewModel.TrackCountDisplay, Mode=OneWay}"
+                    TextWrapping="Wrap"
+                    Visibility="{x:Bind ViewModel.HasDescription, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
                     Style="{StaticResource CaptionTextBlockStyle}" />
 
+                <!-- Track count · total running time -->
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock
+                        Opacity="0.6"
+                        Text="{x:Bind ViewModel.TrackCountDisplay, Mode=OneWay}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock
+                        Opacity="0.6"
+                        Text="{x:Bind ViewModel.AlbumDurationDisplay, Mode=OneWay}"
+                        Visibility="{x:Bind ViewModel.HasAlbumDuration, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                </StackPanel>
+
+                <Grid Margin="0,8,0,0" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
                 <StackPanel
-                    Margin="0,8,0,0"
                     Orientation="Horizontal"
                     Spacing="8">
                     <Button
@@ -90,8 +127,14 @@
                             <TextBlock Text="Play" />
                         </StackPanel>
                     </Button>
+                    <Button Click="OnSharePlaylistClick" ToolTipService.ToolTip="Bagikan playlist">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon FontSize="14" Glyph="&#xE72D;" />
+                            <TextBlock Text="Bagikan" />
+                        </StackPanel>
+                    </Button>
                     <Button
-                        Command="{x:Bind ViewModel.DeleteCommand}"
+                        Click="OnDeletePlaylistClick"
                         Visibility="{x:Bind ViewModel.CanDelete, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon FontSize="14" Glyph="&#xE74D;" />
@@ -99,6 +142,60 @@
                         </StackPanel>
                     </Button>
                 </StackPanel>
+
+                    <!-- Bottom-right header menu (mirrors YT Music's playlist menu). -->
+                    <Button
+                        Grid.Column="1"
+                        VerticalAlignment="Bottom"
+                        Style="{StaticResource SubtleButtonStyle}"
+                        ToolTipService.ToolTip="Lainnya">
+                        <FontIcon FontSize="16" Glyph="&#xE712;" />
+                        <Button.Flyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem Command="{x:Bind ViewModel.ShufflePlayCommand}" Text="Putar acak">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE8B1;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Command="{x:Bind ViewModel.StartMixCommand}" Text="Mulai mix">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE9D9;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Click="OnEditPlaylistClick" Text="Edit playlist">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE70F;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutSeparator />
+                                <MenuFlyoutItem Command="{x:Bind ViewModel.PlayAllNextCommand}" Text="Putar setelah ini">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE893;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Command="{x:Bind ViewModel.AddAlbumToQueueCommand}" Text="Tambahkan ke antrean">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE710;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutSeparator />
+                                <MenuFlyoutItem Click="OnSharePlaylistClick" Text="Bagikan">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE72D;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem
+                                    Click="OnDeletePlaylistClick"
+                                    Text="Hapus playlist"
+                                    Visibility="{x:Bind ViewModel.CanDelete, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE74D;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+                </Grid>
             </StackPanel>
         </Grid>
 

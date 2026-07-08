@@ -54,13 +54,44 @@ public sealed partial class HomePage : Page
     public HomeViewModel ViewModel { get; }
 
     private async void OnLoaded(object sender, RoutedEventArgs e) =>
-        await ViewModel.LoadInitialAsync();
+        await ViewModel.LoadAllAsync();
 
     private void OnItemClick(object sender, TappedRoutedEventArgs e)
     {
+        // A tap on the clickable artist subtitle bubbles up to the card Grid; ignore it here so the
+        // subtitle's own Click (navigate to artist) wins instead of activating the card (Bug: klik
+        // nama artis di kartu Home).
+        if (OriginatesFromHyperlink(e.OriginalSource as DependencyObject))
+        {
+            return;
+        }
+
         if (sender is FrameworkElement { DataContext: HomeCardItem card })
         {
             FeedNavigation.Activate(this.Frame, card.Model, _player);
+        }
+    }
+
+    /// <summary>Walks up from the tapped element to see whether it sits inside a HyperlinkButton.</summary>
+    private static bool OriginatesFromHyperlink(DependencyObject? source)
+    {
+        for (var node = source; node is not null; node = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(node))
+        {
+            if (node is HyperlinkButton)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Navigates to the artist named in a card's subtitle (without triggering the card tap).</summary>
+    private void OnSubtitleArtistClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string artistId } && !string.IsNullOrEmpty(artistId))
+        {
+            Navigation.NavigationHelper.NavigateToArtist(artistId);
         }
     }
 

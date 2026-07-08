@@ -1,4 +1,5 @@
-﻿using KasetWin.App.Navigation;
+﻿using System.Linq;
+using KasetWin.App.Navigation;
 using KasetWin.App.ViewModels;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Api;
@@ -171,13 +172,41 @@ internal static class FeedNavigation
             var detail = await client.GetPlaylistAsync(browseId).ConfigureAwait(true);
             if (detail.Tracks.Count > 0)
             {
-                await player.PlayCollectionAsync([.. detail.Tracks], startIndex: 0).ConfigureAwait(true);
+                // Album track rows usually omit the per-track artist (it lives in the header), so fill
+                // it from the album/playlist author before playing — otherwise the now-playing bar
+                // shows no artist and the artist link stays dead. Only fills when the track has none,
+                // so playlists with real per-track artists are untouched.
+                var author = detail.Playlist.Author;
+                var album = new Album
+                {
+                    Id = browseId,
+                    Title = detail.Playlist.Title,
+                    Artists = author is null ? [] : [author],
+                    ThumbnailUrl = detail.Playlist.ThumbnailUrl,
+                };
+
+                var tracks = detail.Tracks
+                    .Select(t => WithCollectionContext(t, author, album))
+                    .ToList();
+
+                await player.PlayCollectionAsync(tracks, startIndex: 0).ConfigureAwait(true);
             }
         }
         catch
         {
             // A card Play affordance must never crash the shell on a transient fetch failure.
         }
+    }
+
+    /// <summary>Fills a track's missing artist/album from the collection so now-playing shows them.</summary>
+    private static Song WithCollectionContext(Song track, Artist? author, Album album)
+    {
+        if (track.Artists.Count == 0 && author is not null)
+        {
+            track = track with { Artists = [author] };
+        }
+
+        return track.Album is null ? track with { Album = album } : track;
     }
 
     private static void NavigateToDetail(Frame? frame, string pageTypeName, string id)

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Page
     x:Class="KasetWin.App.Views.AlbumPage"
+    x:Name="AlbumRoot"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:KasetWin.App.Controls"
@@ -14,6 +15,37 @@
         <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
         <converters:DurationToTextConverter x:Key="DurationToText" />
+        <converters:LikeStatusToVisibilityConverter x:Key="LikeStatusToVisibility" />
+        <converters:LibraryToggleTextConverter x:Key="LibraryToggleText" />
+
+        <!-- Row in the "Save to playlist" picker: cover + title. -->
+        <DataTemplate x:Key="PlaylistPickerItemTemplate" x:DataType="models:Playlist">
+            <Grid Padding="0,6" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border
+                    Grid.Column="0"
+                    Width="64"
+                    Height="64"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    CornerRadius="4">
+                    <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                </Border>
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    MaxLines="2"
+                    Text="{x:Bind Title}"
+                    TextTrimming="CharacterEllipsis"
+                    TextWrapping="Wrap" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- Filled thumbs used for the active like/dislike state (solid white). -->
+        <x:String x:Key="ThumbUpPath">M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z</x:String>
+        <x:String x:Key="ThumbDownPath">M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z</x:String>
     </Page.Resources>
 
     <Grid>
@@ -34,10 +66,10 @@
 
             <Border
                 Grid.Column="0"
-                Width="160"
-                Height="160"
+                Width="220"
+                Height="220"
                 VerticalAlignment="Top"
-                CornerRadius="8">
+                CornerRadius="10">
                 <Image
                     Source="{x:Bind ViewModel.ThumbnailUrl, Converter={StaticResource UriToImageSource}, Mode=OneWay}"
                     Stretch="UniformToFill" />
@@ -45,52 +77,189 @@
 
             <StackPanel
                 Grid.Column="1"
-                VerticalAlignment="Bottom"
+                VerticalAlignment="Top"
                 Spacing="6">
                 <TextBlock
-                    Opacity="0.6"
-                    Text="ALBUM"
-                    Style="{StaticResource CaptionTextBlockStyle}" />
-                <TextBlock
-                    MaxLines="2"
-                    Text="{x:Bind ViewModel.Title, Mode=OneWay}"
-                    TextTrimming="CharacterEllipsis"
-                    TextWrapping="Wrap"
-                    Style="{StaticResource TitleTextBlockStyle}" />
-                <!-- Artist: clickable to the artist page when a channel id exists, plain otherwise (Req 37.1). -->
-                <HyperlinkButton
-                    Command="{x:Bind ViewModel.NavigateToArtistCommand}"
-                    Style="{StaticResource InlineLinkButtonStyle}"
-                    ToolTipService.ToolTip="Go to artist"
-                    Visibility="{x:Bind ViewModel.HasAuthorLink, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    FontSize="15"
+                    FontWeight="SemiBold"
+                    Opacity="0.7"
+                    Text="{x:Bind ViewModel.ContentTypeDisplay, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.HasContentType, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock
-                        Foreground="{ThemeResource HyperlinkButtonForeground}"
-                        MaxLines="1"
-                        Text="{x:Bind ViewModel.AuthorDisplay, Mode=OneWay}"
+                        MaxLines="2"
+                        Text="{x:Bind ViewModel.Title, Mode=OneWay}"
                         TextTrimming="CharacterEllipsis"
-                        Style="{StaticResource BodyStrongTextBlockStyle}" />
-                </HyperlinkButton>
-                <TextBlock
-                    MaxLines="1"
-                    Opacity="0.8"
-                    Text="{x:Bind ViewModel.AuthorDisplay, Mode=OneWay}"
-                    TextTrimming="CharacterEllipsis"
-                    Visibility="{x:Bind ViewModel.AuthorIsPlain, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
-                    Style="{StaticResource BodyStrongTextBlockStyle}" />
-                <TextBlock
-                    Opacity="0.6"
-                    Text="{x:Bind ViewModel.TrackCountDisplay, Mode=OneWay}"
-                    Style="{StaticResource CaptionTextBlockStyle}" />
+                        TextWrapping="Wrap"
+                        Style="{StaticResource TitleTextBlockStyle}" />
+                    <!-- Explicit "E" badge beside the album title. -->
+                    <Border
+                        Padding="6,1"
+                        VerticalAlignment="Center"
+                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                        CornerRadius="4"
+                        Visibility="{x:Bind ViewModel.IsHeaderExplicit, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Opacity="0.85"
+                            Text="E" />
+                    </Border>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Ellipse
+                        Width="34"
+                        Height="34"
+                        VerticalAlignment="Center"
+                        Visibility="{x:Bind ViewModel.HasArtistThumbnail, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <Ellipse.Fill>
+                            <ImageBrush
+                                ImageSource="{x:Bind ViewModel.ArtistThumbnailUrl, Converter={StaticResource UriToImageSource}, Mode=OneWay}"
+                                Stretch="UniformToFill" />
+                        </Ellipse.Fill>
+                    </Ellipse>
 
-                <Button
-                    Margin="0,8,0,0"
-                    Command="{x:Bind ViewModel.PlayAllCommand}"
-                    Style="{StaticResource AccentButtonStyle}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon FontSize="14" Glyph="&#xE768;" />
-                        <TextBlock Text="Play" />
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <!-- Artist: clickable to the artist page when a channel id exists, plain otherwise (Req 37.1). -->
+                        <HyperlinkButton
+                            Command="{x:Bind ViewModel.NavigateToArtistCommand}"
+                            Style="{StaticResource InlineLinkButtonStyle}"
+                            ToolTipService.ToolTip="Go to artist"
+                            Visibility="{x:Bind ViewModel.HasAuthorLink, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock
+                                FontSize="18"
+                                Foreground="{ThemeResource HyperlinkButtonForeground}"
+                                MaxLines="1"
+                                Text="{x:Bind ViewModel.AuthorDisplay, Mode=OneWay}"
+                                TextTrimming="CharacterEllipsis"
+                                Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        </HyperlinkButton>
+                        <TextBlock
+                            FontSize="18"
+                            MaxLines="1"
+                            Opacity="0.8"
+                            Text="{x:Bind ViewModel.AuthorDisplay, Mode=OneWay}"
+                            TextTrimming="CharacterEllipsis"
+                            Visibility="{x:Bind ViewModel.AuthorIsPlain, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                            Style="{StaticResource BodyStrongTextBlockStyle}" />
                     </StackPanel>
-                </Button>
+                </StackPanel>
+
+                <StackPanel
+                    Spacing="2"
+                    Visibility="{x:Bind ViewModel.HasDescription, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock
+                        x:Name="AlbumDescriptionText"
+                        IsTextTrimmedChanged="OnAlbumDescriptionTrimmedChanged"
+                        MaxLines="2"
+                        Opacity="0.72"
+                        Text="{x:Bind ViewModel.Description, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="Wrap"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                    <HyperlinkButton
+                        Padding="0"
+                        Click="OnAlbumDescriptionMoreClick"
+                        Content="Selengkapnya"
+                        Visibility="{x:Bind ViewModel.CanExpandDescription, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+
+                <!-- Year · track count · total duration, on their own row below the description. -->
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock
+                        Opacity="0.6"
+                        Text="{x:Bind ViewModel.ReleaseDateDisplay, Mode=OneWay}"
+                        Visibility="{x:Bind ViewModel.HasReleaseDate, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock
+                        Opacity="0.6"
+                        Text="{x:Bind ViewModel.TrackCountDisplay, Mode=OneWay}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock
+                        Opacity="0.6"
+                        Text="{x:Bind ViewModel.AlbumDurationDisplay, Mode=OneWay}"
+                        Visibility="{x:Bind ViewModel.HasAlbumDuration, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                </StackPanel>
+
+                <StackPanel
+                    Margin="0,8,0,0"
+                    Orientation="Horizontal"
+                    Spacing="8">
+                    <Button
+                        Command="{x:Bind ViewModel.PlayAllCommand}"
+                        Style="{StaticResource AccentButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon FontSize="14" Glyph="&#xE768;" />
+                            <TextBlock Text="Putar" />
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{x:Bind ViewModel.ToggleAlbumCollectionCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon FontSize="14" Glyph="&#xE8A5;" />
+                            <TextBlock Text="{x:Bind ViewModel.CollectionButtonLabel, Mode=OneWay}" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        Style="{StaticResource SubtleButtonStyle}"
+                        ToolTipService.ToolTip="More">
+                        <FontIcon FontSize="16" Glyph="&#xE712;" />
+                        <Button.Flyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem Command="{x:Bind ViewModel.ShufflePlayCommand}" Text="Putar acak">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE8B1;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Command="{x:Bind ViewModel.StartMixCommand}" Text="Mulai mix">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE768;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem
+                                    Command="{x:Bind ViewModel.ShowUnavailableCommand}"
+                                    CommandParameter="Putar setelah ini"
+                                    Text="Putar setelah ini">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE893;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem
+                                    Command="{x:Bind ViewModel.AddAlbumToQueueCommand}"
+                                    Text="Tambahkan ke antrean">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE710;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem
+                                    Click="OnSaveAlbumToPlaylistClick"
+                                    Text="Simpan ke playlist">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE728;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Command="{x:Bind ViewModel.NavigateToArtistCommand}" Text="Buka halaman artis">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE77B;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Click="OnShareAlbumClick" Text="Bagikan">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE72D;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem
+                                    Command="{x:Bind ViewModel.ShowUnavailableCommand}"
+                                    CommandParameter="Sematkan ke Dengarkan lagi"
+                                    Text="Sematkan ke Dengarkan lagi">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE718;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+                </StackPanel>
             </StackPanel>
         </Grid>
 
@@ -107,18 +276,104 @@
                 <DataTemplate x:DataType="models:Song">
                     <Grid
                         Padding="8,6"
-                        ColumnSpacing="12">
+                        Background="Transparent"
+                        ColumnSpacing="12"
+                        PointerEntered="OnTrackRowPointerEntered"
+                        PointerExited="OnTrackRowPointerExited">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="36" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <controls:TrackInfo Grid.Column="0" Song="{x:Bind}" />
+                        <Grid Grid.Column="0" Tag="numcell">
+                            <TextBlock
+                                Tag="num"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                Opacity="0.55"
+                                Text="{x:Bind TrackNumber, Mode=OneWay}"
+                                Style="{StaticResource CaptionTextBlockStyle}" />
+                            <FontIcon
+                                Tag="play"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                FontSize="14"
+                                Glyph="&#xE768;"
+                                Opacity="0" />
+                        </Grid>
+                        <controls:TrackInfo Grid.Column="1" Song="{x:Bind}" />
                         <TextBlock
-                            Grid.Column="1"
+                            Grid.Column="2"
+                            MinWidth="88"
+                            VerticalAlignment="Center"
+                            Opacity="0.62"
+                            Text="{x:Bind ListenerCountText, Mode=OneWay}"
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                        <Button
+                            Grid.Column="3"
+                            Tag="{x:Bind}"
+                            Click="OnLikeTrackClick"
+                            Style="{StaticResource SubtleButtonStyle}"
+                            ToolTipService.ToolTip="Like">
+                            <Grid Width="16" Height="16">
+                                <FontIcon
+                                    FontSize="14"
+                                    Glyph="&#xE8E1;"
+                                    Opacity="0.55"
+                                    Visibility="{x:Bind LikeStatus, Converter={StaticResource LikeStatusToVisibility}, ConverterParameter=like-off, Mode=OneWay}" />
+                                <Viewbox Visibility="{x:Bind LikeStatus, Converter={StaticResource LikeStatusToVisibility}, ConverterParameter=like-on, Mode=OneWay}">
+                                    <PathIcon Data="{StaticResource ThumbUpPath}" Foreground="White" />
+                                </Viewbox>
+                            </Grid>
+                        </Button>
+                        <Button
+                            Grid.Column="4"
+                            Tag="{x:Bind}"
+                            Click="OnDislikeTrackClick"
+                            Style="{StaticResource SubtleButtonStyle}"
+                            ToolTipService.ToolTip="Dislike">
+                            <Grid Width="16" Height="16">
+                                <FontIcon
+                                    FontSize="14"
+                                    Glyph="&#xE8E0;"
+                                    Opacity="0.55"
+                                    Visibility="{x:Bind LikeStatus, Converter={StaticResource LikeStatusToVisibility}, ConverterParameter=dislike-off, Mode=OneWay}" />
+                                <Viewbox Visibility="{x:Bind LikeStatus, Converter={StaticResource LikeStatusToVisibility}, ConverterParameter=dislike-on, Mode=OneWay}">
+                                    <PathIcon Data="{StaticResource ThumbDownPath}" Foreground="White" />
+                                </Viewbox>
+                            </Grid>
+                        </Button>
+                        <TextBlock
+                            Grid.Column="5"
                             VerticalAlignment="Center"
                             Opacity="0.7"
                             Text="{x:Bind Duration, Converter={StaticResource DurationToText}}"
                             Style="{StaticResource CaptionTextBlockStyle}" />
+                        <Button
+                            Grid.Column="6"
+                            Tag="{x:Bind}"
+                            Style="{StaticResource SubtleButtonStyle}"
+                            ToolTipService.ToolTip="More">
+                            <FontIcon FontSize="16" Glyph="&#xE712;" />
+                            <Button.Flyout>
+                                <MenuFlyout>
+                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackStartMixClick" Text="Mulai mix" />
+                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackPlayNextClick" Text="Putar setelah ini" />
+                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackAddToQueueClick" Text="Tambahkan ke antrean" />
+                                    <MenuFlyoutItem
+                                        Tag="{x:Bind}"
+                                        Click="OnTrackToggleCollectionClick"
+                                        Text="{x:Bind IsInLibrary, Converter={StaticResource LibraryToggleText}, Mode=OneWay}" />
+                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackSaveToPlaylistClick" Text="Simpan ke playlist" />
+                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackOpenArtistClick" Text="Buka halaman artis" />
+                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackShareClick" Text="Bagikan" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>

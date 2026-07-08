@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="KasetWin.App.Views.TrendingListPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:converters="using:KasetWin.App.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:KasetWin.App.ViewModels"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+    </Page.Resources>
+
+    <Grid>
+        <ScrollViewer>
+            <StackPanel Margin="24" Spacing="16">
+                <TextBlock x:Name="TitleText" Style="{StaticResource TitleTextBlockStyle}" Text="Trending" />
+
+                <!-- Video sections: wrapping grid of 16:9 cards. -->
+                <controls:ItemsRepeater x:Name="VideoGrid" Visibility="Collapsed">
+                    <controls:ItemsRepeater.Layout>
+                        <controls:UniformGridLayout
+                            MinColumnSpacing="16"
+                            MinItemHeight="224"
+                            MinItemWidth="256"
+                            MinRowSpacing="12"
+                            Orientation="Horizontal" />
+                    </controls:ItemsRepeater.Layout>
+                    <controls:ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:HomeCardItem">
+                            <Grid
+                                Width="256"
+                                Padding="8"
+                                Background="Transparent"
+                                CornerRadius="8"
+                                DataContext="{x:Bind}"
+                                Tapped="OnItemClick">
+                                <StackPanel Spacing="2">
+                                    <Border Width="240" Height="135" Margin="0,0,0,4" CornerRadius="8">
+                                        <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                                    </Border>
+                                    <TextBlock FontSize="15" MaxLines="2" Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock FontSize="13" MaxLines="1" Opacity="0.7" Text="{x:Bind Subtitle}" TextTrimming="CharacterEllipsis" Style="{StaticResource CaptionTextBlockStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </controls:ItemsRepeater.ItemTemplate>
+                </controls:ItemsRepeater>
+
+                <ItemsControl x:Name="ItemsHost">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:HomeCardItem">
+                            <Grid
+                                Padding="8"
+                                Background="Transparent"
+                                ColumnSpacing="14"
+                                Tapped="OnItemClick">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36" />
+                                    <ColumnDefinition Width="56" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Opacity="0.7"
+                                    Text="{x:Bind RankText}"
+                                    Visibility="{x:Bind HasRank, Converter={StaticResource BoolToVisibility}}"
+                                    Style="{StaticResource SubtitleTextBlockStyle}" />
+                                <Border Grid.Column="1" Width="56" Height="56" VerticalAlignment="Center" CornerRadius="4">
+                                    <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                                </Border>
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                    <TextBlock
+                                        MaxLines="1"
+                                        Text="{x:Bind Title}"
+                                        TextTrimming="CharacterEllipsis"
+                                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock
+                                        MaxLines="1"
+                                        Opacity="0.7"
+                                        Text="{x:Bind Subtitle}"
+                                        TextTrimming="CharacterEllipsis"
+                                        Style="{StaticResource CaptionTextBlockStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

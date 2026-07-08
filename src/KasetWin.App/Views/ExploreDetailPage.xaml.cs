@@ -61,6 +61,16 @@ public sealed partial class ExploreDetailPage : Page
         }
     }
 
+    /// <summary>"Lihat semua" on a video shelf opens the full list of the same items.</summary>
+    private void OnChartSeeAllClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: HomeSectionView section })
+        {
+            TrendingListPage.PendingSection = section;
+            this.Frame?.Navigate(typeof(TrendingListPage), section.Title);
+        }
+    }
+
     private void OnCardKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (CardKeyboard.IsActivationKey(e.Key) && sender is FrameworkElement { DataContext: HomeCardItem card })

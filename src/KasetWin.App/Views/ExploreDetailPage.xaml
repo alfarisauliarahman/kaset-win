@@ -8,12 +8,48 @@
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:views="using:KasetWin.App.Views"
     xmlns:vm="using:KasetWin.App.ViewModels"
     mc:Ignorable="d">
 
     <Page.Resources>
         <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+
+        <!-- Music videos: wide 16:9 cards + "Lihat semua". -->
+        <DataTemplate x:Key="VideoSectionTemplate" x:DataType="vm:HomeSectionView">
+            <StackPanel Margin="0,0,0,8" Spacing="12">
+                <Grid>
+                    <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <Button HorizontalAlignment="Right" Click="OnChartSeeAllClick" Content="Lihat semua" Tag="{x:Bind}" />
+                </Grid>
+                <ScrollViewer
+                    behaviors:VerticalWheelForwarder.IsEnabled="True"
+                    HorizontalScrollBarVisibility="Auto"
+                    HorizontalScrollMode="Enabled"
+                    VerticalScrollBarVisibility="Disabled"
+                    VerticalScrollMode="Disabled">
+                    <controls:ItemsRepeater ItemsSource="{x:Bind Items}">
+                        <controls:ItemsRepeater.Layout>
+                            <controls:StackLayout Orientation="Horizontal" Spacing="16" />
+                        </controls:ItemsRepeater.Layout>
+                        <controls:ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HomeCardItem">
+                                <Grid Width="256" Padding="8" Background="Transparent" CornerRadius="8" DataContext="{x:Bind}" Tapped="OnItemClick">
+                                    <StackPanel Spacing="2">
+                                        <Border Width="240" Height="135" Margin="0,0,0,4" CornerRadius="8">
+                                            <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                                        </Border>
+                                        <TextBlock FontSize="15" MaxLines="2" Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                        <TextBlock FontSize="13" MaxLines="1" Opacity="0.7" Text="{x:Bind Subtitle}" TextTrimming="CharacterEllipsis" Style="{StaticResource CaptionTextBlockStyle}" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </controls:ItemsRepeater.ItemTemplate>
+                    </controls:ItemsRepeater>
+                </ScrollViewer>
+            </StackPanel>
+        </DataTemplate>
 
         <!-- A single horizontal "shelf" of cards for one section (shared shape with ExplorePage). -->
         <DataTemplate x:Key="SectionTemplate" x:DataType="vm:HomeSectionView">
@@ -43,7 +79,7 @@
                                     layered over the cover image.
                                 -->
                                 <Grid
-                                    Width="168"
+                                    Width="{x:Bind CardWidth}"
                                     Padding="8"
                                     Background="Transparent"
                                     CornerRadius="8"
@@ -59,11 +95,16 @@
                                         Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                         CornerRadius="8"
                                         Opacity="0" />
-                                    <StackPanel Spacing="8">
-                                        <Grid Width="152" Height="152" HorizontalAlignment="Center">
+                                    <StackPanel Spacing="2">
+                                        <Grid
+                                            Width="{x:Bind TileWidth}"
+                                            Height="{x:Bind TileHeight}"
+                                            Margin="0,0,0,4"
+                                            HorizontalAlignment="Center">
                                             <Border
                                                 Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                                CornerRadius="{x:Bind ImageCornerRadius}">
+                                                CornerRadius="{x:Bind ImageCornerRadius}"
+                                                Visibility="{x:Bind IsNotMood, Converter={StaticResource BoolToVisibility}}">
                                                 <Image
                                                     Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
                                                     Stretch="UniformToFill" />
@@ -85,18 +126,37 @@
                                                 Visibility="{x:Bind CanPlay, Converter={StaticResource BoolToVisibility}}">
                                                 <FontIcon FontSize="16" Glyph="&#xE768;" />
                                             </Button>
+                                            <!-- Mood/genre chip: solid colour tile with the title inside (no cover art). -->
+                                            <Border
+                                                Padding="12"
+                                                Background="{x:Bind ChipBrush}"
+                                                CornerRadius="8"
+                                                Visibility="{x:Bind IsMood, Converter={StaticResource BoolToVisibility}}">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    Foreground="White"
+                                                    MaxLines="2"
+                                                    Text="{x:Bind Title}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    TextWrapping="Wrap"
+                                                    Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                            </Border>
                                         </Grid>
                                         <TextBlock
+                                            FontSize="15"
                                             MaxLines="2"
                                             Text="{x:Bind Title}"
                                             TextTrimming="CharacterEllipsis"
                                             TextWrapping="Wrap"
+                                            Visibility="{x:Bind IsNotMood, Converter={StaticResource BoolToVisibility}}"
                                             Style="{StaticResource BodyStrongTextBlockStyle}" />
                                         <TextBlock
+                                            FontSize="13"
                                             MaxLines="1"
                                             Opacity="0.7"
                                             Text="{x:Bind Subtitle}"
                                             TextTrimming="CharacterEllipsis"
+                                            Visibility="{x:Bind IsNotMood, Converter={StaticResource BoolToVisibility}}"
                                             Style="{StaticResource CaptionTextBlockStyle}" />
                                     </StackPanel>
                                 </Grid>
@@ -106,6 +166,51 @@
                 </ScrollViewer>
             </StackPanel>
         </DataTemplate>
+
+        <!-- Moods & genres: colour chips flowing left-to-right, wrapping to new rows (no h-scroll). -->
+        <DataTemplate x:Key="MoodSectionTemplate" x:DataType="vm:HomeSectionView">
+            <StackPanel Margin="0,0,0,8" Spacing="12">
+                <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <controls:ItemsRepeater ItemsSource="{x:Bind Items}">
+                    <controls:ItemsRepeater.Layout>
+                        <controls:UniformGridLayout
+                            MinColumnSpacing="10"
+                            MinItemHeight="84"
+                            MinItemWidth="160"
+                            MinRowSpacing="10"
+                            Orientation="Horizontal" />
+                    </controls:ItemsRepeater.Layout>
+                    <controls:ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:HomeCardItem">
+                            <Border
+                                Width="160"
+                                Height="84"
+                                Background="{x:Bind ChipBrush}"
+                                CornerRadius="8"
+                                DataContext="{x:Bind}"
+                                Tapped="OnItemClick">
+                                <TextBlock
+                                    Margin="12"
+                                    VerticalAlignment="Center"
+                                    Foreground="White"
+                                    MaxLines="2"
+                                    Text="{x:Bind Title}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="Wrap"
+                                    Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            </Border>
+                        </DataTemplate>
+                    </controls:ItemsRepeater.ItemTemplate>
+                </controls:ItemsRepeater>
+            </StackPanel>
+        </DataTemplate>
+
+        <views:HomeSectionTemplateSelector
+            x:Key="SectionTemplateSelector"
+            ChartTemplate="{StaticResource SectionTemplate}"
+            MoodTemplate="{StaticResource MoodSectionTemplate}"
+            ShelfTemplate="{StaticResource SectionTemplate}"
+            VideoTemplate="{StaticResource VideoSectionTemplate}" />
     </Page.Resources>
 
     <Grid>
@@ -114,7 +219,7 @@
                 <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="{x:Bind ViewModel.Title, Mode=OneWay}" />
 
                 <controls:ItemsRepeater
-                    ItemTemplate="{StaticResource SectionTemplate}"
+                    ItemTemplate="{StaticResource SectionTemplateSelector}"
                     ItemsSource="{x:Bind ViewModel.Sections}">
                     <controls:ItemsRepeater.Layout>
                         <controls:StackLayout Orientation="Vertical" Spacing="24" />

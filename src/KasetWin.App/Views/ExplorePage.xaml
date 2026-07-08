@@ -8,12 +8,147 @@
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:views="using:KasetWin.App.Views"
     xmlns:vm="using:KasetWin.App.ViewModels"
     mc:Ignorable="d">
 
     <Page.Resources>
         <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+
+        <!-- Trending / chart section: title + "Selengkapnya", then a numbered column-major grid
+             (down-then-across, 4 rows per column) matching YouTube Music's Trending layout. -->
+        <DataTemplate x:Key="ChartSectionTemplate" x:DataType="vm:HomeSectionView">
+            <StackPanel Margin="0,0,0,8" Spacing="12">
+                <Grid>
+                    <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <Button
+                        HorizontalAlignment="Right"
+                        Click="OnChartSeeAllClick"
+                        Content="Selengkapnya"
+                        Tag="{x:Bind}" />
+                </Grid>
+                <ScrollViewer
+                    behaviors:VerticalWheelForwarder.IsEnabled="True"
+                    HorizontalScrollBarVisibility="Auto"
+                    HorizontalScrollMode="Enabled"
+                    VerticalScrollBarVisibility="Disabled"
+                    VerticalScrollMode="Disabled">
+                    <controls:ItemsRepeater ItemsSource="{x:Bind Items}">
+                        <controls:ItemsRepeater.Layout>
+                            <controls:UniformGridLayout
+                                MaximumRowsOrColumns="4"
+                                MinColumnSpacing="8"
+                                MinRowSpacing="4"
+                                Orientation="Vertical" />
+                        </controls:ItemsRepeater.Layout>
+                        <controls:ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HomeCardItem">
+                                <Grid
+                                    Width="380"
+                                    Height="68"
+                                    Padding="6"
+                                    Background="Transparent"
+                                    ColumnSpacing="12"
+                                    CornerRadius="8"
+                                    DataContext="{x:Bind}"
+                                    PointerEntered="OnChartCardEnter"
+                                    PointerExited="OnChartCardExit"
+                                    Tapped="OnItemClick">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="28" />
+                                        <ColumnDefinition Width="52" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Opacity="0.7"
+                                        Text="{x:Bind RankText}"
+                                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <Border Grid.Column="1" Width="52" Height="52" VerticalAlignment="Center" CornerRadius="4">
+                                        <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                                    </Border>
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                        <TextBlock
+                                            MaxLines="1"
+                                            Text="{x:Bind Title}"
+                                            TextTrimming="CharacterEllipsis"
+                                            Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                        <TextBlock
+                                            MaxLines="1"
+                                            Opacity="0.7"
+                                            Text="{x:Bind Subtitle}"
+                                            TextTrimming="CharacterEllipsis"
+                                            Style="{StaticResource CaptionTextBlockStyle}" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </controls:ItemsRepeater.ItemTemplate>
+                    </controls:ItemsRepeater>
+                </ScrollViewer>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- New music videos: wide 16:9 cards (title + artist), with a "Lihat semua" list. -->
+        <DataTemplate x:Key="VideoSectionTemplate" x:DataType="vm:HomeSectionView">
+            <StackPanel Margin="0,0,0,8" Spacing="12">
+                <Grid>
+                    <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <Button HorizontalAlignment="Right" Click="OnChartSeeAllClick" Content="Lihat semua" Tag="{x:Bind}" />
+                </Grid>
+                <ScrollViewer
+                    behaviors:VerticalWheelForwarder.IsEnabled="True"
+                    HorizontalScrollBarVisibility="Auto"
+                    HorizontalScrollMode="Enabled"
+                    VerticalScrollBarVisibility="Disabled"
+                    VerticalScrollMode="Disabled">
+                    <controls:ItemsRepeater ItemsSource="{x:Bind Items}">
+                        <controls:ItemsRepeater.Layout>
+                            <controls:StackLayout Orientation="Horizontal" Spacing="16" />
+                        </controls:ItemsRepeater.Layout>
+                        <controls:ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HomeCardItem">
+                                <Grid
+                                    Width="256"
+                                    Padding="8"
+                                    Background="Transparent"
+                                    CornerRadius="8"
+                                    DataContext="{x:Bind}"
+                                    IsTabStop="True"
+                                    KeyDown="OnCardKeyDown"
+                                    Tapped="OnItemClick">
+                                    <StackPanel Spacing="2">
+                                        <Border
+                                            Width="240"
+                                            Height="135"
+                                            Margin="0,0,0,4"
+                                            CornerRadius="8">
+                                            <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                                        </Border>
+                                        <TextBlock
+                                            FontSize="15"
+                                            MaxLines="2"
+                                            Text="{x:Bind Title}"
+                                            TextTrimming="CharacterEllipsis"
+                                            TextWrapping="Wrap"
+                                            Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                        <TextBlock
+                                            FontSize="13"
+                                            MaxLines="1"
+                                            Opacity="0.7"
+                                            Text="{x:Bind Subtitle}"
+                                            TextTrimming="CharacterEllipsis"
+                                            Style="{StaticResource CaptionTextBlockStyle}" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </controls:ItemsRepeater.ItemTemplate>
+                    </controls:ItemsRepeater>
+                </ScrollViewer>
+            </StackPanel>
+        </DataTemplate>
 
         <!-- A single horizontal "shelf" of cards for one section. -->
         <DataTemplate x:Key="SectionTemplate" x:DataType="vm:HomeSectionView">
@@ -43,7 +178,7 @@
                                     layered over the cover image.
                                 -->
                                 <Grid
-                                    Width="168"
+                                    Width="{x:Bind CardWidth}"
                                     Padding="8"
                                     Background="Transparent"
                                     CornerRadius="8"
@@ -59,8 +194,12 @@
                                         Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                         CornerRadius="8"
                                         Opacity="0" />
-                                    <StackPanel Spacing="8">
-                                        <Grid Width="152" Height="152" HorizontalAlignment="Center">
+                                    <StackPanel Spacing="2">
+                                        <Grid
+                                            Width="{x:Bind TileWidth}"
+                                            Height="{x:Bind TileHeight}"
+                                            Margin="0,0,0,4"
+                                            HorizontalAlignment="Center">
                                             <Border
                                                 Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                                 CornerRadius="{x:Bind ImageCornerRadius}">
@@ -87,12 +226,14 @@
                                             </Button>
                                         </Grid>
                                         <TextBlock
+                                            FontSize="15"
                                             MaxLines="2"
                                             Text="{x:Bind Title}"
                                             TextTrimming="CharacterEllipsis"
                                             TextWrapping="Wrap"
                                             Style="{StaticResource BodyStrongTextBlockStyle}" />
                                         <TextBlock
+                                            FontSize="13"
                                             MaxLines="1"
                                             Opacity="0.7"
                                             Text="{x:Bind Subtitle}"
@@ -106,6 +247,13 @@
                 </ScrollViewer>
             </StackPanel>
         </DataTemplate>
+
+        <!-- Chooses the chart grid for Trending/chart sections, the shelf for everything else. -->
+        <views:HomeSectionTemplateSelector
+            x:Key="SectionTemplateSelector"
+            ChartTemplate="{StaticResource ChartSectionTemplate}"
+            ShelfTemplate="{StaticResource SectionTemplate}"
+            VideoTemplate="{StaticResource VideoSectionTemplate}" />
     </Page.Resources>
 
     <Grid>
@@ -151,7 +299,7 @@
                 </StackPanel>
 
                 <controls:ItemsRepeater
-                    ItemTemplate="{StaticResource SectionTemplate}"
+                    ItemTemplate="{StaticResource SectionTemplateSelector}"
                     ItemsSource="{x:Bind ViewModel.Sections}">
                     <controls:ItemsRepeater.Layout>
                         <controls:StackLayout Orientation="Vertical" Spacing="24" />

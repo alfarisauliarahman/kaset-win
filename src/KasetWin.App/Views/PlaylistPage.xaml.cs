@@ -24,16 +24,54 @@ public sealed partial class PlaylistPage : Page
     /// <summary>The page ViewModel, bound from XAML via <c>x:Bind</c>.</summary>
     public PlaylistDetailViewModel ViewModel { get; }
 
+    private readonly ILikeStateStore? _likeStore;
+
     public PlaylistPage()
     {
         var services = ((App)Application.Current).Services;
+        _likeStore = services.GetService<ILikeStateStore>();
         ViewModel = new PlaylistDetailViewModel(
             services.GetRequiredService<IYTMusicClient>(),
-            services.GetRequiredService<IPlayerService>());
+            services.GetRequiredService<IPlayerService>(),
+            services.GetService<IQueueService>(),
+            services.GetService<Notifications.IInAppNotifier>(),
+            _likeStore);
 
         this.InitializeComponent();
         ViewModel.Deleted += OnDeleted;
+
+        // Alternating row backgrounds (zebra striping) for the track list; containers are recycled,
+        // so restripe on every content change.
+        TracksList.ContainerContentChanging += (_, a) =>
+        {
+            if (!a.InRecycleQueue)
+            {
+                a.ItemContainer.Background = a.ItemIndex % 2 == 1
+                    ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"]
+                    : new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        };
+
+        if (_likeStore is not null)
+        {
+            _likeStore.Changed += OnLikeStoreChanged;
+            Unloaded += (_, _) => _likeStore.Changed -= OnLikeStoreChanged;
+        }
     }
+
+    private void OnLikeStoreChanged(string videoId) =>
+        DispatcherQueue.TryEnqueue(() => ViewModel.RefreshLikeOverlay());
+
+    /// <summary>Shares the playlist's public URL via the native share sheet.</summary>
+    private void OnSharePlaylistClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.ShareTarget is { } target)
+        {
+            Sharing.ShareInvoker.TryShow(((App)Application.Current).MainWindow, target);
+        }
+    }
+
+    private string? _playlistId;
 
     /// <inheritdoc />
     protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -41,7 +79,53 @@ public sealed partial class PlaylistPage : Page
         base.OnNavigatedTo(e);
         if (e.Parameter is string playlistId && !string.IsNullOrWhiteSpace(playlistId))
         {
+            _playlistId = playlistId;
             await ViewModel.LoadPlaylistAsync(playlistId);
+
+            // Local custom cover override (YT Music has no cover-upload API).
+            if (PlaylistCoverStore.Get(playlistId) is { } coverPath)
+            {
+                CoverImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(coverPath));
+            }
+
+            // Own playlists carry no creator avatar in the API response; fall back to the signed-in
+            // account's photo when the creator is the current user.
+            if (!ViewModel.HasArtistThumbnail
+                && ((App)Application.Current).MainWindow is MainWindow main
+                && main.CurrentAccount is { AvatarUrl: { } avatar } account
+                && string.Equals(ViewModel.AuthorDisplay, account.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                ViewModel.ArtistThumbnailUrl = avatar;
+            }
+        }
+    }
+
+    /// <summary>Deletes the playlist only after an explicit confirmation.</summary>
+    private async void OnDeletePlaylistClick(object sender, RoutedEventArgs e)
+    {
+        var confirm = new ContentDialog
+        {
+            Title = "Hapus playlist",
+            Content = $"Hapus \"{ViewModel.Title}\" secara permanen?",
+            PrimaryButtonText = "Hapus",
+            CloseButtonText = "Batal",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = this.XamlRoot,
+        };
+
+        if (await confirm.ShowAsync() == ContentDialogResult.Primary)
+        {
+            ViewModel.DeleteCommand.Execute(null);
+        }
+    }
+
+    /// <summary>Opens the shell's Edit-playlist dialog (UMUM / KOLABORASI) for this playlist.</summary>
+    private async void OnEditPlaylistClick(object sender, RoutedEventArgs e)
+    {
+        if (_playlistId is not null && ((App)Application.Current).MainWindow is MainWindow main)
+        {
+            await main.ShowEditPlaylistDialogAsync(_playlistId);
+            await ViewModel.LoadPlaylistAsync(_playlistId); // reflect the edited metadata
         }
     }
 

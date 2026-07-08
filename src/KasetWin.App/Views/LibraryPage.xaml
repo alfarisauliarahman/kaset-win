@@ -13,6 +13,43 @@
     <Page.Resources>
         <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:LibraryFilterToStyleConverter x:Key="FilterStyle" />
+
+        <!-- Uniform card containers: zero out GridViewItem's default min sizes/margins so no cell
+             can render larger than its siblings. -->
+        <Style x:Key="LibraryCardContainer" TargetType="GridViewItem">
+            <Setter Property="Margin" Value="0,0,4,8" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Top" />
+        </Style>
+
+        <!-- Row in the "Save to playlist" picker: cover + title. -->
+        <DataTemplate x:Key="PlaylistPickerItemTemplate" x:DataType="core:Playlist">
+            <Grid Padding="0,6" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border
+                    Grid.Column="0"
+                    Width="64"
+                    Height="64"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    CornerRadius="4">
+                    <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                </Border>
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    MaxLines="2"
+                    Text="{x:Bind Title}"
+                    TextTrimming="CharacterEllipsis"
+                    TextWrapping="Wrap" />
+            </Grid>
+        </DataTemplate>
     </Page.Resources>
 
     <Grid>
@@ -29,31 +66,32 @@
             Spacing="12">
             <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Library" />
 
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <StackPanel
+                Orientation="Horizontal"
+                VerticalAlignment="Center"
+                Spacing="8">
                 <TextBox
                     x:Name="NewPlaylistBox"
                     Width="280"
-                    PlaceholderText="New playlist title"
+                    VerticalAlignment="Center"
+                    PlaceholderText="Judul playlist baru"
                     Text="{Binding NewPlaylistTitle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                 <Button
+                    VerticalAlignment="Center"
                     Command="{Binding CreatePlaylistCommand}"
                     Style="{StaticResource AccentButtonStyle}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon FontSize="14" Glyph="&#xE710;" />
-                        <TextBlock Text="Create playlist" />
+                        <TextBlock Text="Buat playlist" />
                     </StackPanel>
                 </Button>
-                <ComboBox
-                    Width="220"
-                    DisplayMemberPath="Title"
-                    Header="Add songs to"
-                    ItemsSource="{Binding Playlists}"
-                    PlaceholderText="Select a playlist"
-                    SelectedItem="{Binding SelectedPlaylist, Mode=TwoWay}" />
             </StackPanel>
 
-            <!-- Error / loading affordances -->
-            <ProgressRing IsActive="{Binding IsLoading}" HorizontalAlignment="Left" />
+            <!-- Error / loading affordances (collapsed when idle so they don't leave a gap) -->
+            <ProgressRing
+                HorizontalAlignment="Left"
+                IsActive="{Binding IsLoading}"
+                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
             <InfoBar
                 IsClosable="False"
                 IsOpen="{Binding HasError}"
@@ -67,71 +105,106 @@
             Padding="24,0,24,8"
             Orientation="Horizontal"
             Spacing="8">
-            <Button Command="{Binding SetFilterCommand}" CommandParameter="All" Content="All" />
-            <Button Command="{Binding SetFilterCommand}" CommandParameter="Playlists" Content="Playlists" />
-            <Button Command="{Binding SetFilterCommand}" CommandParameter="Songs" Content="Songs" />
-            <Button Command="{Binding SetFilterCommand}" CommandParameter="Artists" Content="Artists" />
-            <Button Command="{Binding SetFilterCommand}" CommandParameter="Albums" Content="Albums" />
+            <Button
+                Command="{Binding SetFilterCommand}"
+                CommandParameter="All"
+                Content="Semua"
+                Style="{Binding SelectedFilter, Converter={StaticResource FilterStyle}, ConverterParameter=All}" />
+            <Button
+                Command="{Binding SetFilterCommand}"
+                CommandParameter="Playlists"
+                Content="Playlist"
+                Style="{Binding SelectedFilter, Converter={StaticResource FilterStyle}, ConverterParameter=Playlists}" />
+            <Button
+                Command="{Binding SetFilterCommand}"
+                CommandParameter="Songs"
+                Content="Lagu"
+                Style="{Binding SelectedFilter, Converter={StaticResource FilterStyle}, ConverterParameter=Songs}" />
+            <Button
+                Command="{Binding SetFilterCommand}"
+                CommandParameter="Artists"
+                Content="Artis"
+                Style="{Binding SelectedFilter, Converter={StaticResource FilterStyle}, ConverterParameter=Artists}" />
+            <Button
+                Command="{Binding SetFilterCommand}"
+                CommandParameter="Albums"
+                Content="Album"
+                Style="{Binding SelectedFilter, Converter={StaticResource FilterStyle}, ConverterParameter=Albums}" />
         </StackPanel>
 
-        <ScrollViewer Grid.Row="2" Padding="24,0,24,24">
-            <StackPanel Spacing="20">
+        <ScrollViewer x:Name="LibraryScroller" Grid.Row="2" Padding="24,0,24,24">
+            <StackPanel Spacing="8">
 
                 <!-- Playlists -->
                 <StackPanel Spacing="8" Visibility="{Binding ShowPlaylists, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Playlists" />
-                    <ListView
+                    <GridView
+                        x:Name="PlaylistsGrid"
                         IsItemClickEnabled="True"
                         ItemClick="OnPlaylistClick"
                         ItemsSource="{Binding Playlists}"
+                        ScrollViewer.VerticalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        ScrollViewer.HorizontalScrollMode="Disabled"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        ScrollViewer.IsHorizontalRailEnabled="False"
+                        ItemContainerStyle="{StaticResource LibraryCardContainer}"
                         SelectionMode="None">
-                        <ListView.ItemTemplate>
+                        <GridView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <!-- Explicit cell size: ItemsWrapGrid otherwise sizes every cell to
+                                     the first realized item, which made one card render oversized. -->
+                                <ItemsWrapGrid ItemWidth="172" Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </GridView.ItemsPanel>
+                        <GridView.ItemTemplate>
                             <DataTemplate x:DataType="core:Playlist">
-                                <Grid ColumnSpacing="12" Padding="0,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="48" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border
-                                        Grid.Column="0"
-                                        Width="48"
-                                        Height="48"
-                                        CornerRadius="4">
-                                        <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
-                                    </Border>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <Grid Width="160" Padding="6">
+                                    <StackPanel Spacing="2">
+                                        <Grid Margin="0,0,0,4">
+                                            <Border
+                                                Width="148"
+                                                Height="148"
+                                                CornerRadius="8">
+                                                <Image Width="148" Height="148" Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                                            </Border>
+                                            <!-- Delete affordance only for owned playlists (Req 13.4 / 14.3) -->
+                                            <Button
+                                                Margin="0,4,4,0"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Top"
+                                                Command="{Binding DataContext.DeletePlaylistCommand, ElementName=NewPlaylistBox}"
+                                                CommandParameter="{x:Bind}"
+                                                Style="{StaticResource SubtleButtonStyle}"
+                                                ToolTipService.ToolTip="Delete playlist"
+                                                Visibility="{x:Bind IsOwnedByUser, Converter={StaticResource BoolToVisibility}}">
+                                                <FontIcon FontSize="14" Glyph="&#xE74D;" />
+                                            </Button>
+                                        </Grid>
                                         <TextBlock
-                                            MaxLines="1"
+                                            FontSize="15"
+                                            MaxLines="2"
                                             Style="{StaticResource BodyStrongTextBlockStyle}"
                                             Text="{x:Bind Title}"
-                                            TextTrimming="CharacterEllipsis" />
+                                            TextTrimming="CharacterEllipsis"
+                                            TextWrapping="Wrap" />
                                         <TextBlock
+                                            FontSize="13"
+                                            MaxLines="1"
                                             Opacity="0.7"
                                             Style="{StaticResource CaptionTextBlockStyle}"
                                             Text="{Binding TrackCount}" />
                                     </StackPanel>
-                                    <!-- Delete affordance only for owned playlists (Req 13.4 / 14.3) -->
-                                    <Button
-                                        Grid.Column="2"
-                                        VerticalAlignment="Center"
-                                        Command="{Binding DataContext.DeletePlaylistCommand, ElementName=NewPlaylistBox}"
-                                        CommandParameter="{x:Bind}"
-                                        Style="{StaticResource SubtleButtonStyle}"
-                                        ToolTipService.ToolTip="Delete playlist"
-                                        Visibility="{x:Bind IsOwnedByUser, Converter={StaticResource BoolToVisibility}}">
-                                        <FontIcon FontSize="16" Glyph="&#xE74D;" />
-                                    </Button>
                                 </Grid>
                             </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                        </GridView.ItemTemplate>
+                    </GridView>
                 </StackPanel>
 
                 <!-- Liked songs -->
                 <StackPanel Spacing="8" Visibility="{Binding ShowSongs, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Liked songs" />
-                    <ListView ItemsSource="{Binding LikedSongs}" SelectionMode="None">
+                    <ListView x:Name="LikedList" ItemsSource="{Binding LikedSongs}" ScrollViewer.VerticalScrollMode="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="core:Song">
                                 <Grid ColumnSpacing="12" Padding="0,6">
@@ -173,10 +246,10 @@
                                             <FontIcon FontSize="16" Glyph="&#xE768;" />
                                         </Button>
                                         <Button
-                                            Command="{Binding DataContext.AddSongToPlaylistCommand, ElementName=NewPlaylistBox}"
-                                            CommandParameter="{x:Bind}"
+                                            Click="OnAddLibrarySongToPlaylist"
                                             Style="{StaticResource SubtleButtonStyle}"
-                                            ToolTipService.ToolTip="Add to selected playlist">
+                                            Tag="{x:Bind}"
+                                            ToolTipService.ToolTip="Simpan ke playlist">
                                             <FontIcon FontSize="16" Glyph="&#xE710;" />
                                         </Button>
                                     </StackPanel>
@@ -189,7 +262,7 @@
                 <!-- Uploaded songs -->
                 <StackPanel Spacing="8" Visibility="{Binding ShowSongs, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Uploads" />
-                    <ListView ItemsSource="{Binding UploadedSongs}" SelectionMode="None">
+                    <ListView x:Name="UploadsList" ItemsSource="{Binding UploadedSongs}" ScrollViewer.VerticalScrollMode="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="core:Song">
                                 <Grid ColumnSpacing="12" Padding="0,6">
@@ -228,58 +301,111 @@
                 <!-- Followed artists -->
                 <StackPanel Spacing="8" Visibility="{Binding ShowArtists, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Artists" />
-                    <ListView
+                    <GridView
+                        x:Name="ArtistsGrid"
                         IsItemClickEnabled="True"
                         ItemClick="OnArtistClick"
                         ItemsSource="{Binding Artists}"
+                        ScrollViewer.VerticalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        ScrollViewer.HorizontalScrollMode="Disabled"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        ScrollViewer.IsHorizontalRailEnabled="False"
+                        ItemContainerStyle="{StaticResource LibraryCardContainer}"
                         SelectionMode="None">
-                        <ListView.ItemTemplate>
+                        <GridView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <ItemsWrapGrid ItemWidth="162" Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </GridView.ItemsPanel>
+                        <GridView.ItemTemplate>
                             <DataTemplate x:DataType="core:Artist">
-                                <StackPanel Orientation="Horizontal" Padding="0,6" Spacing="12">
-                                    <Border
-                                        Width="48"
-                                        Height="48"
-                                        CornerRadius="24">
-                                        <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
-                                    </Border>
-                                    <TextBlock
-                                        VerticalAlignment="Center"
-                                        Style="{StaticResource BodyStrongTextBlockStyle}"
-                                        Text="{x:Bind Name}" />
-                                </StackPanel>
+                                <Grid Width="150" Padding="6">
+                                    <StackPanel Spacing="2">
+                                        <Border
+                                            Width="138"
+                                            Height="138"
+                                            Margin="0,0,0,4"
+                                            HorizontalAlignment="Center"
+                                            CornerRadius="69">
+                                            <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                                        </Border>
+                                        <TextBlock
+                                            FontSize="15"
+                                            HorizontalAlignment="Center"
+                                            MaxLines="2"
+                                            Style="{StaticResource BodyStrongTextBlockStyle}"
+                                            Text="{x:Bind Name}"
+                                            TextAlignment="Center"
+                                            TextTrimming="CharacterEllipsis"
+                                            TextWrapping="Wrap" />
+                                        <!-- "N lagu" from the saved-songs corpus. -->
+                                        <TextBlock
+                                            FontSize="13"
+                                            HorizontalAlignment="Center"
+                                            MaxLines="1"
+                                            Opacity="0.7"
+                                            Style="{StaticResource CaptionTextBlockStyle}"
+                                            Text="{x:Bind SubtitleText}"
+                                            TextAlignment="Center"
+                                            Visibility="{x:Bind HasSubtitle, Converter={StaticResource BoolToVisibility}}" />
+                                    </StackPanel>
+                                </Grid>
                             </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                        </GridView.ItemTemplate>
+                    </GridView>
                 </StackPanel>
 
                 <!-- Albums -->
                 <StackPanel Spacing="8" Visibility="{Binding ShowAlbums, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Albums" />
-                    <ListView
+                    <GridView
+                        x:Name="AlbumsGrid"
                         IsItemClickEnabled="True"
                         ItemClick="OnAlbumClick"
                         ItemsSource="{Binding Albums}"
+                        ScrollViewer.VerticalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        ScrollViewer.HorizontalScrollMode="Disabled"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        ScrollViewer.IsHorizontalRailEnabled="False"
+                        ItemContainerStyle="{StaticResource LibraryCardContainer}"
                         SelectionMode="None">
-                        <ListView.ItemTemplate>
+                        <GridView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <ItemsWrapGrid ItemWidth="172" Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </GridView.ItemsPanel>
+                        <GridView.ItemTemplate>
                             <DataTemplate x:DataType="core:Album">
-                                <StackPanel Orientation="Horizontal" Padding="0,6" Spacing="12">
-                                    <Border
-                                        Width="48"
-                                        Height="48"
-                                        CornerRadius="4">
-                                        <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
-                                    </Border>
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind Title}" />
+                                <Grid Width="160" Padding="6">
+                                    <StackPanel Spacing="2">
+                                        <Border
+                                            Width="148"
+                                            Height="148"
+                                            Margin="0,0,0,4"
+                                            CornerRadius="8">
+                                            <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                                        </Border>
                                         <TextBlock
+                                            FontSize="15"
+                                            MaxLines="2"
+                                            Style="{StaticResource BodyStrongTextBlockStyle}"
+                                            Text="{x:Bind Title}"
+                                            TextTrimming="CharacterEllipsis"
+                                            TextWrapping="Wrap" />
+                                        <TextBlock
+                                            FontSize="13"
+                                            MaxLines="1"
                                             Opacity="0.7"
                                             Style="{StaticResource CaptionTextBlockStyle}"
-                                            Text="{x:Bind ArtistsDisplay}" />
+                                            Text="{x:Bind ArtistsDisplay}"
+                                            TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
-                                </StackPanel>
+                                </Grid>
                             </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                        </GridView.ItemTemplate>
+                    </GridView>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

@@ -1,8 +1,10 @@
+using System.Threading.Tasks;
 using KasetWin.App.ViewModels;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Api;
 using KasetWin.Core.Services.Player;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 
@@ -34,6 +36,28 @@ public sealed partial class LibraryPage : Page
             services.GetService<IPlayerService>());
 
         DataContext = _viewModel;
+
+        // Wheel forwarding must observe HANDLED events too: the lists' inner (disabled) ScrollViewer
+        // marks the wheel handled before a plain XAML handler would fire, which is why hovering a
+        // grid still blocked the page scroll. AddHandler(..., handledEventsToo: true) always fires.
+        var wheel = new Microsoft.UI.Xaml.Input.PointerEventHandler(OnSectionWheel);
+        PlaylistsGrid.AddHandler(PointerWheelChangedEvent, wheel, handledEventsToo: true);
+        LikedList.AddHandler(PointerWheelChangedEvent, wheel, handledEventsToo: true);
+        UploadsList.AddHandler(PointerWheelChangedEvent, wheel, handledEventsToo: true);
+        ArtistsGrid.AddHandler(PointerWheelChangedEvent, wheel, handledEventsToo: true);
+        AlbumsGrid.AddHandler(PointerWheelChangedEvent, wheel, handledEventsToo: true);
+    }
+
+    /// <summary>
+    /// Forwards the mouse wheel from an inner section list to the page's outer scroll viewer. The
+    /// wrapped GridViews/ListViews have their own (disabled) scroll viewer that otherwise swallows
+    /// the wheel, so hovering over a grid stopped the page from scrolling and felt janky.
+    /// </summary>
+    private void OnSectionWheel(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var delta = e.GetCurrentPoint((UIElement)sender).Properties.MouseWheelDelta;
+        LibraryScroller.ChangeView(null, LibraryScroller.VerticalOffset - delta, null, disableAnimation: true);
+        e.Handled = true;
     }
 
     /// <inheritdoc />
@@ -64,6 +88,46 @@ public sealed partial class LibraryPage : Page
         if (e.ClickedItem is Artist artist)
         {
             NavigateByName("KasetWin.App.Views.ArtistPage", artist.Id);
+        }
+    }
+
+    /// <summary>Opens a playlist picker for the song, then adds it to the chosen playlist.</summary>
+    private async void OnAddLibrarySongToPlaylist(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: Song song })
+        {
+            return;
+        }
+
+        var playlists = _viewModel.Playlists;
+        if (playlists.Count == 0)
+        {
+            return;
+        }
+
+        var list = new ListView
+        {
+            ItemsSource = playlists,
+            SelectionMode = ListViewSelectionMode.Single,
+            ItemTemplate = (DataTemplate)Resources["PlaylistPickerItemTemplate"],
+            Height = 440,
+            MinWidth = 460,
+            SelectedIndex = 0,
+        };
+
+        var dialog = new ContentDialog
+        {
+            Title = "Simpan ke playlist",
+            Content = list,
+            PrimaryButtonText = "Simpan",
+            CloseButtonText = "Batal",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = this.XamlRoot,
+        };
+
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary && list.SelectedItem is Playlist target)
+        {
+            await _viewModel.AddSongToPlaylistAsync(song, target.Id);
         }
     }
 

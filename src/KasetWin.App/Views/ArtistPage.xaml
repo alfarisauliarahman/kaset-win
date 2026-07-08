@@ -15,6 +15,7 @@
     <Page.Resources>
         <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:InvertedBoolToVisibilityConverter x:Key="InvertedBoolToVisibility" />
         <converters:DurationToTextConverter x:Key="DurationToText" />
 
         <!-- Album / single card (square art). -->
@@ -118,11 +119,20 @@
                         TextTrimming="CharacterEllipsis"
                         TextWrapping="Wrap"
                         Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <!-- Prefer the "Artist • views" subtitle from YT Music; fall back to the artist name. -->
+                    <TextBlock
+                        MaxLines="1"
+                        Opacity="0.7"
+                        Text="{x:Bind ListenerCountText}"
+                        TextTrimming="CharacterEllipsis"
+                        Visibility="{x:Bind HasListenerCount, Converter={StaticResource BoolToVisibility}}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
                     <TextBlock
                         MaxLines="1"
                         Opacity="0.7"
                         Text="{x:Bind ArtistsDisplay}"
                         TextTrimming="CharacterEllipsis"
+                        Visibility="{x:Bind HasListenerCount, Converter={StaticResource InvertedBoolToVisibility}}"
                         Style="{StaticResource CaptionTextBlockStyle}" />
                 </StackPanel>
             </Grid>
@@ -223,6 +233,15 @@
                         TextTrimming="CharacterEllipsis"
                         TextWrapping="Wrap"
                         Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        MaxLines="1"
+                        Opacity="0.65"
+                        Text="{x:Bind SubtitleText}"
+                        TextAlignment="Center"
+                        TextTrimming="CharacterEllipsis"
+                        Visibility="{x:Bind HasSubtitle, Converter={StaticResource BoolToVisibility}}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
                 </StackPanel>
             </Grid>
         </DataTemplate>
@@ -232,8 +251,13 @@
         <ScrollViewer>
             <StackPanel Spacing="24">
 
-                <!-- Header banner: cover image with a gradient scrim and name/meta overlaid (Req 15.1) -->
-                <Grid Height="320">
+                <!-- Header banner: cover image with a gradient scrim and name/meta overlaid (Req 15.1).
+                     Height tracks the width at the YT-Music banner ratio (1920×800 ≈ 2.4:1) so the
+                     art fills the width without being cropped (see OnBannerSizeChanged). -->
+                <Grid
+                    x:Name="HeaderBanner"
+                    Height="320"
+                    SizeChanged="OnBannerSizeChanged">
                     <Image
                         HorizontalAlignment="Stretch"
                         VerticalAlignment="Stretch"
@@ -283,7 +307,7 @@
                             Visibility="{x:Bind ViewModel.HasTopSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <FontIcon FontSize="16" Glyph="&#xE8B1;" />
-                                <TextBlock Text="Shuffle" />
+                                <TextBlock Text="Acak" />
                             </StackPanel>
                         </Button>
                         <Button
@@ -291,7 +315,7 @@
                             Visibility="{x:Bind ViewModel.HasTopSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <FontIcon FontSize="16" Glyph="&#xE768;" />
-                                <TextBlock Text="Play" />
+                                <TextBlock Text="Putar" />
                             </StackPanel>
                         </Button>
                         <Button
@@ -322,6 +346,8 @@
                         Spacing="4"
                         Visibility="{x:Bind ViewModel.HasDescription, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <TextBlock
+                            x:Name="DescriptionText"
+                            IsTextTrimmedChanged="OnDescriptionTrimmedChanged"
                             MaxLines="{x:Bind ViewModel.DescriptionMaxLines, Mode=OneWay}"
                             Opacity="0.8"
                             Text="{x:Bind ViewModel.Description, Mode=OneWay}"
@@ -339,24 +365,48 @@
                         Spacing="8"
                         Visibility="{x:Bind ViewModel.HasTopSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <Grid>
-                            <TextBlock Text="Top songs" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="Lagu teratas" Style="{StaticResource SubtitleTextBlockStyle}" />
                             <HyperlinkButton
                                 HorizontalAlignment="Right"
                                 Click="OnSeeAllSongsClick"
-                                Content="See all"
+                                Content="Lihat semua"
                                 Visibility="{x:Bind ViewModel.CanSeeAllSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
                         </Grid>
-                        <ListView
+                        <!-- Column-major grid: fills 5 rows down a column, then wraps to the next
+                             column and scrolls horizontally (Apple-Music style). GridView gives
+                             reliable click-to-play (ItemClick) and native keyboarding. -->
+                        <GridView
+                            Height="290"
                             IsItemClickEnabled="True"
                             ItemClick="OnSongClick"
                             ItemsSource="{x:Bind ViewModel.TopSongs}"
+                            ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                            ScrollViewer.HorizontalScrollMode="Enabled"
+                            ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                            ScrollViewer.VerticalScrollMode="Disabled"
                             SelectionMode="None">
-                            <ListView.ItemTemplate>
+                            <GridView.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <ItemsWrapGrid MaximumRowsOrColumns="5" Orientation="Vertical" />
+                                </ItemsPanelTemplate>
+                            </GridView.ItemsPanel>
+                            <GridView.ItemContainerStyle>
+                                <Style TargetType="GridViewItem">
+                                    <Setter Property="Margin" Value="0" />
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                </Style>
+                            </GridView.ItemContainerStyle>
+                            <GridView.ItemTemplate>
                                 <DataTemplate x:DataType="models:Song">
-                                    <Grid Padding="0,6" ColumnSpacing="12">
+                                    <Grid
+                                        Width="430"
+                                        Padding="8,6"
+                                        ColumnSpacing="12">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <Border
@@ -370,13 +420,20 @@
                                         <TextBlock
                                             Grid.Column="2"
                                             VerticalAlignment="Center"
+                                            Opacity="0.62"
+                                            Text="{x:Bind ListenerCountText}"
+                                            Visibility="{x:Bind HasListenerCount, Converter={StaticResource BoolToVisibility}}"
+                                            Style="{StaticResource CaptionTextBlockStyle}" />
+                                        <TextBlock
+                                            Grid.Column="3"
+                                            VerticalAlignment="Center"
                                             Opacity="0.7"
                                             Text="{x:Bind Duration, Converter={StaticResource DurationToText}}"
                                             Style="{StaticResource CaptionTextBlockStyle}" />
                                     </Grid>
                                 </DataTemplate>
-                            </ListView.ItemTemplate>
-                        </ListView>
+                            </GridView.ItemTemplate>
+                        </GridView>
                     </StackPanel>
 
                     <!-- Albums (Req 15.1, 15.2) -->
@@ -384,11 +441,11 @@
                         Spacing="8"
                         Visibility="{x:Bind ViewModel.HasAlbums, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <Grid>
-                            <TextBlock Text="Albums" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="Album" Style="{StaticResource SubtitleTextBlockStyle}" />
                             <HyperlinkButton
                                 HorizontalAlignment="Right"
                                 Click="OnSeeAllAlbumsClick"
-                                Content="See all"
+                                Content="Lihat semua"
                                 Visibility="{x:Bind ViewModel.CanSeeAllAlbums, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
                         </Grid>
                         <ScrollViewer
@@ -410,11 +467,11 @@
                         Spacing="8"
                         Visibility="{x:Bind ViewModel.HasSingles, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <Grid>
-                            <TextBlock Text="Singles &amp; EPs" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="Single &amp; EP" Style="{StaticResource SubtitleTextBlockStyle}" />
                             <HyperlinkButton
                                 HorizontalAlignment="Right"
                                 Click="OnSeeAllSinglesClick"
-                                Content="See all"
+                                Content="Lihat semua"
                                 Visibility="{x:Bind ViewModel.CanSeeAllSingles, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
                         </Grid>
                         <ScrollViewer
@@ -436,11 +493,11 @@
                         Spacing="8"
                         Visibility="{x:Bind ViewModel.HasVideos, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <Grid>
-                            <TextBlock Text="Videos" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="Video" Style="{StaticResource SubtitleTextBlockStyle}" />
                             <HyperlinkButton
                                 HorizontalAlignment="Right"
                                 Click="OnSeeAllVideosClick"
-                                Content="See all"
+                                Content="Lihat semua"
                                 Visibility="{x:Bind ViewModel.CanSeeAllVideos, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
                         </Grid>
                         <ScrollViewer
@@ -457,16 +514,42 @@
                         </ScrollViewer>
                     </StackPanel>
 
+                    <!-- Live performances (separate video shelf) -->
+                    <StackPanel
+                        Spacing="8"
+                        Visibility="{x:Bind ViewModel.HasLive, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
+                        <Grid>
+                            <TextBlock Text="Pertunjukan langsung" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <HyperlinkButton
+                                HorizontalAlignment="Right"
+                                Click="OnSeeAllLiveClick"
+                                Content="Lihat semua"
+                                Visibility="{x:Bind ViewModel.CanSeeAllLive, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
+                        </Grid>
+                        <ScrollViewer
+                            behaviors:VerticalWheelForwarder.IsEnabled="True"
+                            HorizontalScrollBarVisibility="Auto"
+                            HorizontalScrollMode="Enabled"
+                            VerticalScrollBarVisibility="Disabled"
+                            VerticalScrollMode="Disabled">
+                            <controls:ItemsRepeater ItemTemplate="{StaticResource VideoCardTemplate}" ItemsSource="{x:Bind ViewModel.LivePerformances}">
+                                <controls:ItemsRepeater.Layout>
+                                    <controls:StackLayout Orientation="Horizontal" Spacing="12" />
+                                </controls:ItemsRepeater.Layout>
+                            </controls:ItemsRepeater>
+                        </ScrollViewer>
+                    </StackPanel>
+
                     <!-- Featured on / playlists (Req 15.1) -->
                     <StackPanel
                         Spacing="8"
                         Visibility="{x:Bind ViewModel.HasFeatured, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <Grid>
-                            <TextBlock Text="Featured on" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="Tampil di" Style="{StaticResource SubtitleTextBlockStyle}" />
                             <HyperlinkButton
                                 HorizontalAlignment="Right"
                                 Click="OnSeeAllFeaturedClick"
-                                Content="See all"
+                                Content="Lihat semua"
                                 Visibility="{x:Bind ViewModel.CanSeeAllFeatured, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
                         </Grid>
                         <ScrollViewer
@@ -489,11 +572,11 @@
                         Spacing="8"
                         Visibility="{x:Bind ViewModel.HasRelated, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <Grid>
-                            <TextBlock Text="Fans might also like" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="Penggemar mungkin juga suka" Style="{StaticResource SubtitleTextBlockStyle}" />
                             <HyperlinkButton
                                 HorizontalAlignment="Right"
                                 Click="OnSeeAllRelatedClick"
-                                Content="See all"
+                                Content="Lihat semua"
                                 Visibility="{x:Bind ViewModel.CanSeeAllRelated, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
                         </Grid>
                         <ScrollViewer

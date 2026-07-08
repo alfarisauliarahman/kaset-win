@@ -1,4 +1,6 @@
+using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services;
@@ -80,6 +82,21 @@ public abstract partial class SectionFeedViewModel : ViewModelBase
         }, ct);
     }
 
+    /// <summary>
+    /// Loads the initial page, then keeps pulling continuation pages until the feed is exhausted, so
+    /// the surface shows everything at once without a "Load more" button. Bounded by a page guard.
+    /// </summary>
+    public async Task LoadAllAsync(CancellationToken ct = default)
+    {
+        await LoadInitialAsync(ct).ConfigureAwait(true);
+
+        var guard = 0;
+        while (HasMore && !ct.IsCancellationRequested && guard++ < 100)
+        {
+            await LoadMoreAsync(ct).ConfigureAwait(true);
+        }
+    }
+
     private void AppendSections(HomeResponse response)
     {
         foreach (var section in response.Sections)
@@ -89,9 +106,30 @@ public abstract partial class SectionFeedViewModel : ViewModelBase
                 continue; // skip empty shelves so the surface stays dense
             }
 
+            if (IsNavShortcutSection(section))
+            {
+                continue; // drop the redundant "New releases / Charts / Moods" shortcut shelf
+            }
+
             Sections.Add(HomeSectionView.FromModel(section));
         }
     }
+
+    /// <summary>
+    /// Whether a shelf is just the top-level Explore navigation shortcuts (New Releases / Charts /
+    /// Moods &amp; Genres) surfaced as empty playlist cards — those duplicate the entry-point buttons
+    /// and are dropped.
+    /// </summary>
+    private static readonly string[] NavShortcutIds =
+    [
+        "FEmusic_new_releases",
+        "FEmusic_charts",
+        "FEmusic_moods_and_genres",
+    ];
+
+    private static bool IsNavShortcutSection(HomeSection section) =>
+        section.Items.Any(i => i is HomeSectionItem.PlaylistItem { Pl.Id: { } id }
+            && NavShortcutIds.Contains(id));
 
     private void SetContinuation(string? token)
     {

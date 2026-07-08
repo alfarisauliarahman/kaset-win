@@ -102,6 +102,33 @@ public sealed partial class ExplorePage : Page
         this.Frame?.Navigate(typeof(ExploreDetailPage), new ExploreDestination(browseId, title));
     }
 
+    /// <summary>"Selengkapnya" on the Trending shelf opens the full numbered list of the same items.</summary>
+    private void OnChartSeeAllClick(object sender, RoutedEventArgs e)
+    {
+        // x:Bind DataTemplates don't set DataContext, so the section is carried on the button's Tag.
+        if (sender is FrameworkElement { Tag: HomeSectionView section })
+        {
+            TrendingListPage.PendingSection = section;
+            this.Frame?.Navigate(typeof(TrendingListPage), section.Title);
+        }
+    }
+
+    private void OnChartCardEnter(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Grid g)
+        {
+            g.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"];
+        }
+    }
+
+    private void OnChartCardExit(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Grid g)
+        {
+            g.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        }
+    }
+
     private async void OnLoadMoreClick(object sender, RoutedEventArgs e) =>
         await ViewModel.LoadMoreAsync();
 }
