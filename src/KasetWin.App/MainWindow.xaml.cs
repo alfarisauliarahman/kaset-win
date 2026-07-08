@@ -20,6 +20,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Shapes;
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
+using System;
 using System.Globalization;
 using System.Linq;
 using Windows.Foundation;
@@ -79,13 +80,101 @@ public sealed partial class MainWindow : Window
     private readonly PlaybackWebViewHost _playbackHost;
     private readonly IPlayerService? _player;
     private readonly INetworkMonitor? _networkMonitor;
+    private Controls.SidePanelController? _sidePanel;
 
     private bool _isQuitting;
     private bool _loginEvaluated;
 
+    /// <summary>Set by the Playlists header's inline "+" so its click doesn't also toggle the expander.</summary>
+    private bool _suppressPlaylistsToggleOnce;
+
+    /// <summary>Startup retries for the sidebar playlists (the cookie jar races the first request).</summary>
+    private int _sidebarPlaylistAttempts;
+
+    /// <summary>Local search history (most recent first), persisted in app settings.</summary>
+    private readonly System.Collections.Generic.List<string> _searchHistory = LoadSearchHistory();
+
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _toastTimer;
+
+    /// <summary>
+    /// Renders an in-app notification in the InfoBar above the account footer. Plain messages
+    /// auto-dismiss after a few seconds; actionable ones stay open (with an action button and the
+    /// built-in close X) until the user acts or dismisses. Marshals to the UI thread.
+    /// </summary>
+    private void OnInAppNotification(Notifications.InAppNotification n)
+    {
+        var queue = this.DispatcherQueue;
+        if (queue is null)
+        {
+            return;
+        }
+
+        queue.TryEnqueue(() =>
+        {
+            _toastTimer?.Stop();
+
+            ToastBar.Title = n.Title ?? string.Empty;
+            ToastBar.Message = n.Message;
+            ToastBar.Severity = InfoBarSeverity.Informational;
+
+            if (n.IsActionable)
+            {
+                var button = new Button { Content = n.ActionText };
+                button.Click += (_, _) =>
+                {
+                    ToastBar.IsOpen = false;
+                    n.OnAction!.Invoke();
+                };
+                ToastBar.ActionButton = button;
+                ToastBar.IsOpen = true;
+                // Actionable notifications persist until the user acts or closes them.
+            }
+            else
+            {
+                ToastBar.ActionButton = null;
+                ToastBar.IsOpen = true;
+
+                _toastTimer ??= queue.CreateTimer();
+                _toastTimer.Interval = TimeSpan.FromSeconds(5);
+                _toastTimer.IsRepeating = false;
+                _toastTimer.Tick -= OnToastTimerTick;
+                _toastTimer.Tick += OnToastTimerTick;
+                _toastTimer.Start();
+            }
+        });
+    }
+
+    private void OnToastTimerTick(Microsoft.UI.Dispatching.DispatcherQueueTimer sender, object args)
+    {
+        sender.Stop();
+        ToastBar.IsOpen = false;
+    }
+
+    /// <summary>Slides the docked now-playing side panel in/out as the shared controller mode changes.</summary>
+    private void OnSidePanelChanged()
+    {
+        var open = _sidePanel?.Mode is not (null or Controls.SidePanelMode.None);
+        SidePanel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        SidePanelColumn.Width = open ? new GridLength(380) : new GridLength(0);
+    }
+
     public MainWindow()
     {
         this.InitializeComponent();
+
+        // TEMPORARY: route Core diagnostics to a log file so data-load issues can be traced.
+        KasetWin.Core.Diag.Log = msg =>
+        {
+            try
+            {
+                var path = System.IO.Path.Combine(Windows.Storage.ApplicationData.Current.LocalFolder.Path, "diag.log");
+                System.IO.File.AppendAllText(path, $"{DateTime.Now:HH:mm:ss.fff} {msg}{Environment.NewLine}");
+            }
+            catch
+            {
+                // Diagnostics must never affect the app.
+            }
+        };
 
 
         // Mount the app-owned hidden playback WebView2 (Task 8.3). Resolving on this UI thread is
@@ -105,6 +194,14 @@ public sealed partial class MainWindow : Window
 
         _player = App.Current.Services.GetService<IPlayerService>();
 
+        // Subscribe to the app-wide in-app toast channel so any action (add to collection, like,
+        // queue, …) shows a small pop near the sidebar that fades away.
+        var notifier = App.Current.Services.GetService<Notifications.IInAppNotifier>();
+        if (notifier is not null)
+        {
+            notifier.Shown += OnInAppNotification;
+        }
+
         // Bind the shared navigation service to the content frame (Task 14.2, Req 16.1) so every
         // clickable affordance â€” including the bottom PlayerBar, which lives outside this frame â€”
         // can navigate to artist/album/playlist detail pages via NavigationHelper without taking a
@@ -123,6 +220,14 @@ public sealed partial class MainWindow : Window
         if (_networkMonitor is not null)
         {
             _networkMonitor.ConnectivityChanged += OnConnectivityChanged;
+        }
+
+        // Right-hand now-playing side panel (queue / lyrics): observe the shared controller so the
+        // player-bar buttons can slide the docked panel in and out.
+        _sidePanel = App.Current.Services.GetService<Controls.SidePanelController>();
+        if (_sidePanel is not null)
+        {
+            _sidePanel.Changed += OnSidePanelChanged;
         }
 
         RegisterKeyboardAccelerators();
@@ -155,7 +260,11 @@ public sealed partial class MainWindow : Window
     private bool _sourceReady;
 
     /// <summary>Whether the Podcasts tab has been revealed by the region-availability probe (Req 27).</summary>
-    private bool _podcastsAvailable;
+    // Podcasts is shown by default (user request); the region check can still flip it off later.
+    private bool _podcastsAvailable = true;
+
+    /// <summary>Monotonic sequence for sidebar search suggestions, so stale results are dropped.</summary>
+    private int _suggestSeq;
 
     // â”€â”€ Source toggle (Music â‡„ YouTube) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -246,8 +355,43 @@ public sealed partial class MainWindow : Window
     /// <summary>The signed-in account (name + avatar) shown on the footer item, or <c>null</c> when signed out.</summary>
     private UserAccount? _currentAccount;
 
+    /// <summary>The signed-in account, exposed for pages that fall back to the user's own avatar.</summary>
+    internal UserAccount? CurrentAccount => _currentAccount;
+
     private void OnNavigationItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
     {
+        // ── Playlists tree ────────────────────────────────────────────────────────────────────
+        if (args.InvokedItemContainer is NavigationViewItem { Tag: "PlaylistsRoot" } root)
+        {
+            // NavigationView itself already toggles expansion for a click anywhere on the row;
+            // toggling again here cancelled that out, so only the chevron seemed to work. Now the
+            // handler only undoes the toggle caused by an inline "+" click.
+            if (_suppressPlaylistsToggleOnce)
+            {
+                _suppressPlaylistsToggleOnce = false;
+                root.IsExpanded = !root.IsExpanded;
+            }
+
+            return;
+        }
+
+        if (args.InvokedItemContainer is NavigationViewItem { Tag: "AllPlaylists" })
+        {
+            if (Navigation.NavigationHelper.ResolvePageType(PageTypeNamesByTag["Library"]) is { } libraryType)
+            {
+                ContentFrame.Navigate(libraryType);
+            }
+
+            return;
+        }
+
+        if (args.InvokedItemContainer is NavigationViewItem { Tag: string playlistTag }
+            && playlistTag.StartsWith("Playlist:", StringComparison.Ordinal))
+        {
+            Navigation.NavigationHelper.NavigateToPlaylist(playlistTag["Playlist:".Length..]);
+            return;
+        }
+
         if (args.InvokedItemContainer is NavigationViewItem { Tag: "SignIn" } item)
         {
             var auth = App.Current.Services.GetService<IAuthService>();
@@ -263,6 +407,722 @@ public sealed partial class MainWindow : Window
                 _ = SignInAsync();
             }
         }
+    }
+
+    // ── Sidebar: search-as-you-type ───────────────────────────────────────────────────────────────
+
+    private async void OnSidebarSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
+        {
+            return;
+        }
+
+        var text = sender.Text?.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            // Empty box: surface the local search history (deletable via the row's X).
+            sender.ItemsSource = _searchHistory
+                .Select(q => new SearchSuggestion(q, IsHistory: true))
+                .ToList();
+            return;
+        }
+
+        var seq = ++_suggestSeq;
+        try
+        {
+            var client = App.Current.Services.GetService<IYTMusicClient>();
+            if (client is null)
+            {
+                return;
+            }
+
+            var suggestions = await client.GetRichSearchSuggestionsAsync(text);
+            if (seq == _suggestSeq)
+            {
+                sender.ItemsSource = suggestions;
+            }
+        }
+        catch (Exception)
+        {
+            // Suggestions are best-effort; typing must never surface an error.
+        }
+    }
+
+    private void OnSidebarSearchQuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        var suggestion = args.ChosenSuggestion as SearchSuggestion;
+        var query = suggestion?.Query ?? args.QueryText;
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return;
+        }
+
+        RememberSearch(query);
+
+        // Rich rows navigate straight to their entity (artist/album/playlist) or play the song;
+        // plain completions land on the full search-results page.
+        if (suggestion is { BrowseId: { } browseId })
+        {
+            var handled = suggestion.PageType switch
+            {
+                "MUSIC_PAGE_TYPE_ARTIST" => Navigation.NavigationHelper.NavigateToArtist(browseId),
+                "MUSIC_PAGE_TYPE_ALBUM" => Navigation.NavigationHelper.NavigateToAlbum(browseId),
+                "MUSIC_PAGE_TYPE_PLAYLIST" => Navigation.NavigationHelper.NavigateToPlaylist(browseId),
+                _ => false,
+            };
+            if (handled)
+            {
+                return;
+            }
+        }
+
+        if (suggestion is { VideoId: { } videoId })
+        {
+            _ = OpenSuggestedSongAsync(videoId);
+            return;
+        }
+
+        if (Navigation.NavigationHelper.ResolvePageType(PageTypeNamesByTag["Search"]) is { } searchType)
+        {
+            ContentFrame.Navigate(searchType, query);
+        }
+    }
+
+    /// <summary>A rich SONG suggestion goes to its album page when one is known; otherwise it plays.</summary>
+    private async Task OpenSuggestedSongAsync(string videoId)
+    {
+        var client = App.Current.Services.GetService<IYTMusicClient>();
+        try
+        {
+            if (client is not null)
+            {
+                var metadata = await client.GetSongMetadataAsync(videoId);
+                if (Navigation.NavigationHelper.NavigateToSongAlbum(metadata.Song))
+                {
+                    return;
+                }
+
+                if (metadata.Song is { } song)
+                {
+                    await (_player?.PlayCollectionAsync([song], startIndex: 0) ?? Task.CompletedTask);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Best-effort; a failed lookup simply does nothing.
+        }
+    }
+
+    // ── Search history (local, persisted) ────────────────────────────────────────────────────────
+
+    private const string SearchHistoryKey = "SearchHistory";
+    private const int SearchHistoryLimit = 10;
+
+    private static System.Collections.Generic.List<string> LoadSearchHistory()
+    {
+        try
+        {
+            var raw = Windows.Storage.ApplicationData.Current.LocalSettings.Values[SearchHistoryKey] as string;
+            return string.IsNullOrEmpty(raw)
+                ? []
+                : System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.List<string>>(raw) ?? [];
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
+
+    private void SaveSearchHistory()
+    {
+        try
+        {
+            Windows.Storage.ApplicationData.Current.LocalSettings.Values[SearchHistoryKey] =
+                System.Text.Json.JsonSerializer.Serialize(_searchHistory);
+        }
+        catch (Exception)
+        {
+            // History is a convenience; persistence failures are ignored.
+        }
+    }
+
+    private void RememberSearch(string query)
+    {
+        _searchHistory.RemoveAll(q => string.Equals(q, query, StringComparison.OrdinalIgnoreCase));
+        _searchHistory.Insert(0, query);
+        if (_searchHistory.Count > SearchHistoryLimit)
+        {
+            _searchHistory.RemoveRange(SearchHistoryLimit, _searchHistory.Count - SearchHistoryLimit);
+        }
+
+        SaveSearchHistory();
+    }
+
+    /// <summary>The X on a history row: remove the entry and refresh the open suggestion list.</summary>
+    private void OnDeleteHistoryClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: SearchSuggestion { IsHistory: true } entry })
+        {
+            _searchHistory.RemoveAll(q => string.Equals(q, entry.Query, StringComparison.OrdinalIgnoreCase));
+            SaveSearchHistory();
+            SidebarSearchBox.ItemsSource = _searchHistory
+                .Select(q => new SearchSuggestion(q, IsHistory: true))
+                .ToList();
+        }
+    }
+
+    // ── Sidebar: playlists tree + create dialog ───────────────────────────────────────────────────
+
+    /// <summary>Fills the Playlists nav item's children: All Playlists / new playlist / each playlist.</summary>
+    private async Task LoadSidebarPlaylistsAsync()
+    {
+        System.Collections.Generic.IReadOnlyList<Playlist> playlists;
+        try
+        {
+            var client = App.Current.Services.GetService<IYTMusicClient>();
+            if (client is null)
+            {
+                return;
+            }
+
+            // Same landing source as the Library page (the dedicated liked_playlists browse parses
+            // empty), but UNCACHED: an early anonymous-empty response must not poison the 5-minute
+            // library cache — and retries must be able to see fresh data.
+            if (client is not YTMusicClient concrete)
+            {
+                return;
+            }
+
+            var raw = await concrete.BrowseRawAsync("FEmusic_library_landing");
+            playlists = Core.Services.Api.Parsers.LibraryContentParser.Parse(raw).Playlists;
+        }
+        catch (Exception ex)
+        {
+            KasetWin.Core.Diag.Write($"sidebar-playlists FAILED: {ex.GetType().Name}: {ex.Message}");
+            return; // Signed out / offline: keep the static children only.
+        }
+
+        KasetWin.Core.Diag.Write($"sidebar-playlists count={playlists.Count}");
+
+        // Startup races the WebView2 cookie jar: an early request comes back anonymous (empty
+        // library) without failing. Retry a few times with a delay until real data arrives.
+        if (playlists.Count == 0 && _sidebarPlaylistAttempts < 5)
+        {
+            _sidebarPlaylistAttempts++;
+            _ = DispatcherQueue.TryEnqueue(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(4));
+                await LoadSidebarPlaylistsAsync();
+            });
+            return;
+        }
+
+        _sidebarPlaylistAttempts = 0;
+
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            PlaylistsNavItem.MenuItems.Clear();
+
+            PlaylistsNavItem.MenuItems.Add(new NavigationViewItem
+            {
+                Content = "All Playlists",
+                Tag = "AllPlaylists",
+                SelectsOnInvoked = false,
+                Icon = new FontIcon { Glyph = "" },
+            });
+
+            foreach (var playlist in playlists)
+            {
+                if (string.IsNullOrEmpty(playlist.Id))
+                {
+                    continue;
+                }
+
+                var coverPath = PlaylistCoverStore.Get(playlist.Id);
+                // YT serves a generic gstatic placeholder for cover-less playlists; treat it as "no cover".
+                var remote = playlist.ThumbnailUrl is { } t && !t.Host.Contains("gstatic", StringComparison.OrdinalIgnoreCase) ? t : null;
+                var thumb = coverPath is not null ? new Uri(coverPath) : remote;
+                PlaylistsNavItem.MenuItems.Add(new NavigationViewItem
+                {
+                    Content = playlist.Title,
+                    Tag = $"Playlist:{playlist.Id}",
+                    SelectsOnInvoked = false,
+                    ContextFlyout = BuildPlaylistContextMenu(playlist),
+                    // Prefer the playlist cover (local override first) over a generic glyph.
+                    Icon = thumb is not null
+                        ? new ImageIcon { Source = new BitmapImage(thumb) }
+                        : new FontIcon { Glyph = "" },
+                });
+            }
+        });
+    }
+
+    /// <summary>
+    /// Apple-Music-style cover picker: an accent-outlined rounded square with a centred ⊕ that opens
+    /// a file picker; the chosen image previews inside and its path is reported to the caller.
+    /// </summary>
+    private Button MakeCoverPicker(string? existingCoverPath, Action<string> onPicked)
+    {
+        var coverImage = new Image { Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill };
+        if (existingCoverPath is not null)
+        {
+            coverImage.Source = new BitmapImage(new Uri(existingCoverPath));
+        }
+
+        // Plain "+" (no circle), accent-coloured, centred - matching the Apple Music mock.
+        var plus = new FontIcon
+        {
+            Glyph = "",
+            FontSize = 26,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+        };
+
+        var button = new Button
+        {
+            Width = 150,
+            Height = 150,
+            Padding = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+            BorderThickness = new Thickness(3),
+            CornerRadius = new CornerRadius(12),
+            Content = new Grid { Children = { coverImage, plus } },
+        };
+
+        button.Click += async (_, _) =>
+        {
+            var picker = new Windows.Storage.Pickers.FileOpenPicker();
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+            picker.FileTypeFilter.Add(".jpg");
+            picker.FileTypeFilter.Add(".jpeg");
+            picker.FileTypeFilter.Add(".png");
+            var file = await picker.PickSingleFileAsync();
+            if (file is not null)
+            {
+                onPicked(file.Path);
+                coverImage.Source = new BitmapImage(new Uri(file.Path));
+            }
+        };
+
+        return button;
+    }
+
+    /// <summary>Right-click menu for a sidebar playlist (mirrors YT Music's playlist menu).</summary>
+    private MenuFlyout BuildPlaylistContextMenu(Playlist playlist)
+    {
+        var menu = new MenuFlyout();
+
+        void Add(string text, string glyph, Action action)
+        {
+            var item = new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph } };
+            item.Click += (_, _) => action();
+            menu.Items.Add(item);
+        }
+
+        Add("Putar acak", "", () => _ = PlaylistActionAsync(playlist.Id, shuffle: true));
+        Add("Mulai mix", "", () => _ = PlaylistMixAsync(playlist.Id));
+        Add("Edit playlist", "", () => _ = ShowEditPlaylistDialogAsync(playlist.Id));
+        menu.Items.Add(new MenuFlyoutSeparator());
+        Add("Putar setelah ini", "", () => _ = PlaylistQueueAsync(playlist.Id, playNext: true));
+        Add("Tambahkan ke antrean", "", () => _ = PlaylistQueueAsync(playlist.Id, playNext: false));
+        menu.Items.Add(new MenuFlyoutSeparator());
+        Add("Bagikan", "", () =>
+        {
+            if (Core.Services.Sharing.ShareUrlBuilder.TryCreate(playlist) is { } target)
+            {
+                Sharing.ShareInvoker.TryShow(this, target);
+            }
+        });
+        Add("Hapus playlist", "", () => _ = DeletePlaylistWithConfirmAsync(playlist));
+
+        return menu;
+    }
+
+    private async Task PlaylistActionAsync(string playlistId, bool shuffle)
+    {
+        var client = App.Current.Services.GetService<IYTMusicClient>();
+        if (client is null || _player is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var detail = await client.GetPlaylistAsync(playlistId);
+            var tracks = detail.Tracks.ToList();
+            if (shuffle)
+            {
+                // Deterministic-enough client shuffle for "Putar acak".
+                var rng = new Random();
+                tracks = [.. tracks.OrderBy(_ => rng.Next())];
+            }
+
+            if (tracks.Count > 0)
+            {
+                await _player.PlayCollectionAsync(tracks, startIndex: 0);
+            }
+        }
+        catch (Exception ex)
+        {
+            App.Current.Services.GetService<Notifications.IInAppNotifier>()?.Show($"Gagal memutar: {ex.Message}");
+        }
+    }
+
+    private async Task PlaylistMixAsync(string playlistId)
+    {
+        var client = App.Current.Services.GetService<IYTMusicClient>();
+        if (client is null || _player is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var mix = await client.GetMixQueueAsync(playlistId);
+            if (mix.Songs.Count > 0)
+            {
+                await _player.PlayCollectionAsync(mix.Songs, startIndex: 0);
+            }
+            else
+            {
+                App.Current.Services.GetService<Notifications.IInAppNotifier>()?.Show("Mix belum tersedia untuk playlist ini.");
+            }
+        }
+        catch (Exception ex)
+        {
+            App.Current.Services.GetService<Notifications.IInAppNotifier>()?.Show($"Gagal memulai mix: {ex.Message}");
+        }
+    }
+
+    private async Task PlaylistQueueAsync(string playlistId, bool playNext)
+    {
+        var client = App.Current.Services.GetService<IYTMusicClient>();
+        var queue = App.Current.Services.GetService<Core.Services.Player.IQueueService>();
+        if (client is null || queue is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var detail = await client.GetPlaylistAsync(playlistId);
+            var added = playNext ? queue.InsertNext(detail.Tracks) : queue.AppendDeduplicated(detail.Tracks);
+            App.Current.Services.GetService<Notifications.IInAppNotifier>()?.Show(
+                added == 0 ? "Semua lagu sudah ada di antrean." : $"{added} lagu {(playNext ? "diputar setelah ini" : "ditambahkan ke antrean")}.");
+        }
+        catch (Exception ex)
+        {
+            App.Current.Services.GetService<Notifications.IInAppNotifier>()?.Show($"Gagal: {ex.Message}");
+        }
+    }
+
+    private async Task DeletePlaylistWithConfirmAsync(Playlist playlist)
+    {
+        var confirm = new ContentDialog
+        {
+            Title = "Hapus playlist",
+            Content = $"Hapus \"{playlist.Title}\" secara permanen?",
+            PrimaryButtonText = "Hapus",
+            CloseButtonText = "Batal",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = RootGrid.XamlRoot,
+        };
+
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        try
+        {
+            var client = App.Current.Services.GetService<IYTMusicClient>();
+            if (client is null)
+            {
+                return;
+            }
+
+            await client.DeletePlaylistAsync(playlist.Id);
+            App.Current.Services.GetService<Notifications.IInAppNotifier>()?.Show($"\"{playlist.Title}\" dihapus.");
+            _ = LoadSidebarPlaylistsAsync();
+        }
+        catch (Exception ex)
+        {
+            App.Current.Services.GetService<Notifications.IInAppNotifier>()?.Show($"Gagal menghapus: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// "Edit playlist" dialog with UMUM / KOLABORASI tabs (mirrors YT Music): title, description,
+    /// privacy (persisted via the edit API); voting + collaboration are UI-only until an API exists.
+    /// </summary>
+    internal async Task ShowEditPlaylistDialogAsync(string playlistId)
+    {
+        var client = App.Current.Services.GetService<IYTMusicClient>();
+        if (client is null)
+        {
+            return;
+        }
+
+        string currentTitle = "";
+        string currentDescription = "";
+        try
+        {
+            var detail = await client.GetPlaylistAsync(playlistId);
+            currentTitle = detail.Playlist.Title;
+            currentDescription = detail.Playlist.Description ?? "";
+        }
+        catch (Exception)
+        {
+            // Editable fields simply start blank when the lookup fails.
+        }
+
+        var titleBox = new TextBox { Header = "Judul", Text = currentTitle };
+        var descriptionBox = new TextBox { Header = "Deskripsi", Text = currentDescription, AcceptsReturn = true };
+
+        static ComboBoxItem TwoLine(string name, string description, object? tag = null)
+        {
+            var panel = new StackPanel();
+            panel.Children.Add(new TextBlock { Text = name, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+            panel.Children.Add(new TextBlock { Text = description, FontSize = 12, Opacity = 0.7 });
+            return new ComboBoxItem { Content = panel, Tag = tag };
+        }
+
+        var privacyBox = new ComboBox { Header = "Privasi", HorizontalAlignment = HorizontalAlignment.Stretch };
+        privacyBox.Items.Add(TwoLine("Publik", "Dapat ditemukan dan dilihat siapa pun", PlaylistPrivacy.Public));
+        privacyBox.Items.Add(TwoLine("Tidak publik", "Hanya dapat dilihat orang yang tahu linknya", PlaylistPrivacy.Unlisted));
+        privacyBox.Items.Add(TwoLine("Pribadi", "Hanya dapat dilihat oleh Anda", PlaylistPrivacy.Private));
+
+        var votingBox = new ComboBox { Header = "Pemungutan suara", HorizontalAlignment = HorizontalAlignment.Stretch };
+        votingBox.Items.Add(TwoLine("Semua orang", "Semua orang dapat memberikan suara"));
+        votingBox.Items.Add(TwoLine("Khusus kolaborator", "Hanya kolaborator yang dapat memberikan suara"));
+        votingBox.Items.Add(TwoLine("Pemungutan suara nonaktif", "Tidak ada yang dapat memberikan suara"));
+        votingBox.SelectedIndex = 2;
+
+        string? pickedCoverPath = null;
+        var editCoverButton = MakeCoverPicker(PlaylistCoverStore.Get(playlistId), path => pickedCoverPath = path);
+
+        var umum = new StackPanel { Spacing = 12 };
+        umum.Children.Add(editCoverButton);
+        umum.Children.Add(titleBox);
+        umum.Children.Add(descriptionBox);
+        umum.Children.Add(privacyBox);
+        umum.Children.Add(votingBox);
+
+        var collabSwitch = new ToggleSwitch { Header = "Kolaborasi", OffContent = "Nonaktif", OnContent = "Kolaborator dapat menambahkan video" };
+        var copyLink = new Button { Content = "Salin link undangan" };
+        copyLink.Click += (_, _) =>
+        {
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText($"https://music.youtube.com/playlist?list={playlistId.TrimStart('V', 'L')}&feature=share");
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+            App.Current.Services.GetService<Notifications.IInAppNotifier>()?.Show("Link undangan disalin.");
+        };
+        var kolaborasi = new StackPanel { Spacing = 12 };
+        kolaborasi.Children.Add(collabSwitch);
+        kolaborasi.Children.Add(copyLink);
+
+        // Pivot headers default to a huge font; use small semibold tab labels instead.
+        static TextBlock Tab(string text) => new()
+        {
+            Text = text,
+            FontSize = 14,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        };
+
+        var pivot = new Pivot { MinWidth = 400 };
+        pivot.Items.Add(new PivotItem { Header = Tab("UMUM"), Content = umum });
+        pivot.Items.Add(new PivotItem { Header = Tab("KOLABORASI"), Content = kolaborasi });
+
+        var dialog = new ContentDialog
+        {
+            Title = string.IsNullOrEmpty(currentTitle) ? "Edit playlist" : currentTitle,
+            Content = pivot,
+            PrimaryButtonText = "Simpan",
+            CloseButtonText = "Batal",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = RootGrid.XamlRoot,
+        };
+
+        titleBox.TextChanged += (_, _) => dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(titleBox.Text);
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(titleBox.Text))
+        {
+            return;
+        }
+
+        try
+        {
+            var privacy = (privacyBox.SelectedItem as ComboBoxItem)?.Tag as PlaylistPrivacy?;
+            await client.EditPlaylistMetadataAsync(playlistId, titleBox.Text.Trim(), descriptionBox.Text, privacy);
+            if (pickedCoverPath is not null)
+            {
+                PlaylistCoverStore.Set(playlistId, pickedCoverPath);
+            }
+
+            App.Current.Services.GetService<Notifications.IInAppNotifier>()?.Show("Playlist diperbarui.");
+            _ = LoadSidebarPlaylistsAsync();
+        }
+        catch (Exception ex)
+        {
+            App.Current.Services.GetService<Notifications.IInAppNotifier>()?.Show($"Gagal menyimpan: {ex.Message}");
+        }
+    }
+
+    /// <summary>The inline "+" on the Playlists header row opens the create dialog (and suppresses
+    /// the row's expand toggle for this click, which also fires ItemInvoked).</summary>
+    private void OnNewPlaylistClick(object sender, RoutedEventArgs e)
+    {
+        _suppressPlaylistsToggleOnce = true;
+        _ = ShowCreatePlaylistDialogAsync();
+    }
+
+    /// <summary>
+    /// "Playlist baru" dialog (judul + deskripsi + privasi + kolaborasi), creating via the API and
+    /// refreshing the sidebar tree; when collaboration is on the Kolaborasi dialog follows.
+    /// </summary>
+    private async Task ShowCreatePlaylistDialogAsync()
+    {
+        var titleBox = new TextBox { Header = "Judul", PlaceholderText = "Judul playlist" };
+        var descriptionBox = new TextBox { Header = "Deskripsi", PlaceholderText = "Deskripsi (opsional)", AcceptsReturn = true };
+
+        // Cover picker (stored locally — no cover-upload endpoint has been found in InnerTube).
+        string? pickedCoverPath = null;
+        var coverButton = MakeCoverPicker(existingCoverPath: null, path => pickedCoverPath = path);
+
+        static ComboBoxItem PrivacyOption(string name, string description, PlaylistPrivacy value)
+        {
+            var panel = new StackPanel();
+            panel.Children.Add(new TextBlock { Text = name, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+            panel.Children.Add(new TextBlock { Text = description, FontSize = 12, Opacity = 0.7 });
+            return new ComboBoxItem { Content = panel, Tag = value };
+        }
+
+        var privacyBox = new ComboBox
+        {
+            Header = "Privasi",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        privacyBox.Items.Add(PrivacyOption("Publik", "Dapat ditemukan dan dilihat siapa pun", PlaylistPrivacy.Public));
+        privacyBox.Items.Add(PrivacyOption("Tidak publik", "Hanya dapat dilihat orang yang tahu linknya", PlaylistPrivacy.Unlisted));
+        privacyBox.Items.Add(PrivacyOption("Pribadi", "Hanya dapat dilihat oleh Anda", PlaylistPrivacy.Private));
+        privacyBox.SelectedIndex = 2;
+
+        var collabSwitch = new ToggleSwitch { Header = "Kolaborasi", OffContent = "Nonaktif", OnContent = "Aktif" };
+
+        var panelRoot = new StackPanel { MinWidth = 380, Spacing = 12 };
+        panelRoot.Children.Add(coverButton);
+        panelRoot.Children.Add(titleBox);
+        panelRoot.Children.Add(descriptionBox);
+        panelRoot.Children.Add(privacyBox);
+        panelRoot.Children.Add(collabSwitch);
+
+        var dialog = new ContentDialog
+        {
+            Title = "Playlist baru",
+            Content = panelRoot,
+            PrimaryButtonText = "Buat",
+            CloseButtonText = "Batal",
+            DefaultButton = ContentDialogButton.Primary,
+            IsPrimaryButtonEnabled = false, // judul wajib diisi
+            XamlRoot = RootGrid.XamlRoot,
+        };
+
+        titleBox.TextChanged += (_, _) => dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(titleBox.Text);
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(titleBox.Text))
+        {
+            return;
+        }
+
+        var client = App.Current.Services.GetService<IYTMusicClient>();
+        if (client is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var privacy = (privacyBox.SelectedItem as ComboBoxItem)?.Tag is PlaylistPrivacy p ? p : PlaylistPrivacy.Private;
+            var playlistId = await client.CreatePlaylistAsync(
+                titleBox.Text.Trim(),
+                string.IsNullOrWhiteSpace(descriptionBox.Text) ? null : descriptionBox.Text.Trim(),
+                privacy,
+                videoIds: null);
+
+            if (pickedCoverPath is not null)
+            {
+                PlaylistCoverStore.Set(playlistId, pickedCoverPath);
+            }
+
+            App.Current.Services.GetService<Notifications.IInAppNotifier>()?.Show($"Playlist \"{titleBox.Text.Trim()}\" dibuat.");
+            _ = LoadSidebarPlaylistsAsync();
+
+            if (collabSwitch.IsOn)
+            {
+                await ShowCollaborationDialogAsync(playlistId);
+            }
+        }
+        catch (Core.Errors.KasetError ex)
+        {
+            App.Current.Services.GetService<Notifications.IInAppNotifier>()?.Show($"Gagal membuat playlist: {ex.Message}");
+        }
+    }
+
+    /// <summary>Kolaborasi dialog: collaboration switches + invite-link copy + the owner row.</summary>
+    private async Task ShowCollaborationDialogAsync(string playlistId)
+    {
+        var collabSwitch = new ToggleSwitch { Header = "Kolaborasi", IsOn = true, OnContent = "Kolaborator dapat menambahkan video", OffContent = "Nonaktif" };
+        var newCollabSwitch = new ToggleSwitch { Header = "Izinkan kolaborator baru", IsOn = true, OnContent = "Aktif", OffContent = "Nonaktif" };
+
+        var copyButton = new Button { Content = "Salin link undangan" };
+        copyButton.Click += (_, _) =>
+        {
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText($"https://music.youtube.com/playlist?list={playlistId.TrimStart('V', 'L')}&feature=share");
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+            App.Current.Services.GetService<Notifications.IInAppNotifier>()?.Show("Link undangan disalin.");
+        };
+
+        var owner = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        owner.Children.Add(new PersonPicture
+        {
+            Width = 36,
+            Height = 36,
+            DisplayName = _currentAccount?.Name,
+            ProfilePicture = _currentAccount?.AvatarUrl is { } avatarUrl ? new BitmapImage(avatarUrl) : null,
+        });
+        var ownerText = new StackPanel();
+        ownerText.Children.Add(new TextBlock { Text = _currentAccount?.Name ?? "Akun", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        ownerText.Children.Add(new TextBlock { Text = "Pemilik", FontSize = 12, Opacity = 0.7 });
+        owner.Children.Add(ownerText);
+
+        var panel = new StackPanel { MinWidth = 380, Spacing = 12 };
+        panel.Children.Add(collabSwitch);
+        panel.Children.Add(newCollabSwitch);
+        panel.Children.Add(copyButton);
+        panel.Children.Add(owner);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Catatan: sinkronisasi setelan kolaborasi ke server belum tersedia; link undangan sudah bisa dibagikan.",
+            FontSize = 12,
+            Opacity = 0.6,
+            TextWrapping = TextWrapping.Wrap,
+        });
+
+        var dialog = new ContentDialog
+        {
+            Title = "Kolaborasi",
+            Content = panel,
+            CloseButtonText = "Tutup",
+            XamlRoot = RootGrid.XamlRoot,
+        };
+
+        await dialog.ShowAsync();
     }
 
     /// <summary>
@@ -397,6 +1257,14 @@ public sealed partial class MainWindow : Window
     {
         var auth = App.Current.Services.GetService<IAuthService>();
         var signedIn = auth is { State: AuthState.LoggedIn };
+
+        // The sidebar playlists tree needs an authenticated session; (re)load it whenever the auth
+        // state resolves to signed-in (the constructor-time attempt runs before auth is ready).
+        // Marshalled to the UI thread: the API client's WebView2 cookie source is thread-affine.
+        if (signedIn)
+        {
+            DispatcherQueue.TryEnqueue(() => _ = LoadSidebarPlaylistsAsync());
+        }
 
         void Apply()
         {

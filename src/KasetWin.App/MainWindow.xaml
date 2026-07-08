@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:KasetWin.App.Controls"
+    xmlns:core="using:KasetWin.Core.Models"
     Title="Kaset">
 
     <!-- Native Windows 11 Fluent shell: Mica backdrop behind the whole window (Req 1.4 shell). -->
@@ -38,9 +39,16 @@
             Message="Connectivity is unavailable. Some features may not work until you're back online."
             Severity="Warning" />
 
+        <!-- Row 1: main content (NavigationView) + the docked right-hand now-playing side panel. -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="SidePanelColumn" Width="0" />
+            </Grid.ColumnDefinitions>
+
         <NavigationView
             x:Name="NavView"
-            Grid.Row="1"
+            Grid.Column="0"
             IsBackButtonVisible="Auto"
             IsBackEnabled="False"
             IsSettingsVisible="True"
@@ -52,15 +60,99 @@
                 Source toggle (ADR 0020 equivalent): switches the sidebar between the YouTube Music
                 surfaces and the regular YouTube surfaces, showing only the active source's items.
             -->
-            <NavigationView.PaneHeader>
-                <SelectorBar
-                    x:Name="SourceSelector"
-                    Margin="4,8,4,0"
-                    SelectionChanged="OnSourceSelectionChanged">
-                    <SelectorBarItem x:Name="MusicSourceItem" Text="Music" />
-                    <SelectorBarItem x:Name="YouTubeSourceItem" Text="YouTube" />
-                </SelectorBar>
-            </NavigationView.PaneHeader>
+            <!-- Sidebar search (top of pane): search-as-you-type with rich YT Music suggestions. -->
+            <NavigationView.AutoSuggestBox>
+                <AutoSuggestBox
+                    x:Name="SidebarSearchBox"
+                    PlaceholderText="Search"
+                    QueryIcon="Find"
+                    QuerySubmitted="OnSidebarSearchQuerySubmitted"
+                    TextChanged="OnSidebarSearchTextChanged"
+                    TextMemberPath="Query">
+                    <AutoSuggestBox.ItemTemplate>
+                        <!-- Classic {Binding}: x:Bind is unsupported in Window-level templates. -->
+                        <DataTemplate>
+                            <Grid Padding="0,4" ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <FontIcon
+                                    Grid.Column="0"
+                                    FontSize="14"
+                                    Glyph="&#xE81C;"
+                                    Opacity="0.6"
+                                    Visibility="{Binding IsHistory, Converter={StaticResource GlobalBoolToVisibility}}" />
+                                <Border
+                                    Grid.Column="0"
+                                    Width="32"
+                                    Height="32"
+                                    VerticalAlignment="Center"
+                                    CornerRadius="4"
+                                    Visibility="{Binding IsRich, Converter={StaticResource GlobalBoolToVisibility}}">
+                                    <Image Source="{Binding ThumbnailUrl, Converter={StaticResource GlobalUriToImageSource}}" Stretch="UniformToFill" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock
+                                        MaxLines="1"
+                                        Text="{Binding Query}"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        MaxLines="1"
+                                        Opacity="0.65"
+                                        Text="{Binding Subtitle}"
+                                        TextTrimming="CharacterEllipsis"
+                                        Visibility="{Binding HasSubtitle, Converter={StaticResource GlobalBoolToVisibility}}" />
+                                </StackPanel>
+                                <!-- Delete this entry from the local search history. -->
+                                <Button
+                                    Grid.Column="2"
+                                    Padding="4"
+                                    VerticalAlignment="Center"
+                                    Click="OnDeleteHistoryClick"
+                                    Style="{StaticResource SubtleButtonStyle}"
+                                    ToolTipService.ToolTip="Hapus dari riwayat"
+                                    Visibility="{Binding IsHistory, Converter={StaticResource GlobalBoolToVisibility}}">
+                                    <FontIcon FontSize="12" Glyph="&#xE711;" />
+                                </Button>
+                            </Grid>
+                        </DataTemplate>
+                    </AutoSuggestBox.ItemTemplate>
+                </AutoSuggestBox>
+            </NavigationView.AutoSuggestBox>
+
+            <!-- Source toggle lives at the BOTTOM of the pane (above the account footer), native
+                 SelectorBar styling. -->
+            <NavigationView.PaneFooter>
+                <!-- Segmented pill (per the reference shot), native SelectorBar inside. -->
+                <Border
+                    Margin="8,0,8,8"
+                    Padding="4"
+                    HorizontalAlignment="Center"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    CornerRadius="18">
+                    <SelectorBar x:Name="SourceSelector" SelectionChanged="OnSourceSelectionChanged">
+                        <SelectorBarItem
+                            x:Name="MusicSourceItem"
+                            CornerRadius="14"
+                            Text="Music">
+                            <SelectorBarItem.Icon>
+                                <FontIcon FontSize="14" Glyph="&#xE8D6;" />
+                            </SelectorBarItem.Icon>
+                        </SelectorBarItem>
+                        <SelectorBarItem
+                            x:Name="YouTubeSourceItem"
+                            CornerRadius="14"
+                            Text="YouTube">
+                            <SelectorBarItem.Icon>
+                                <FontIcon FontSize="14" Glyph="&#xE714;" />
+                            </SelectorBarItem.Icon>
+                        </SelectorBarItem>
+                    </SelectorBar>
+                </Border>
+            </NavigationView.PaneFooter>
             <NavigationView.MenuItems>
                 <NavigationViewItem Content="Home" Tag="Home">
                     <NavigationViewItem.Icon>
@@ -70,11 +162,6 @@
                 <NavigationViewItem Content="Explore" Tag="Explore">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE909;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="Search" Tag="Search">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE721;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Library" Tag="Library">
@@ -91,11 +178,39 @@
                 <NavigationViewItem
                     x:Name="PodcastsItem"
                     Content="Podcasts"
-                    Tag="Podcasts"
-                    Visibility="Collapsed">
+                    Tag="Podcasts">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE95A;" />
                     </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <!-- Expandable playlists tree, last in the music section. The header row carries an
+                     inline "+" (new playlist); children are populated from the library in code. -->
+                <NavigationViewItem
+                    x:Name="PlaylistsNavItem"
+                    SelectsOnInvoked="False"
+                    Tag="PlaylistsRoot">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE90B;" />
+                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Content>
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center" Text="Playlists" />
+                            <Button
+                                Grid.Column="1"
+                                Padding="4"
+                                VerticalAlignment="Center"
+                                Click="OnNewPlaylistClick"
+                                Style="{StaticResource SubtleButtonStyle}"
+                                ToolTipService.ToolTip="Playlist baru">
+                                <FontIcon FontSize="12" Glyph="&#xE710;" />
+                            </Button>
+                        </Grid>
+                    </NavigationViewItem.Content>
                 </NavigationViewItem>
 
                 <!-- YouTube (full mode) section (Req 32.1/32.4). Shown only when the YouTube source
@@ -148,6 +263,12 @@
             <Frame x:Name="ContentFrame" />
         </NavigationView>
 
+            <controls:NowPlayingPanel
+                x:Name="SidePanel"
+                Grid.Column="1"
+                Visibility="Collapsed" />
+        </Grid>
+
         <controls:PlayerBar Grid.Row="2" />
 
         <!--
@@ -161,5 +282,18 @@
             Grid.Row="1"
             IsLightDismissEnabled="True"
             PreferredPlacement="Top" />
+
+        <!-- Global in-app notification: a native InfoBar anchored bottom-left, floating just above
+             the account footer. Plain messages auto-dismiss; actionable ones stay until the user
+             acts or closes them. Driven from the code-behind. -->
+        <InfoBar
+            x:Name="ToastBar"
+            Grid.Row="1"
+            Width="320"
+            Margin="0,0,0,12"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Bottom"
+            IsClosable="True"
+            IsOpen="False" />
     </Grid>
 </Window>
