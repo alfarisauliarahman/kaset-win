@@ -8,17 +8,19 @@
     xmlns:core="using:KasetWin.Core.Models"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
     mc:Ignorable="d">
 
     <Page.Resources>
         <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:DurationToTextConverter x:Key="DurationToText" />
 
-        <!-- Song row: thumbnail + title/artists; plays on click (Req 12.4). -->
+        <!-- Apple-Music-style compact song row (used inside the multi-column Songs grid). -->
         <DataTemplate x:Key="SongTemplate" x:DataType="core:Song">
             <Button
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Left"
+                Width="380"
+                HorizontalContentAlignment="Stretch"
                 Click="OnSongClick"
                 DataContext="{x:Bind}"
                 Style="{StaticResource SubtleButtonStyle}">
@@ -26,149 +28,153 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Border
-                        Width="40"
-                        Height="40"
+                        Width="44"
+                        Height="44"
                         CornerRadius="4">
                         <Image Source="{Binding ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
                     </Border>
                     <controls:TrackInfo Grid.Column="1" Song="{Binding}" />
+                    <TextBlock
+                        Grid.Column="2"
+                        VerticalAlignment="Center"
+                        Opacity="0.6"
+                        Text="{Binding Duration, Converter={StaticResource DurationToText}}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
                 </Grid>
             </Button>
         </DataTemplate>
 
-        <!-- Album row: navigate to AlbumPage on click. -->
-        <DataTemplate x:Key="AlbumTemplate" x:DataType="core:Album">
+        <!-- Album card (square art + title + artists), Apple-Music rail style. -->
+        <DataTemplate x:Key="AlbumCardTemplate" x:DataType="core:Album">
             <Button
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Left"
+                Width="176"
+                Padding="8"
                 Click="OnAlbumClick"
                 DataContext="{x:Bind}"
                 Style="{StaticResource SubtleButtonStyle}">
-                <Grid ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                <StackPanel Spacing="2">
                     <Border
-                        Width="40"
-                        Height="40"
-                        CornerRadius="4">
-                        <Image Source="{Binding ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
-                    </Border>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock
-                            MaxLines="1"
-                            Text="{Binding Title}"
-                            TextTrimming="CharacterEllipsis" />
-                        <TextBlock
-                            MaxLines="1"
-                            Opacity="0.7"
-                            Text="{Binding ArtistsDisplay}"
-                            TextTrimming="CharacterEllipsis"
-                            Style="{StaticResource CaptionTextBlockStyle}" />
-                    </StackPanel>
-                </Grid>
-            </Button>
-        </DataTemplate>
-
-        <!-- Artist row: circular thumbnail; navigate to ArtistPage on click. -->
-        <DataTemplate x:Key="ArtistTemplate" x:DataType="core:Artist">
-            <Button
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Left"
-                Click="OnArtistClick"
-                DataContext="{x:Bind}"
-                Style="{StaticResource SubtleButtonStyle}">
-                <Grid ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Border
-                        Width="40"
-                        Height="40"
-                        CornerRadius="20">
+                        Width="152"
+                        Height="152"
+                        Margin="0,0,0,4"
+                        CornerRadius="8">
                         <Image Source="{Binding ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
                     </Border>
                     <TextBlock
-                        Grid.Column="1"
-                        VerticalAlignment="Center"
+                        FontSize="15"
+                        MaxLines="2"
+                        Text="{Binding Title}"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="Wrap"
+                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock
+                        FontSize="13"
                         MaxLines="1"
-                        Text="{Binding Name}"
-                        TextTrimming="CharacterEllipsis" />
-                </Grid>
+                        Opacity="0.7"
+                        Text="{Binding ArtistsDisplay}"
+                        TextTrimming="CharacterEllipsis"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                </StackPanel>
             </Button>
         </DataTemplate>
 
-        <!-- Playlist row: navigate to PlaylistPage on click. -->
-        <DataTemplate x:Key="PlaylistTemplate" x:DataType="core:Playlist">
+        <!-- Artist card: big circular photo + centred name. -->
+        <DataTemplate x:Key="ArtistCardTemplate" x:DataType="core:Artist">
             <Button
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Left"
+                Width="150"
+                Padding="8"
+                Click="OnArtistClick"
+                DataContext="{x:Bind}"
+                Style="{StaticResource SubtleButtonStyle}">
+                <StackPanel Spacing="6">
+                    <Border
+                        Width="126"
+                        Height="126"
+                        HorizontalAlignment="Center"
+                        CornerRadius="63">
+                        <Image Source="{Binding ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                    </Border>
+                    <TextBlock
+                        FontSize="15"
+                        HorizontalAlignment="Center"
+                        MaxLines="2"
+                        Text="{Binding Name}"
+                        TextAlignment="Center"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="Wrap"
+                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                </StackPanel>
+            </Button>
+        </DataTemplate>
+
+        <!-- Playlist card. -->
+        <DataTemplate x:Key="PlaylistCardTemplate" x:DataType="core:Playlist">
+            <Button
+                Width="176"
+                Padding="8"
                 Click="OnPlaylistClick"
                 DataContext="{x:Bind}"
                 Style="{StaticResource SubtleButtonStyle}">
-                <Grid ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                <StackPanel Spacing="2">
                     <Border
-                        Width="40"
-                        Height="40"
-                        CornerRadius="4">
+                        Width="152"
+                        Height="152"
+                        Margin="0,0,0,4"
+                        CornerRadius="8">
                         <Image Source="{Binding ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
                     </Border>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock
-                            MaxLines="1"
-                            Text="{Binding Title}"
-                            TextTrimming="CharacterEllipsis" />
-                        <TextBlock
-                            MaxLines="1"
-                            Opacity="0.7"
-                            Text="{Binding Author.Name}"
-                            TextTrimming="CharacterEllipsis"
-                            Style="{StaticResource CaptionTextBlockStyle}" />
-                    </StackPanel>
-                </Grid>
+                    <TextBlock
+                        FontSize="15"
+                        MaxLines="2"
+                        Text="{Binding Title}"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="Wrap"
+                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock
+                        FontSize="13"
+                        MaxLines="1"
+                        Opacity="0.7"
+                        Text="{Binding Author.Name}"
+                        TextTrimming="CharacterEllipsis"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                </StackPanel>
             </Button>
         </DataTemplate>
 
-        <!-- Podcast-show row: navigate to PodcastShowPage on click. -->
-        <DataTemplate x:Key="PodcastTemplate" x:DataType="core:Playlist">
+        <!-- Podcast card. -->
+        <DataTemplate x:Key="PodcastCardTemplate" x:DataType="core:Playlist">
             <Button
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Left"
+                Width="176"
+                Padding="8"
                 Click="OnPodcastClick"
                 DataContext="{x:Bind}"
                 Style="{StaticResource SubtleButtonStyle}">
-                <Grid ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                <StackPanel Spacing="2">
                     <Border
-                        Width="40"
-                        Height="40"
-                        CornerRadius="4">
+                        Width="152"
+                        Height="152"
+                        Margin="0,0,0,4"
+                        CornerRadius="8">
                         <Image Source="{Binding ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
                     </Border>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock
-                            MaxLines="1"
-                            Text="{Binding Title}"
-                            TextTrimming="CharacterEllipsis" />
-                        <TextBlock
-                            MaxLines="1"
-                            Opacity="0.7"
-                            Text="{Binding Author.Name}"
-                            TextTrimming="CharacterEllipsis"
-                            Style="{StaticResource CaptionTextBlockStyle}" />
-                    </StackPanel>
-                </Grid>
+                    <TextBlock
+                        FontSize="15"
+                        MaxLines="2"
+                        Text="{Binding Title}"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="Wrap"
+                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock
+                        FontSize="13"
+                        MaxLines="1"
+                        Opacity="0.7"
+                        Text="{Binding Author.Name}"
+                        TextTrimming="CharacterEllipsis"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                </StackPanel>
             </Button>
         </DataTemplate>
     </Page.Resources>
@@ -192,7 +198,7 @@
             TextChanged="OnSearchTextChanged" />
 
         <ScrollViewer Grid.Row="1">
-            <StackPanel Spacing="20">
+            <StackPanel Spacing="24">
 
                 <ProgressRing
                     Margin="0,12"
@@ -205,68 +211,177 @@
                     Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
                     Severity="Error" />
 
-                <!-- Top Result (Req 12.1). -->
-                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasTopResult, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Top result" />
+                <!-- Top Results: a prominent Apple-Music-style card. -->
+                <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasTopResult, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Top Results" />
                     <Button
-                        HorizontalAlignment="Stretch"
+                        MaxWidth="480"
+                        Padding="12"
+                        HorizontalAlignment="Left"
                         HorizontalContentAlignment="Left"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
                         Click="OnTopResultClick"
-                        Style="{StaticResource SubtleButtonStyle}">
+                        CornerRadius="10">
                         <Grid ColumnSpacing="16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Border
-                                Width="72"
-                                Height="72"
-                                CornerRadius="6">
+                                Width="88"
+                                Height="88"
+                                CornerRadius="8">
                                 <Image Source="{x:Bind ViewModel.TopResultThumbnail, Mode=OneWay, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
                             </Border>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <StackPanel
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                Spacing="2">
                                 <TextBlock
+                                    FontSize="18"
                                     MaxLines="2"
                                     Text="{x:Bind ViewModel.TopResultTitle, Mode=OneWay}"
                                     TextTrimming="CharacterEllipsis"
-                                    Style="{StaticResource TitleTextBlockStyle}" />
+                                    Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <TextBlock
+                                    FontSize="13"
                                     Opacity="0.7"
                                     Text="{x:Bind ViewModel.TopResultSubtitle, Mode=OneWay}"
-                                    Style="{StaticResource BodyTextBlockStyle}" />
+                                    Style="{StaticResource CaptionTextBlockStyle}" />
                             </StackPanel>
                         </Grid>
                     </Button>
                 </StackPanel>
 
-                <!-- Songs (Req 12.1). -->
-                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasSongs, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Songs" />
-                    <ItemsRepeater ItemTemplate="{StaticResource SongTemplate}" ItemsSource="{x:Bind ViewModel.Songs, Mode=OneWay}" />
-                </StackPanel>
-
-                <!-- Albums. -->
-                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasAlbums, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Albums" />
-                    <ItemsRepeater ItemTemplate="{StaticResource AlbumTemplate}" ItemsSource="{x:Bind ViewModel.Albums, Mode=OneWay}" />
-                </StackPanel>
-
-                <!-- Artists. -->
-                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasArtists, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <!-- Artists: circular rail. -->
+                <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasArtists, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Artists" />
-                    <ItemsRepeater ItemTemplate="{StaticResource ArtistTemplate}" ItemsSource="{x:Bind ViewModel.Artists, Mode=OneWay}" />
+                    <ScrollViewer
+                        HorizontalScrollBarVisibility="Auto"
+                        HorizontalScrollMode="Enabled"
+                        VerticalScrollBarVisibility="Disabled"
+                        VerticalScrollMode="Disabled">
+                        <muxc:ItemsRepeater ItemTemplate="{StaticResource ArtistCardTemplate}" ItemsSource="{x:Bind ViewModel.Artists, Mode=OneWay}">
+                            <muxc:ItemsRepeater.Layout>
+                                <muxc:StackLayout Orientation="Horizontal" Spacing="12" />
+                            </muxc:ItemsRepeater.Layout>
+                        </muxc:ItemsRepeater>
+                    </ScrollViewer>
                 </StackPanel>
 
-                <!-- Playlists. -->
-                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasPlaylists, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <!-- Albums: card rail. -->
+                <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasAlbums, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Albums" />
+                    <ScrollViewer
+                        HorizontalScrollBarVisibility="Auto"
+                        HorizontalScrollMode="Enabled"
+                        VerticalScrollBarVisibility="Disabled"
+                        VerticalScrollMode="Disabled">
+                        <muxc:ItemsRepeater ItemTemplate="{StaticResource AlbumCardTemplate}" ItemsSource="{x:Bind ViewModel.Albums, Mode=OneWay}">
+                            <muxc:ItemsRepeater.Layout>
+                                <muxc:StackLayout Orientation="Horizontal" Spacing="12" />
+                            </muxc:ItemsRepeater.Layout>
+                        </muxc:ItemsRepeater>
+                    </ScrollViewer>
+                </StackPanel>
+
+                <!-- Songs: multi-column wrap grid (Apple-Music style). -->
+                <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasSongs, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Songs" />
+                    <muxc:ItemsRepeater ItemTemplate="{StaticResource SongTemplate}" ItemsSource="{x:Bind ViewModel.Songs, Mode=OneWay}">
+                        <muxc:ItemsRepeater.Layout>
+                            <muxc:UniformGridLayout
+                                MinColumnSpacing="16"
+                                MinItemHeight="60"
+                                MinItemWidth="380"
+                                MinRowSpacing="2"
+                                Orientation="Horizontal" />
+                        </muxc:ItemsRepeater.Layout>
+                    </muxc:ItemsRepeater>
+                </StackPanel>
+
+                <!-- Music Videos: wide 16:9 rail. -->
+                <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasMusicVideos, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Music Videos" />
+                    <ScrollViewer
+                        HorizontalScrollBarVisibility="Auto"
+                        HorizontalScrollMode="Enabled"
+                        VerticalScrollBarVisibility="Disabled"
+                        VerticalScrollMode="Disabled">
+                        <muxc:ItemsRepeater ItemsSource="{x:Bind ViewModel.MusicVideos, Mode=OneWay}">
+                            <muxc:ItemsRepeater.Layout>
+                                <muxc:StackLayout Orientation="Horizontal" Spacing="12" />
+                            </muxc:ItemsRepeater.Layout>
+                            <muxc:ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="core:Song">
+                                    <Button
+                                        Width="264"
+                                        Padding="8"
+                                        Click="OnSongClick"
+                                        DataContext="{x:Bind}"
+                                        Style="{StaticResource SubtleButtonStyle}">
+                                        <StackPanel Spacing="2">
+                                            <Border
+                                                Width="248"
+                                                Height="139"
+                                                Margin="0,0,0,4"
+                                                CornerRadius="8">
+                                                <Image Source="{Binding ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                                            </Border>
+                                            <TextBlock
+                                                FontSize="15"
+                                                MaxLines="2"
+                                                Text="{Binding Title}"
+                                                TextTrimming="CharacterEllipsis"
+                                                TextWrapping="Wrap"
+                                                Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                            <TextBlock
+                                                FontSize="13"
+                                                MaxLines="1"
+                                                Opacity="0.7"
+                                                Text="{Binding ArtistsDisplay}"
+                                                TextTrimming="CharacterEllipsis"
+                                                Style="{StaticResource CaptionTextBlockStyle}" />
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </muxc:ItemsRepeater.ItemTemplate>
+                        </muxc:ItemsRepeater>
+                    </ScrollViewer>
+                </StackPanel>
+
+                <!-- Playlists: card rail. -->
+                <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasPlaylists, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Playlists" />
-                    <ItemsRepeater ItemTemplate="{StaticResource PlaylistTemplate}" ItemsSource="{x:Bind ViewModel.Playlists, Mode=OneWay}" />
+                    <ScrollViewer
+                        HorizontalScrollBarVisibility="Auto"
+                        HorizontalScrollMode="Enabled"
+                        VerticalScrollBarVisibility="Disabled"
+                        VerticalScrollMode="Disabled">
+                        <muxc:ItemsRepeater ItemTemplate="{StaticResource PlaylistCardTemplate}" ItemsSource="{x:Bind ViewModel.Playlists, Mode=OneWay}">
+                            <muxc:ItemsRepeater.Layout>
+                                <muxc:StackLayout Orientation="Horizontal" Spacing="12" />
+                            </muxc:ItemsRepeater.Layout>
+                        </muxc:ItemsRepeater>
+                    </ScrollViewer>
                 </StackPanel>
 
-                <!-- Podcasts. -->
-                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasPodcasts, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <!-- Podcasts: card rail. -->
+                <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasPodcasts, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Podcasts" />
-                    <ItemsRepeater ItemTemplate="{StaticResource PodcastTemplate}" ItemsSource="{x:Bind ViewModel.Podcasts, Mode=OneWay}" />
+                    <ScrollViewer
+                        HorizontalScrollBarVisibility="Auto"
+                        HorizontalScrollMode="Enabled"
+                        VerticalScrollBarVisibility="Disabled"
+                        VerticalScrollMode="Disabled">
+                        <muxc:ItemsRepeater ItemTemplate="{StaticResource PodcastCardTemplate}" ItemsSource="{x:Bind ViewModel.Podcasts, Mode=OneWay}">
+                            <muxc:ItemsRepeater.Layout>
+                                <muxc:StackLayout Orientation="Horizontal" Spacing="12" />
+                            </muxc:ItemsRepeater.Layout>
+                        </muxc:ItemsRepeater>
+                    </ScrollViewer>
                 </StackPanel>
 
                 <!-- Empty state. -->

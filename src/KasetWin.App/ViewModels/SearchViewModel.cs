@@ -91,6 +91,17 @@ public sealed partial class SearchViewModel : ViewModelBase
     /// <summary>Podcast-show results (navigate on click).</summary>
     public ObservableCollection<Playlist> Podcasts { get; } = [];
 
+    /// <summary>Music-video results (wide 16:9 cards; play on click).</summary>
+    public ObservableCollection<Song> MusicVideos { get; } = [];
+
+    // ── Per-type filter params (ported from the macOS reference / ytmusicapi) ────────────────────
+    // Pattern: EgWKAQ (filtered) + type code + AWoMEA4QChADEAQQCRAF (no spelling correction).
+    private static readonly SearchFilter SongsFilter = new("Songs", "EgWKAQIIAWoMEA4QChADEAQQCRAF");
+    private static readonly SearchFilter VideosFilter = new("Videos", "EgWKAQIQAWoMEA4QChADEAQQCRAF");
+    private static readonly SearchFilter AlbumsFilter = new("Albums", "EgWKAQIYAWoMEA4QChADEAQQCRAF");
+    private static readonly SearchFilter ArtistsFilter = new("Artists", "EgWKAQIgAWoMEA4QChADEAQQCRAF");
+    private static readonly SearchFilter PlaylistsFilter = new("Playlists", "EgWKAQIoAWoMEA4QChADEAQQCRAF");
+
     // ── Derived display flags / values ───────────────────────────────────────────────────────────
 
     /// <summary>Whether a top result is present (section visibility).</summary>
@@ -111,9 +122,12 @@ public sealed partial class SearchViewModel : ViewModelBase
     /// <summary>Whether any podcast results exist (section visibility).</summary>
     public bool HasPodcasts => Podcasts.Count > 0;
 
+    /// <summary>Whether any music-video results exist (section visibility).</summary>
+    public bool HasMusicVideos => MusicVideos.Count > 0;
+
     /// <summary>Whether a completed search yielded nothing (empty-state visibility).</summary>
     public bool ShowNoResults =>
-        HasSearched && !HasTopResult && !HasSongs && !HasAlbums && !HasArtists && !HasPlaylists && !HasPodcasts;
+        HasSearched && !HasTopResult && !HasSongs && !HasAlbums && !HasArtists && !HasPlaylists && !HasPodcasts && !HasMusicVideos;
 
     /// <summary>Display title for the <see cref="TopResult"/> regardless of its concrete kind.</summary>
     public string TopResultTitle => TopResult switch
@@ -253,10 +267,28 @@ public sealed partial class SearchViewModel : ViewModelBase
         {
             await RunSafeAsync(async ct =>
             {
-                var response = await _client.SearchAsync(query, filter: null, ct).ConfigureAwait(true);
+                // Base (universal) search for the top result, then per-type filtered searches in
+                // parallel so every section carries a FULL list (the universal response only holds
+                // a few items per shelf).
+                var baseTask = _client.SearchAsync(query, filter: null, ct);
+                var songsTask = _client.SearchAsync(query, SongsFilter, ct);
+                var videosTask = _client.SearchAsync(query, VideosFilter, ct);
+                var albumsTask = _client.SearchAsync(query, AlbumsFilter, ct);
+                var artistsTask = _client.SearchAsync(query, ArtistsFilter, ct);
+                var playlistsTask = _client.SearchAsync(query, PlaylistsFilter, ct);
+
+                var response = await baseTask.ConfigureAwait(true);
                 ct.ThrowIfCancellationRequested();
                 ApplyResults(response);
                 HasSearched = true;
+
+                // Each deep list lands as it arrives; a failed filter keeps the base list.
+                await ApplyDeepAsync(songsTask, r => Replace(Songs, r.Songs), ct).ConfigureAwait(true);
+                await ApplyDeepAsync(videosTask, r => Replace(MusicVideos, r.Songs), ct).ConfigureAwait(true);
+                await ApplyDeepAsync(albumsTask, r => Replace(Albums, r.Albums), ct).ConfigureAwait(true);
+                await ApplyDeepAsync(artistsTask, r => Replace(Artists, r.Artists), ct).ConfigureAwait(true);
+                await ApplyDeepAsync(playlistsTask, r => Replace(Playlists, r.Playlists), ct).ConfigureAwait(true);
+                RaiseResultFlags();
             }, token).ConfigureAwait(true);
         }
         finally
@@ -280,6 +312,23 @@ public sealed partial class SearchViewModel : ViewModelBase
 
     // ── Result application ────────────────────────────────────────────────────────────────────────
 
+    /// <summary>Applies one per-type deep search; failures keep the base (universal) list.</summary>
+    private static async Task ApplyDeepAsync(Task<SearchResponse> task, Action<SearchResponse> apply, CancellationToken ct)
+    {
+        try
+        {
+            var response = await task.ConfigureAwait(true);
+            if (!ct.IsCancellationRequested)
+            {
+                apply(response);
+            }
+        }
+        catch (Exception)
+        {
+            // Best-effort enrichment only.
+        }
+    }
+
     private void ApplyResults(SearchResponse response)
     {
         TopResult = response.TopResult;
@@ -299,6 +348,7 @@ public sealed partial class SearchViewModel : ViewModelBase
         Artists.Clear();
         Playlists.Clear();
         Podcasts.Clear();
+        MusicVideos.Clear();
         RaiseResultFlags();
     }
 
@@ -309,6 +359,7 @@ public sealed partial class SearchViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasArtists));
         OnPropertyChanged(nameof(HasPlaylists));
         OnPropertyChanged(nameof(HasPodcasts));
+        OnPropertyChanged(nameof(HasMusicVideos));
         OnPropertyChanged(nameof(ShowNoResults));
     }
 

@@ -38,6 +38,19 @@ public sealed partial class SearchPage : Page
     /// <summary>The page ViewModel; bound from XAML via <c>x:Bind</c>.</summary>
     public SearchViewModel ViewModel { get; }
 
+    /// <inheritdoc />
+    protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+    {
+        base.OnNavigatedTo(e);
+
+        // A query handed off by the sidebar search box runs immediately.
+        if (e.Parameter is string query && !string.IsNullOrWhiteSpace(query))
+        {
+            SearchBox.Text = query;
+            _ = ViewModel.SearchImmediately(query);
+        }
+    }
+
     // â”€â”€ Query box (Req 12.2 / 12.3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
