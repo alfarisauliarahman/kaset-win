@@ -72,11 +72,12 @@ public sealed partial class TrackInfo : UserControl
         set => SetValue(LargeProperty, value);
     }
 
-    /// <summary>Font size for the title line (larger when <see cref="Large"/>).</summary>
-    public double TitleFontSize => Large ? 16 : 14;
+    /// <summary>Font size for the title line. In the player bar (<see cref="Large"/>) title and
+    /// artist share one size (only the weight differs); track rows keep the compact 14.</summary>
+    public double TitleFontSize => 14;
 
-    /// <summary>Font size for the artist/album line (larger when <see cref="Large"/>).</summary>
-    public double SubFontSize => Large ? 13 : 12;
+    /// <summary>Font size for the artist/album line (matches the title in the player bar).</summary>
+    public double SubFontSize => Large ? 14 : 12;
 
     /// <summary>Whether to use the scrolling marquee title (player bar only).</summary>
     public bool ShowMarqueeTitle => Large;

@@ -99,6 +99,10 @@ public abstract partial class SectionFeedViewModel : ViewModelBase
 
     private void AppendSections(HomeResponse response)
     {
+        // TEMP diag: log every shelf title YT returns so we can see whether "Shows for you" is
+        // actually in the response (server variance) or dropped by parsing/filtering.
+        KasetWin.Core.Diag.Write($"home sections: [{string.Join(" | ", response.Sections.Select(s => $"{s.Title}({s.Items.Count})"))}]");
+
         foreach (var section in response.Sections)
         {
             if (section.Items.Count == 0)

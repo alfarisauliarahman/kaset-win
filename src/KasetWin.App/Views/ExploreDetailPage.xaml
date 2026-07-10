@@ -205,8 +205,91 @@
             </StackPanel>
         </DataTemplate>
 
+        <!-- Top artists chart: numbered, column-major list (4 rows/column) with a circular photo,
+             coloured movement arrow, rank number and subscriber count (YT Music "Artis teratas"). -->
+        <DataTemplate x:Key="ArtistChartSectionTemplate" x:DataType="vm:HomeSectionView">
+            <StackPanel Margin="0,0,0,8" Spacing="12">
+                <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <ScrollViewer
+                    behaviors:VerticalWheelForwarder.IsEnabled="True"
+                    HorizontalScrollBarVisibility="Auto"
+                    HorizontalScrollMode="Enabled"
+                    VerticalScrollBarVisibility="Disabled"
+                    VerticalScrollMode="Disabled">
+                    <controls:ItemsRepeater ItemsSource="{x:Bind Items}">
+                        <controls:ItemsRepeater.Layout>
+                            <controls:UniformGridLayout
+                                MaximumRowsOrColumns="4"
+                                MinColumnSpacing="24"
+                                MinRowSpacing="6"
+                                Orientation="Vertical" />
+                        </controls:ItemsRepeater.Layout>
+                        <controls:ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HomeCardItem">
+                                <Grid
+                                    Width="440"
+                                    Height="64"
+                                    Padding="6,4"
+                                    Background="Transparent"
+                                    ColumnSpacing="10"
+                                    CornerRadius="8"
+                                    DataContext="{x:Bind}"
+                                    PointerEntered="OnChartCardEnter"
+                                    PointerExited="OnChartCardExit"
+                                    Tapped="OnItemClick">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="48" />
+                                        <ColumnDefinition Width="18" />
+                                        <ColumnDefinition Width="34" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border
+                                        Grid.Column="0"
+                                        Width="48"
+                                        Height="48"
+                                        VerticalAlignment="Center"
+                                        CornerRadius="24">
+                                        <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                                    </Border>
+                                    <FontIcon
+                                        Grid.Column="1"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontSize="12"
+                                        Foreground="{x:Bind TrendBrush}"
+                                        Glyph="{x:Bind TrendGlyph}"
+                                        Visibility="{x:Bind HasTrend, Converter={StaticResource BoolToVisibility}}" />
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontSize="20"
+                                        FontWeight="SemiBold"
+                                        Text="{x:Bind RankText}" />
+                                    <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                                        <TextBlock
+                                            MaxLines="1"
+                                            Text="{x:Bind Title}"
+                                            TextTrimming="CharacterEllipsis"
+                                            Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                        <TextBlock
+                                            MaxLines="1"
+                                            Opacity="0.7"
+                                            Text="{x:Bind Subtitle}"
+                                            TextTrimming="CharacterEllipsis"
+                                            Style="{StaticResource CaptionTextBlockStyle}" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </controls:ItemsRepeater.ItemTemplate>
+                    </controls:ItemsRepeater>
+                </ScrollViewer>
+            </StackPanel>
+        </DataTemplate>
+
         <views:HomeSectionTemplateSelector
             x:Key="SectionTemplateSelector"
+            ArtistChartTemplate="{StaticResource ArtistChartSectionTemplate}"
             ChartTemplate="{StaticResource SectionTemplate}"
             MoodTemplate="{StaticResource MoodSectionTemplate}"
             ShelfTemplate="{StaticResource SectionTemplate}"

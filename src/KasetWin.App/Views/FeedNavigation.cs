@@ -27,6 +27,7 @@ internal static class FeedNavigation
     private const string AlbumPageTypeName = "KasetWin.App.Views.AlbumPage";
     private const string PlaylistPageTypeName = "KasetWin.App.Views.PlaylistPage";
     private const string ArtistPageTypeName = "KasetWin.App.Views.ArtistPage";
+    private const string PodcastShowPageTypeName = "KasetWin.App.Views.PodcastShowPage";
 
     /// <summary>
     /// Activates <paramref name="item"/> from within <paramref name="frame"/>: plays a song or
@@ -57,6 +58,12 @@ internal static class FeedNavigation
                     frame?.Navigate(
                         typeof(ExploreDetailPage),
                         new ExploreDestination(playlist.Pl.Id, playlist.Pl.Title));
+                }
+                else if (playlist.Pl.Id.StartsWith("MPSPP", StringComparison.Ordinal))
+                {
+                    // Podcast shows are surfaced as playlist items but have their own detail page
+                    // (episodes, not music tracks) — route by the MPSPP show-id prefix.
+                    NavigateToDetail(frame, PodcastShowPageTypeName, playlist.Pl.Id);
                 }
                 else
                 {

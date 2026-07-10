@@ -106,6 +106,22 @@ public sealed partial class HomePage : Page
 
     // ── Card Play overlay (Feature A) ────────────────────────────────────────────────────────────
 
+    private void OnChartCardEnter(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (sender is Grid g)
+        {
+            g.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"];
+        }
+    }
+
+    private void OnChartCardExit(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (sender is Grid g)
+        {
+            g.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        }
+    }
+
     private void OnCardPointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) =>
         CardPlayOverlay.OnPointerEntered(sender);
 

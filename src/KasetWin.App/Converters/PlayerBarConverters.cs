@@ -153,6 +153,33 @@ public sealed partial class BoolToVisibilityConverter : IValueConverter
 }
 
 /// <summary>
+/// Maps the current <see cref="Song"/> to the player-bar cover dimension, adapting the aspect to
+/// what is playing: a music video (OMV) gets a 16:9 cover, everything else a square one. The
+/// converter parameter selects the axis — <c>"w"</c> (width) or <c>"h"</c> (height).
+/// </summary>
+public sealed partial class CoverDimensionConverter : IValueConverter
+{
+    private const double CoverHeight = 34;
+
+    /// <inheritdoc />
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        var isVideo = value is Song { VideoType: MusicVideoType.Omv };
+        var wantWidth = string.Equals(parameter as string, "w", StringComparison.OrdinalIgnoreCase);
+        if (!wantWidth)
+        {
+            return CoverHeight;
+        }
+
+        return isVideo ? CoverHeight * 16.0 / 9.0 : CoverHeight;
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object value, Type targetType, object parameter, string language) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
 /// Maps a track's <see cref="KasetWin.Core.Models.LikeStatus"/> to the like/dislike glyph, swapping
 /// the outline thumb for the SOLID (filled) thumb when this button's rating is active, so a liked
 /// track reads as a filled icon rather than just a brighter outline. The converter parameter selects

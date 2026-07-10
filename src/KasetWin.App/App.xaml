@@ -42,6 +42,17 @@
                 <Setter Property="HorizontalAlignment" Value="Left" />
                 <Setter Property="HorizontalContentAlignment" Value="Left" />
             </Style>
+
+            <!--
+                Segmented source-toggle button (Music / YouTube pill in the pane footer). Overrides the
+                default ToggleButton theme brushes so the CHECKED (active) segment fills with the system
+                accent + white text (a clear highlight), while the unchecked segment is transparent so
+                the surrounding pill shows through. Rounded via CornerRadius set on each button.
+            -->
+            <Style x:Key="SourceToggleButtonStyle" TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}">
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

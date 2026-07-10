@@ -55,6 +55,17 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         _window = new MainWindow();
+        // Apply the saved light/dark theme before showing the window (no flash of the wrong theme).
+        ThemeManager.Apply();
+
+        // Apply the saved preferred lyrics provider at startup (else it only takes effect once the
+        // Settings page is opened).
+        if (Services.GetService(typeof(Core.Services.Lyrics.ILyricsService)) is Core.Services.Lyrics.ILyricsService lyrics
+            && Windows.Storage.ApplicationData.Current.LocalSettings.Values["lyrics.provider"] as string is { Length: > 0 } provider)
+        {
+            lyrics.PreferredProvider = provider;
+        }
+
         _window.Activate();
 
         // Handle protocol activations that arrive while this instance is already running

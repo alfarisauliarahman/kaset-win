@@ -6,6 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:KasetWin.Core.Models"
+    xmlns:vm="using:KasetWin.App.ViewModels"
     mc:Ignorable="d">
 
     <Page.Resources>
@@ -61,6 +62,29 @@
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
+                </Grid>
+            </Border>
+
+            <!-- Appearance: light/dark theme -->
+            <Border Style="{StaticResource SettingsCardStyle}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="Tema" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock
+                            Opacity="0.7"
+                            Text="Terang, gelap, atau ikuti tema Windows."
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                    <ComboBox
+                        Grid.Column="1"
+                        MinWidth="180"
+                        VerticalAlignment="Center"
+                        ItemsSource="{x:Bind ViewModel.ThemeOptions}"
+                        SelectedIndex="{x:Bind ViewModel.SelectedThemeIndex, Mode=TwoWay}" />
                 </Grid>
             </Border>
 
@@ -150,6 +174,29 @@
                 Style="{StaticResource BodyStrongTextBlockStyle}"
                 Text="Lyrics" />
 
+            <!-- Lyrics provider (source) -->
+            <Border Style="{StaticResource SettingsCardStyle}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="Sumber lirik" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock
+                            Opacity="0.7"
+                            Text="Pilih penyedia lirik yang diutamakan. NetEase bagus untuk lagu Asia/K-pop."
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                    <ComboBox
+                        Grid.Column="1"
+                        MinWidth="200"
+                        VerticalAlignment="Center"
+                        ItemsSource="{x:Bind ViewModel.LyricsProviderOptions}"
+                        SelectedIndex="{x:Bind ViewModel.SelectedLyricsProviderIndex, Mode=TwoWay}" />
+                </Grid>
+            </Border>
+
             <!-- Synced lyrics enabled (Req 18.3) -->
             <Border Style="{StaticResource SettingsCardStyle}">
                 <Grid ColumnSpacing="16">
@@ -169,6 +216,87 @@
                         VerticalAlignment="Center"
                         IsOn="{x:Bind ViewModel.SyncedLyricsEnabled, Mode=TwoWay}" />
                 </Grid>
+            </Border>
+
+            <!-- ── Equalizer ─────────────────────────────────────────── -->
+            <TextBlock
+                Margin="0,8,0,0"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="Equalizer" />
+
+            <Border Style="{StaticResource SettingsCardStyle}">
+                <StackPanel Spacing="16">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <TextBlock VerticalAlignment="Center" Text="Preset" />
+                            <ComboBox
+                                MinWidth="150"
+                                ItemsSource="{x:Bind ViewModel.EqPresets}"
+                                SelectedItem="{x:Bind ViewModel.SelectedEqPreset, Mode=TwoWay}" />
+                        </StackPanel>
+                        <ToggleSwitch
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            IsOn="{x:Bind ViewModel.IsEqualizerEnabled, Mode=TwoWay}" />
+                    </Grid>
+
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel VerticalAlignment="Top" Opacity="0.55">
+                            <TextBlock Height="30" FontSize="11" Text="+12 dB" />
+                            <TextBlock Height="30" FontSize="11" Text="+6 dB" />
+                            <TextBlock Height="30" FontSize="11" Text="0 dB" />
+                            <TextBlock Height="30" FontSize="11" Text="-6 dB" />
+                            <TextBlock FontSize="11" Text="-12 dB" />
+                        </StackPanel>
+
+                        <ItemsControl Grid.Column="1" ItemsSource="{x:Bind ViewModel.Bands}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel HorizontalAlignment="Stretch" Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel
+                                        Width="52"
+                                        HorizontalAlignment="Center"
+                                        Spacing="4">
+                                        <Slider
+                                            Height="150"
+                                            HorizontalAlignment="Center"
+                                            Maximum="12"
+                                            Minimum="-12"
+                                            Orientation="Vertical"
+                                            StepFrequency="1"
+                                            Value="{Binding Gain, Mode=TwoWay}" />
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            FontSize="11"
+                                            Opacity="0.7"
+                                            Text="{Binding Label}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+
+                    <CheckBox
+                        Content="Move nearby sliders together"
+                        IsChecked="{x:Bind ViewModel.LinkNearbyBands, Mode=TwoWay}" />
+                </StackPanel>
             </Border>
 
             <!-- ── Extensions / Adblock ──────────────────────────────── -->

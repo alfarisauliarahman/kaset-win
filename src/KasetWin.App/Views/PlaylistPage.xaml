@@ -14,6 +14,9 @@
         <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
         <converters:DurationToTextConverter x:Key="DurationToText" />
+        <converters:TrendToGlyphConverter x:Key="TrendToGlyph" />
+        <converters:TrendToBrushConverter x:Key="TrendToBrush" />
+        <converters:RankToVisibilityConverter x:Key="RankToVisibility" />
     </Page.Resources>
 
     <Grid>
@@ -214,12 +217,35 @@
                         Padding="8,6"
                         ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="40" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <Border
+                        <!-- Chart rank + trend arrow (only shown for chart playlist rows). -->
+                        <StackPanel
                             Grid.Column="0"
+                            MinWidth="52"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="6"
+                            Visibility="{x:Bind Rank, Converter={StaticResource RankToVisibility}}">
+                            <FontIcon
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                Foreground="{x:Bind Trend, Converter={StaticResource TrendToBrush}}"
+                                Glyph="{x:Bind Trend, Converter={StaticResource TrendToGlyph}}" />
+                            <TextBlock
+                                MinWidth="24"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                FontSize="18"
+                                FontWeight="SemiBold"
+                                Text="{x:Bind Rank}"
+                                TextAlignment="Right" />
+                        </StackPanel>
+                        <Border
+                            Grid.Column="1"
                             Width="40"
                             Height="40"
                             CornerRadius="4">
@@ -227,9 +253,9 @@
                                 Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
                                 Stretch="UniformToFill" />
                         </Border>
-                        <controls:TrackInfo Grid.Column="1" Song="{x:Bind}" />
+                        <controls:TrackInfo Grid.Column="2" Song="{x:Bind}" />
                         <TextBlock
-                            Grid.Column="2"
+                            Grid.Column="3"
                             VerticalAlignment="Center"
                             Opacity="0.7"
                             Text="{x:Bind Duration, Converter={StaticResource DurationToText}}"

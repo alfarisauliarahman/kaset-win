@@ -39,8 +39,10 @@ public sealed partial class SettingsPage : Page
         var services = App.Current.Services;
         var settings = services.GetService<ISettingsService>()
             ?? new SettingsService(new InMemorySettingsStore());
+        var playback = services.GetService<Core.Abstractions.IPlaybackController>();
+        var lyrics = services.GetService<Core.Services.Lyrics.ILyricsService>();
 
-        ViewModel = new SettingsViewModel(settings);
+        ViewModel = new SettingsViewModel(settings, playback, lyrics);
     }
 
     /// <summary>The page ViewModel, bound from XAML via <c>x:Bind</c>.</summary>

@@ -95,6 +95,7 @@
         <!-- Second line: "Artist — Album" on one row. Artist and album are each clickable when a
              navigation id exists; the album half only appears when opted in (player bar). -->
         <StackPanel
+            Margin="0,-2,0,0"
             Orientation="Horizontal"
             Visibility="{x:Bind ShowStaticTitle, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
             <HyperlinkButton
@@ -151,6 +152,7 @@
         <!-- Marquee second line (player bar): "Artist — Album" scrolls when wider than the viewport. -->
         <Grid
             x:Name="SubViewport"
+            Margin="0,-2,0,0"
             SizeChanged="OnMarqueeSizeChanged"
             Visibility="{x:Bind ShowMarqueeTitle, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
             <StackPanel x:Name="SubRow" Orientation="Horizontal" SizeChanged="OnMarqueeSizeChanged">

@@ -44,7 +44,7 @@
                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                     CornerRadius="8"
                     Opacity="0" />
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="2">
                     <Grid Width="152" Height="152" HorizontalAlignment="Center">
                         <Border
                             Background="{ThemeResource SubtleFillColorSecondaryBrush}"
@@ -104,7 +104,7 @@
                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                     CornerRadius="8"
                     Opacity="0" />
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="2">
                     <Border
                         Width="232"
                         Height="130"
@@ -162,7 +162,7 @@
                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                     CornerRadius="8"
                     Opacity="0" />
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="2">
                     <Grid Width="152" Height="152" HorizontalAlignment="Center">
                         <Border
                             Background="{ThemeResource SubtleFillColorSecondaryBrush}"
@@ -216,7 +216,7 @@
                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                     CornerRadius="8"
                     Opacity="0" />
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="2">
                     <Border
                         Width="136"
                         Height="136"

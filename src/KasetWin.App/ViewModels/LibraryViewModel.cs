@@ -74,8 +74,11 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <summary>Artists the user follows (Req 13.1).</summary>
     public ObservableCollection<Artist> Artists { get; } = [];
 
-    /// <summary>The user's liked songs (Req 13.1).</summary>
+    /// <summary>The user's liked songs (Req 13.1). Shown on the dedicated Liked Songs page now.</summary>
     public ObservableCollection<Song> LikedSongs { get; } = [];
+
+    /// <summary>The user's library (saved) songs — FEmusic_liked_videos, distinct from Liked Music.</summary>
+    public ObservableCollection<Song> LibrarySongs { get; } = [];
 
     /// <summary>The user's uploaded songs (Req 13.1).</summary>
     public ObservableCollection<Song> UploadedSongs { get; } = [];
@@ -115,9 +118,11 @@ public sealed partial class LibraryViewModel : ViewModelBase
         {
             var landing = await _client.GetLibraryLandingAsync(token).ConfigureAwait(true);
 
-            // Liked + uploaded songs are best-effort: a failure on one secondary surface must not
-            // blank the whole page (the primary landing already loaded).
-            var liked = await TryGetAsync(t => _client.GetLikedSongsAsync(t), token).ConfigureAwait(true);
+            // Library (saved) + uploaded songs are best-effort: a failure on one secondary surface
+            // must not blank the whole page (the primary landing already loaded). NOTE: the Library
+            // "Songs" section uses the library saved-songs surface, NOT the Liked Music playlist —
+            // those are separate datasets, and Liked Music now has its own page.
+            var librarySongs = await TryGetListAsync(t => _client.GetLibrarySongsAsync(t), token).ConfigureAwait(true);
             var uploaded = await TryGetListAsync(t => _client.GetUploadedSongsAsync(t), token).ConfigureAwait(true);
 
             // Artists come from the saved-songs corpus (with "N lagu" subtitles) rather than the
@@ -128,11 +133,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
             {
                 Playlists = landing.Playlists,
                 FollowedArtists = corpusArtists is { Count: > 0 } ? corpusArtists : landing.Artists,
-                LikedSongs = liked?.Tracks ?? [],
+                LikedSongs = [],
                 UploadedSongs = uploaded ?? [],
             };
 
             SyncCollection(Albums, landing.Albums, static a => a.Id);
+            SyncCollection(LibrarySongs, librarySongs ?? [], static s => s.Id);
             SyncFromState();
         }, ct);
 
@@ -315,8 +321,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
         {
             return await get(ct).ConfigureAwait(true);
         }
-        catch (Core.Errors.KasetError)
+        catch (OperationCanceledException)
         {
+            throw;
+        }
+        catch (Exception)
+        {
+            // A secondary surface failing (parse/network/thread) must never blank the whole page.
             return null;
         }
     }
@@ -327,8 +338,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
         {
             return await get(ct).ConfigureAwait(true);
         }
-        catch (Core.Errors.KasetError)
+        catch (OperationCanceledException)
         {
+            throw;
+        }
+        catch (Exception)
+        {
+            // A secondary surface failing (parse/network/thread) must never blank the whole page.
             return null;
         }
     }

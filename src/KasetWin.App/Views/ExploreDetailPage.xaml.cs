@@ -61,6 +61,22 @@ public sealed partial class ExploreDetailPage : Page
         }
     }
 
+    private void OnChartCardEnter(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Grid g)
+        {
+            g.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"];
+        }
+    }
+
+    private void OnChartCardExit(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Grid g)
+        {
+            g.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        }
+    }
+
     /// <summary>"Lihat semua" on a video shelf opens the full list of the same items.</summary>
     private void OnChartSeeAllClick(object sender, RoutedEventArgs e)
     {

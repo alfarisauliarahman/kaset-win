@@ -22,7 +22,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!--
@@ -41,17 +40,13 @@
 
         <!-- Row 1: main content (NavigationView) + the docked right-hand now-playing side panel. -->
         <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition x:Name="SidePanelColumn" Width="0" />
-            </Grid.ColumnDefinitions>
 
         <NavigationView
             x:Name="NavView"
             Grid.Column="0"
             IsBackButtonVisible="Auto"
             IsBackEnabled="False"
-            IsSettingsVisible="True"
+            IsSettingsVisible="False"
             PaneDisplayMode="Auto"
             BackRequested="OnNavigationBackRequested"
             ItemInvoked="OnNavigationItemInvoked"
@@ -129,28 +124,75 @@
                 <!-- Segmented pill (per the reference shot), native SelectorBar inside. -->
                 <Border
                     Margin="8,0,8,8"
-                    Padding="4"
+                    Padding="3"
                     HorizontalAlignment="Center"
                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                    CornerRadius="18">
-                    <SelectorBar x:Name="SourceSelector" SelectionChanged="OnSourceSelectionChanged">
-                        <SelectorBarItem
-                            x:Name="MusicSourceItem"
-                            CornerRadius="14"
-                            Text="Music">
-                            <SelectorBarItem.Icon>
-                                <FontIcon FontSize="14" Glyph="&#xE8D6;" />
-                            </SelectorBarItem.Icon>
-                        </SelectorBarItem>
-                        <SelectorBarItem
-                            x:Name="YouTubeSourceItem"
-                            CornerRadius="14"
-                            Text="YouTube">
-                            <SelectorBarItem.Icon>
-                                <FontIcon FontSize="14" Glyph="&#xE714;" />
-                            </SelectorBarItem.Icon>
-                        </SelectorBarItem>
-                    </SelectorBar>
+                    CornerRadius="22">
+                    <Grid>
+                        <Grid.Resources>
+                            <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
+                            <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="Transparent" />
+                            <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="Transparent" />
+                            <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="Transparent" />
+                            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="Transparent" />
+                            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="Transparent" />
+                            <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="White" />
+                            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="White" />
+                            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="White" />
+                            <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="Transparent" />
+                            <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="Transparent" />
+                            <SolidColorBrush x:Key="ToggleButtonBorderBrushPointerOver" Color="Transparent" />
+                        </Grid.Resources>
+
+                        <!-- Sliding accent indicator that glides between the two segments. -->
+                        <Border
+                            x:Name="SourceIndicator"
+                            Width="96"
+                            HorizontalAlignment="Left"
+                            Background="{ThemeResource AccentFillColorDefaultBrush}"
+                            CornerRadius="20">
+                            <Border.RenderTransform>
+                                <TranslateTransform x:Name="SourceIndicatorTransform" />
+                            </Border.RenderTransform>
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal">
+                            <ToggleButton
+                                x:Name="MusicSourceItem"
+                                Width="96"
+                                MinWidth="0"
+                                Padding="0,7"
+                                HorizontalContentAlignment="Center"
+                                Click="OnSourceToggleClick"
+                                CornerRadius="20"
+                                Style="{StaticResource SourceToggleButtonStyle}">
+                                <StackPanel
+                                    HorizontalAlignment="Center"
+                                    Orientation="Horizontal"
+                                    Spacing="7">
+                                    <FontIcon FontSize="14" Glyph="&#xE8D6;" />
+                                    <TextBlock Text="Music" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <ToggleButton
+                                x:Name="YouTubeSourceItem"
+                                Width="96"
+                                MinWidth="0"
+                                Padding="0,7"
+                                HorizontalContentAlignment="Center"
+                                Click="OnSourceToggleClick"
+                                CornerRadius="20"
+                                Style="{StaticResource SourceToggleButtonStyle}">
+                                <StackPanel
+                                    HorizontalAlignment="Center"
+                                    Orientation="Horizontal"
+                                    Spacing="7">
+                                    <FontIcon FontSize="14" Glyph="&#xE714;" />
+                                    <TextBlock Text="YouTube" />
+                                </StackPanel>
+                            </ToggleButton>
+                        </StackPanel>
+                    </Grid>
                 </Border>
             </NavigationView.PaneFooter>
             <NavigationView.MenuItems>
@@ -167,6 +209,11 @@
                 <NavigationViewItem Content="Library" Tag="Library">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE8F1;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Liked Songs" Tag="LikedSongs">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xEB52;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="History" Tag="History">
@@ -260,16 +307,47 @@
                 </NavigationViewItem>
             </NavigationView.FooterMenuItems>
 
-            <Frame x:Name="ContentFrame" />
+            <!--
+                Content region + the docked player bar as a bottom row. The now-playing side panel
+                (Queue / Lyrics) lives in the TOP row alongside the content, so opening it shrinks the
+                content only — never the player bar, which spans the full width of the bottom row.
+            -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition x:Name="SidePanelColumn" Width="0" />
+                    </Grid.ColumnDefinitions>
+                    <Frame x:Name="ContentFrame" Grid.Column="0" />
+                    <controls:NowPlayingPanel
+                        x:Name="SidePanel"
+                        Grid.Column="1"
+                        Visibility="Collapsed" />
+                </Grid>
+
+                <!-- Global in-app notification: floats at the bottom of the CONTENT area, above the
+                     player bar (Row 1), so it never overlaps/collides with the transport. -->
+                <InfoBar
+                    x:Name="ToastBar"
+                    Grid.Row="0"
+                    Width="320"
+                    Margin="0,0,0,12"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Bottom"
+                    Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}"
+                    CornerRadius="8"
+                    IsClosable="True"
+                    IsOpen="False" />
+
+                <controls:PlayerBar x:Name="PlayerBarControl" Grid.Row="1" />
+            </Grid>
         </NavigationView>
-
-            <controls:NowPlayingPanel
-                x:Name="SidePanel"
-                Grid.Column="1"
-                Visibility="Collapsed" />
         </Grid>
-
-        <controls:PlayerBar Grid.Row="2" />
 
         <!--
             In-app sign-in result notification (Req 4.3). Shown as a light-dismiss TeachingTip
@@ -283,17 +361,5 @@
             IsLightDismissEnabled="True"
             PreferredPlacement="Top" />
 
-        <!-- Global in-app notification: a native InfoBar anchored bottom-left, floating just above
-             the account footer. Plain messages auto-dismiss; actionable ones stay until the user
-             acts or closes them. Driven from the code-behind. -->
-        <InfoBar
-            x:Name="ToastBar"
-            Grid.Row="1"
-            Width="320"
-            Margin="0,0,0,12"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Bottom"
-            IsClosable="True"
-            IsOpen="False" />
     </Grid>
 </Window>

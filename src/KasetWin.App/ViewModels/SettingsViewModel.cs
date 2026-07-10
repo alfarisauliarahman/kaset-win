@@ -1,8 +1,24 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
+using KasetWin.Core.Abstractions;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Settings;
+using Windows.Storage;
 
 namespace KasetWin.App.ViewModels;
+
+/// <summary>A single equalizer band (centre-frequency label + its current gain in dB, -12..+12).</summary>
+public sealed partial class EqBand : ObservableObject
+{
+    /// <summary>Human-readable centre frequency, e.g. "62 Hz" / "1 kHz".</summary>
+    public required string Label { get; init; }
+
+    /// <summary>Gain applied at this band in dB (-12..+12).</summary>
+    [ObservableProperty]
+    private double _gain;
+}
 
 /// <summary>
 /// ViewModel for the Settings surface (Task 14.10, Req 18.1–18.4, Req 7.3). Surfaces the four
@@ -21,24 +37,53 @@ namespace KasetWin.App.ViewModels;
 public sealed partial class SettingsViewModel : ViewModelBase
 {
     private readonly ISettingsService _settings;
+    private readonly IPlaybackController? _playback;
+    private readonly KasetWin.Core.Services.Lyrics.ILyricsService? _lyrics;
+    private const string LyricsProviderKey = "lyrics.provider";
     private readonly bool _isInitializing;
+    private bool _suppressBandApply;
 
     /// <summary>
     /// Creates the ViewModel over <paramref name="settings"/>, seeding the bound properties from the
     /// service's current values.
     /// </summary>
     /// <param name="settings">The preference store written through on every change (Req 18.4).</param>
-    public SettingsViewModel(ISettingsService settings)
+    /// <param name="playback">Playback controller used to apply the equalizer live (optional).</param>
+    public SettingsViewModel(ISettingsService settings, IPlaybackController? playback = null, KasetWin.Core.Services.Lyrics.ILyricsService? lyrics = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         _settings = settings;
+        _playback = playback;
+        _lyrics = lyrics;
 
         _isInitializing = true;
         SelectedLaunchPage = settings.DefaultLaunchPage;
         RememberPlaybackSettings = settings.RememberPlaybackSettings;
         SyncedLyricsEnabled = settings.SyncedLyricsEnabled;
         SelectedAudioQuality = settings.PreferredAudioQuality;
+        SelectedThemeIndex = ThemeManager.Current switch
+        {
+            Microsoft.UI.Xaml.ElementTheme.Light => 1,
+            Microsoft.UI.Xaml.ElementTheme.Dark => 2,
+            _ => 0,
+        };
+
+        var savedProvider = ApplicationData.Current.LocalSettings.Values[LyricsProviderKey] as string;
+        SelectedLyricsProviderIndex = savedProvider switch { "LRCLib" => 1, "NetEase" => 2, _ => 0 };
+        ApplyLyricsProvider(SelectedLyricsProviderIndex);
+
+        Bands = new ObservableCollection<EqBand>(
+            EqBandLabels.Select(l => new EqBand { Label = l }));
+        LoadEqualizer();
+        foreach (var band in Bands)
+        {
+            band.PropertyChanged += OnBandChanged;
+        }
+
         _isInitializing = false;
+
+        // Push the persisted equalizer to the player on startup (harmless when disabled/flat).
+        ApplyEqualizer(persist: false);
     }
 
     /// <summary>All launch-page choices, bound to the launch-page ComboBox (Req 18.1).</summary>
@@ -62,6 +107,56 @@ public sealed partial class SettingsViewModel : ViewModelBase
     /// <summary>Selected preferred streaming audio quality; persisted on change (Req 7.3, Req 18.4).</summary>
     [ObservableProperty]
     private AudioQuality _selectedAudioQuality;
+
+    /// <summary>Theme choices bound to the Appearance ComboBox (index 0=system, 1=light, 2=dark).</summary>
+    public IReadOnlyList<string> ThemeOptions { get; } = ["Ikuti sistem", "Terang", "Gelap"];
+
+    /// <summary>Selected theme index; applied + persisted live via <see cref="ThemeManager"/>.</summary>
+    [ObservableProperty]
+    private int _selectedThemeIndex;
+
+    /// <summary>Lyrics provider choices (0=Auto, 1=LRCLib, 2=NetEase).</summary>
+    public IReadOnlyList<string> LyricsProviderOptions { get; } = ["Otomatis (semua sumber)", "LRCLib", "NetEase (cakupan Asia)"];
+
+    /// <summary>Selected lyrics provider; applied to the service + persisted.</summary>
+    [ObservableProperty]
+    private int _selectedLyricsProviderIndex;
+
+    partial void OnSelectedLyricsProviderIndexChanged(int value)
+    {
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        ApplyLyricsProvider(value);
+    }
+
+    private void ApplyLyricsProvider(int index)
+    {
+        var name = index switch { 1 => "LRCLib", 2 => "NetEase", _ => null };
+        if (_lyrics is not null)
+        {
+            _lyrics.PreferredProvider = name;
+        }
+
+        ApplicationData.Current.LocalSettings.Values[LyricsProviderKey] = name ?? string.Empty;
+    }
+
+    partial void OnSelectedThemeIndexChanged(int value)
+    {
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        ThemeManager.Set(value switch
+        {
+            1 => Microsoft.UI.Xaml.ElementTheme.Light,
+            2 => Microsoft.UI.Xaml.ElementTheme.Dark,
+            _ => Microsoft.UI.Xaml.ElementTheme.Default,
+        });
+    }
 
     partial void OnSelectedLaunchPageChanged(LaunchPage value)
     {
@@ -101,5 +196,199 @@ public sealed partial class SettingsViewModel : ViewModelBase
         }
 
         _settings.PreferredAudioQuality = value;
+    }
+
+    // ── Equalizer (persisted in LocalSettings; applied live via IPlaybackController) ──────────────
+
+    private static readonly string[] EqBandLabels =
+        ["62 Hz", "125 Hz", "250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz", "8 kHz", "16 kHz"];
+
+    private const string EqEnabledKey = "eq.enabled";
+    private const string EqPresetKey = "eq.preset";
+    private const string EqGainsKey = "eq.gains";
+    private const string CustomPreset = "Custom";
+
+    /// <summary>Per-band gain sliders (62 Hz … 16 kHz), bound to the vertical slider strip.</summary>
+    public ObservableCollection<EqBand> Bands { get; }
+
+    /// <summary>Built-in presets; picking one fills every band, "Custom" is set when a band is nudged.</summary>
+    public IReadOnlyList<string> EqPresets { get; } =
+        ["Flat", "Bass Boost", "Treble Boost", "Vocal", "Rock", "Pop", "Electronic", "Custom"];
+
+    /// <summary>Whether the equalizer is on. When off the bands are flattened (transparent).</summary>
+    [ObservableProperty]
+    private bool _isEqualizerEnabled;
+
+    /// <summary>Selected preset name; drives the band values when changed by the user.</summary>
+    [ObservableProperty]
+    private string _selectedEqPreset = "Flat";
+
+    /// <summary>When set, dragging one band nudges its immediate neighbours for a smoother curve.</summary>
+    [ObservableProperty]
+    private bool _linkNearbyBands;
+
+    // Preset → 9 band gains (dB). "Custom" is user-defined and has no fixed curve.
+    private static readonly Dictionary<string, double[]> PresetCurves = new()
+    {
+        ["Flat"] = [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ["Bass Boost"] = [7, 6, 4, 2, 0, 0, 0, 0, 0],
+        ["Treble Boost"] = [0, 0, 0, 0, 0, 2, 4, 6, 7],
+        ["Vocal"] = [-2, -1, 0, 3, 4, 4, 2, 0, -1],
+        ["Rock"] = [5, 3, -1, -2, 0, 2, 4, 5, 5],
+        ["Pop"] = [-1, 1, 3, 4, 4, 2, 0, -1, -1],
+        ["Electronic"] = [5, 4, 1, 0, -2, 1, 2, 4, 5],
+    };
+
+    partial void OnIsEqualizerEnabledChanged(bool value)
+    {
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        ApplyEqualizer(persist: true);
+    }
+
+    partial void OnLinkNearbyBandsChanged(bool value)
+    {
+        if (!_isInitializing)
+        {
+            PersistEqualizer();
+        }
+    }
+
+    partial void OnSelectedEqPresetChanged(string value)
+    {
+        if (_isInitializing || value == CustomPreset)
+        {
+            return;
+        }
+
+        if (PresetCurves.TryGetValue(value, out var curve))
+        {
+            _suppressBandApply = true;
+            for (var i = 0; i < Bands.Count && i < curve.Length; i++)
+            {
+                Bands[i].Gain = curve[i];
+            }
+
+            _suppressBandApply = false;
+            ApplyEqualizer(persist: true);
+        }
+    }
+
+    private void OnBandChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (_isInitializing || _suppressBandApply || e.PropertyName != nameof(EqBand.Gain))
+        {
+            return;
+        }
+
+        // A manual band move optionally drags its neighbours, and always marks the preset "Custom".
+        if (LinkNearbyBands && sender is EqBand moved)
+        {
+            NudgeNeighbours(moved);
+        }
+
+        if (SelectedEqPreset != CustomPreset)
+        {
+            _isInitializingPresetGuard(() => SelectedEqPreset = CustomPreset);
+        }
+
+        ApplyEqualizer(persist: true);
+    }
+
+    // Sets SelectedEqPreset to "Custom" without re-running the preset→bands fill.
+    private void _isInitializingPresetGuard(Action set)
+    {
+        var wasSuppressing = _suppressBandApply;
+        _suppressBandApply = true;
+        set();
+        _suppressBandApply = wasSuppressing;
+    }
+
+    private void NudgeNeighbours(EqBand moved)
+    {
+        var index = Bands.IndexOf(moved);
+        if (index < 0)
+        {
+            return;
+        }
+
+        _suppressBandApply = true;
+        void Pull(int i)
+        {
+            if (i >= 0 && i < Bands.Count)
+            {
+                // Move the neighbour a third of the way toward the dragged band.
+                Bands[i].Gain = Math.Clamp(Bands[i].Gain + (moved.Gain - Bands[i].Gain) * 0.33, -12, 12);
+            }
+        }
+
+        Pull(index - 1);
+        Pull(index + 1);
+        _suppressBandApply = false;
+    }
+
+    private void LoadEqualizer()
+    {
+        try
+        {
+            var values = ApplicationData.Current.LocalSettings.Values;
+            IsEqualizerEnabled = values[EqEnabledKey] is bool b && b;
+            LinkNearbyBands = values["eq.link"] is bool lb && lb;
+            SelectedEqPreset = values[EqPresetKey] as string ?? "Flat";
+
+            if (values[EqGainsKey] is string csv && !string.IsNullOrEmpty(csv))
+            {
+                var parts = csv.Split(',');
+                for (var i = 0; i < Bands.Count && i < parts.Length; i++)
+                {
+                    if (double.TryParse(parts[i], NumberStyles.Float, CultureInfo.InvariantCulture, out var g))
+                    {
+                        Bands[i].Gain = Math.Clamp(g, -12, 12);
+                    }
+                }
+            }
+            else if (PresetCurves.TryGetValue(SelectedEqPreset, out var curve))
+            {
+                for (var i = 0; i < Bands.Count && i < curve.Length; i++)
+                {
+                    Bands[i].Gain = curve[i];
+                }
+            }
+        }
+        catch
+        {
+            // Corrupt/absent settings fall back to a flat, disabled equalizer.
+        }
+    }
+
+    private void PersistEqualizer()
+    {
+        try
+        {
+            var values = ApplicationData.Current.LocalSettings.Values;
+            values[EqEnabledKey] = IsEqualizerEnabled;
+            values["eq.link"] = LinkNearbyBands;
+            values[EqPresetKey] = SelectedEqPreset;
+            values[EqGainsKey] = string.Join(
+                ',', Bands.Select(b => b.Gain.ToString("0.##", CultureInfo.InvariantCulture)));
+        }
+        catch
+        {
+            // Persisting preferences is best-effort.
+        }
+    }
+
+    private void ApplyEqualizer(bool persist)
+    {
+        if (persist)
+        {
+            PersistEqualizer();
+        }
+
+        var gains = Bands.Select(b => (int)Math.Round(b.Gain)).ToList();
+        _ = _playback?.SetEqualizerAsync(IsEqualizerEnabled, gains);
     }
 }

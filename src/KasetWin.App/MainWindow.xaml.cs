@@ -70,6 +70,7 @@ public sealed partial class MainWindow : Window
         ["Explore"] = "KasetWin.App.Views.ExplorePage",
         ["Search"] = "KasetWin.App.Views.SearchPage",
         ["Library"] = "KasetWin.App.Views.LibraryPage",
+        ["LikedSongs"] = "KasetWin.App.Views.LikedSongsPage",
         ["History"] = "KasetWin.App.Views.HistoryPage",
         ["Podcasts"] = "KasetWin.App.Views.PodcastsPage",
         ["Settings"] = "KasetWin.App.Views.SettingsPage",
@@ -95,6 +96,7 @@ public sealed partial class MainWindow : Window
     private readonly System.Collections.Generic.List<string> _searchHistory = LoadSearchHistory();
 
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _toastTimer;
+    private TaskbarMediaControls? _taskbarControls;
 
     /// <summary>
     /// Renders an in-app notification in the InfoBar above the account footer. Plain messages
@@ -154,8 +156,64 @@ public sealed partial class MainWindow : Window
     private void OnSidePanelChanged()
     {
         var open = _sidePanel?.Mode is not (null or Controls.SidePanelMode.None);
-        SidePanel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
-        SidePanelColumn.Width = open ? new GridLength(380) : new GridLength(0);
+        if (open)
+        {
+            SidePanelColumn.Width = new GridLength(380);
+            SidePanel.Visibility = Visibility.Visible;
+            AnimateSidePanel(fromX: 380, toX: 0, fromOpacity: 0, toOpacity: 1, collapseOnFinish: false);
+        }
+        else if (SidePanel.Visibility == Visibility.Visible)
+        {
+            AnimateSidePanel(fromX: 0, toX: 380, fromOpacity: 1, toOpacity: 0, collapseOnFinish: true);
+        }
+    }
+
+    /// <summary>Slide + fade the side panel (Queue / Lyrics) for a smooth open/close.</summary>
+    private void AnimateSidePanel(double fromX, double toX, double fromOpacity, double toOpacity, bool collapseOnFinish)
+    {
+        if (SidePanel.RenderTransform is not Microsoft.UI.Xaml.Media.TranslateTransform tt)
+        {
+            tt = new Microsoft.UI.Xaml.Media.TranslateTransform();
+            SidePanel.RenderTransform = tt;
+        }
+
+        var duration = new Duration(TimeSpan.FromMilliseconds(220));
+        var storyboard = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+
+        var slide = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+        {
+            From = fromX,
+            To = toX,
+            Duration = duration,
+            EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase
+            {
+                EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut,
+            },
+        };
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(slide, tt);
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(slide, "X");
+        storyboard.Children.Add(slide);
+
+        var fade = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+        {
+            From = fromOpacity,
+            To = toOpacity,
+            Duration = duration,
+        };
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(fade, SidePanel);
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(fade, "Opacity");
+        storyboard.Children.Add(fade);
+
+        if (collapseOnFinish)
+        {
+            storyboard.Completed += (_, _) =>
+            {
+                SidePanel.Visibility = Visibility.Collapsed;
+                SidePanelColumn.Width = new GridLength(0);
+            };
+        }
+
+        storyboard.Begin();
     }
 
     public MainWindow()
@@ -169,6 +227,18 @@ public sealed partial class MainWindow : Window
             {
                 var path = System.IO.Path.Combine(Windows.Storage.ApplicationData.Current.LocalFolder.Path, "diag.log");
                 System.IO.File.AppendAllText(path, $"{DateTime.Now:HH:mm:ss.fff} {msg}{Environment.NewLine}");
+            }
+            catch
+            {
+                // Diagnostics must never affect the app.
+            }
+        };
+        KasetWin.Core.Diag.DumpSink = (name, content) =>
+        {
+            try
+            {
+                var path = System.IO.Path.Combine(Windows.Storage.ApplicationData.Current.LocalFolder.Path, name);
+                System.IO.File.WriteAllText(path, content);
             }
             catch
             {
@@ -251,7 +321,9 @@ public sealed partial class MainWindow : Window
         // the default page, which caused the shell to open on YouTube).
         ApplySourceVisibility(youtube: false);
         NavView.SelectedItem = NavView.MenuItems.OfType<NavigationViewItem>().FirstOrDefault();
-        SourceSelector.SelectedItem = MusicSourceItem;
+        MusicSourceItem.IsChecked = true;
+        YouTubeSourceItem.IsChecked = false;
+        AnimateSourceIndicator(youtube: false, animate: false);
         _sourceReady = true;
     }
 
@@ -268,9 +340,14 @@ public sealed partial class MainWindow : Window
 
     // â”€â”€ Source toggle (Music â‡„ YouTube) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    private void OnSourceSelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    private void OnSourceToggleClick(object sender, RoutedEventArgs e)
     {
-        var youtube = ReferenceEquals(sender.SelectedItem, YouTubeSourceItem);
+        var youtube = ReferenceEquals(sender, YouTubeSourceItem);
+
+        // Segmented behaviour: exactly one segment stays active (a click on the active one keeps it).
+        MusicSourceItem.IsChecked = !youtube;
+        YouTubeSourceItem.IsChecked = youtube;
+        AnimateSourceIndicator(youtube, animate: true);
         ApplySourceVisibility(youtube);
 
         // Only a real user toggle navigates; the startup selection just sets visibility so it does
@@ -279,6 +356,36 @@ public sealed partial class MainWindow : Window
         {
             NavigateToTag(youtube ? "YouTube.Home" : "Home");
         }
+    }
+
+    /// <summary>Glides the segmented source indicator to the active segment (Music = 0, YouTube = 96).</summary>
+    private void AnimateSourceIndicator(bool youtube, bool animate)
+    {
+        const double segmentWidth = 96;
+        var target = youtube ? segmentWidth : 0;
+
+        if (!animate)
+        {
+            SourceIndicatorTransform.X = target;
+            return;
+        }
+
+        var slide = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+        {
+            To = target,
+            Duration = new Duration(TimeSpan.FromMilliseconds(220)),
+            EnableDependentAnimation = true,
+            EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase
+            {
+                EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut,
+            },
+        };
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(slide, SourceIndicatorTransform);
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(slide, "X");
+
+        var storyboard = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+        storyboard.Children.Add(slide);
+        storyboard.Begin();
     }
 
     /// <summary>
@@ -469,7 +576,11 @@ public sealed partial class MainWindow : Window
                 "MUSIC_PAGE_TYPE_ARTIST" => Navigation.NavigationHelper.NavigateToArtist(browseId),
                 "MUSIC_PAGE_TYPE_ALBUM" => Navigation.NavigationHelper.NavigateToAlbum(browseId),
                 "MUSIC_PAGE_TYPE_PLAYLIST" => Navigation.NavigationHelper.NavigateToPlaylist(browseId),
-                _ => false,
+                "MUSIC_PAGE_TYPE_PODCAST_SHOW_DETAIL_PAGE" => Navigation.NavigationHelper.NavigateToPodcastShow(browseId),
+                // Unknown page type but a podcast-show browse id: still route to the show page
+                // (a podcast suggestion must never dead-end on the generic search page).
+                _ => browseId.StartsWith("MPSP", StringComparison.Ordinal)
+                    && Navigation.NavigationHelper.NavigateToPodcastShow(browseId),
             };
             if (handled)
             {
@@ -1249,6 +1360,10 @@ public sealed partial class MainWindow : Window
             // Keep whatever we had; the footer still shows a generic "Account" label if unknown.
         }
 
+        // Publish the account so item templates (e.g. Home "Listen again" header) can show it.
+        ViewModels.AccountContext.Name = _currentAccount?.Name;
+        ViewModels.AccountContext.AvatarUrl = _currentAccount?.AvatarUrl;
+
         UpdateSignInLabel();
     }
 
@@ -1328,7 +1443,27 @@ public sealed partial class MainWindow : Window
     {
         var account = _currentAccount;
 
-        var panel = new StackPanel { Spacing = 6, Padding = new Thickness(4), MinWidth = 200 };
+        var panel = new StackPanel { Spacing = 6, Padding = new Thickness(4), MinWidth = 220 };
+
+        var flyout = new Flyout { Content = panel };
+
+        // Header row: a settings gear aligned to the top-right, so Settings lives inside the account
+        // card (merged, per the reference account menu) instead of a separate nav item.
+        var settingsGear = new Button
+        {
+            Content = new FontIcon { Glyph = "" }, // Settings gear
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Padding = new Thickness(6),
+            Background = null,
+            BorderThickness = new Thickness(0),
+        };
+        ToolTipService.SetToolTip(settingsGear, "Settings");
+        settingsGear.Click += (_, _) =>
+        {
+            flyout.Hide();
+            ContentFrame.Navigate(typeof(Views.SettingsPage));
+        };
+        panel.Children.Add(settingsGear);
 
         if (account?.AvatarUrl is { } avatar)
         {
@@ -1358,8 +1493,6 @@ public sealed partial class MainWindow : Window
                 HorizontalAlignment = HorizontalAlignment.Center,
             });
         }
-
-        var flyout = new Flyout { Content = panel };
 
         var signOut = new Button
         {
@@ -1620,6 +1753,61 @@ public sealed partial class MainWindow : Window
         // OEM comma (',') has no named VirtualKey member; its virtual-key code is 188.
         Add(VirtualKeyModifiers.Control, (VirtualKey)188, OnSettingsAccelerator);
         Add(VirtualKeyModifiers.Control, VirtualKey.Q, OnQuitAccelerator);
+
+        // PreviewKeyDown tunnels BEFORE the focused control, so Space/Ctrl+Arrows control playback
+        // even when a track row / sidebar item has focus (a plain KeyboardAccelerator loses that
+        // race — the focused Button re-invokes on Space, restarting the song / re-opening the item).
+        RootGrid.PreviewKeyDown += OnGlobalMediaKeyDown;
+        // Buttons / list items invoke on Space *KeyUp*, so also swallow the Space KeyUp or the
+        // focused item still re-activates (restarting the song / re-opening the item).
+        RootGrid.PreviewKeyUp += OnGlobalMediaKeyUp;
+    }
+
+    private void OnGlobalMediaKeyUp(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (!IsTextInputFocused() && e.Key == VirtualKey.Space && !IsCtrlDown())
+        {
+            e.Handled = true;
+        }
+    }
+
+    private static bool IsCtrlDown() =>
+        Microsoft.UI.Input.InputKeyboardSource
+            .GetKeyStateForCurrentThread(VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+    private void OnGlobalMediaKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        // Never steal keys from a text field (search box, dialog inputs).
+        if (IsTextInputFocused())
+        {
+            return;
+        }
+
+        var ctrl = IsCtrlDown();
+        switch (e.Key)
+        {
+            case VirtualKey.Space when !ctrl:
+                _ = _player?.TogglePlayPauseAsync();
+                e.Handled = true;
+                break;
+            case VirtualKey.Right when ctrl:
+                _ = _player?.NextAsync();
+                e.Handled = true;
+                break;
+            case VirtualKey.Left when ctrl:
+                _ = _player?.PreviousAsync();
+                e.Handled = true;
+                break;
+            case VirtualKey.Up when ctrl:
+                _player?.SetVolume((_player?.Volume ?? 0) + VolumeStep);
+                e.Handled = true;
+                break;
+            case VirtualKey.Down when ctrl:
+                _player?.SetVolume((_player?.Volume ?? 0) - VolumeStep);
+                e.Handled = true;
+                break;
+        }
     }
 
     private void OnSearchAccelerator(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
@@ -1794,6 +1982,20 @@ public sealed partial class MainWindow : Window
 
         try
         {
+            if (App.Current.Services.GetService<IPlayerService>() is { } player)
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                _taskbarControls = new TaskbarMediaControls(hwnd, player, DispatcherQueue);
+                _taskbarControls.Start();
+            }
+        }
+        catch
+        {
+            // Taskbar thumb-bar buttons are a nicety; never block startup on their failure.
+        }
+
+        try
+        {
             if (_networkMonitor is not null)
             {
                 _networkMonitor.Start();
@@ -1896,7 +2098,7 @@ public sealed partial class MainWindow : Window
             // Only reveal it while the Music source is active; the source toggle re-applies this.
             void Reveal()
             {
-                if (!ReferenceEquals(SourceSelector.SelectedItem, YouTubeSourceItem))
+                if (YouTubeSourceItem.IsChecked != true)
                 {
                     PodcastsItem.Visibility = Visibility.Visible;
                 }

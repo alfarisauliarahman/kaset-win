@@ -266,10 +266,17 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
         return LoadAsync($"album:{albumBrowseId}", c => LoadDetailAsync(albumBrowseId, c), ct);
     }
 
+    /// <summary>
+    /// Whether the loaded surface turned out to be a podcast playlist (episode rows the track
+    /// parser cannot represent) — the page should reroute to the podcast show surface.
+    /// </summary>
+    public bool IsPodcastPlaylist { get; private set; }
+
     private async Task LoadDetailAsync(string browseId, CancellationToken ct)
     {
         var detail = await _client.GetPlaylistAsync(browseId, ct).ConfigureAwait(true);
 
+        IsPodcastPlaylist = detail.IsPodcastPlaylist;
         _likePlaylistId = detail.LikePlaylistId;
         Title = detail.Playlist.Title;
         _author = detail.Playlist.Author;

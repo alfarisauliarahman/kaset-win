@@ -8,6 +8,7 @@
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:views="using:KasetWin.App.Views"
     xmlns:vm="using:KasetWin.App.ViewModels"
     mc:Ignorable="d">
 
@@ -57,24 +58,8 @@
             </Button>
         </DataTemplate>
 
-        <!-- A single horizontal "shelf" of cards for one section. -->
-        <DataTemplate x:Key="SectionTemplate" x:DataType="vm:HomeSectionView">
-            <StackPanel Margin="0,0,0,8" Spacing="12">
-                <TextBlock
-                    Text="{x:Bind Title}"
-                    Style="{StaticResource SubtitleTextBlockStyle}" />
-                <ScrollViewer
-                    behaviors:VerticalWheelForwarder.IsEnabled="True"
-                    HorizontalScrollBarVisibility="Auto"
-                    HorizontalScrollMode="Enabled"
-                    VerticalScrollBarVisibility="Disabled"
-                    VerticalScrollMode="Disabled">
-                    <controls:ItemsRepeater ItemsSource="{x:Bind Items}">
-                        <controls:ItemsRepeater.Layout>
-                            <controls:StackLayout Orientation="Horizontal" Spacing="16" />
-                        </controls:ItemsRepeater.Layout>
-                        <controls:ItemsRepeater.ItemTemplate>
-                            <DataTemplate x:DataType="vm:HomeCardItem">
+        <!-- The standard Home card (song/album/playlist/artist), shared by the section shelves. -->
+        <DataTemplate x:Key="HomeCardTemplate" x:DataType="vm:HomeCardItem">
                                 <!--
                                     The card root is a Grid (not a Button): a Button must not contain
                                     the nested circular Play Button, because a Button-inside-a-Button
@@ -141,14 +126,17 @@
                                         </Grid>
                                         <TextBlock
                                             FontSize="15"
+                                            HorizontalAlignment="Stretch"
                                             MaxLines="2"
                                             Text="{x:Bind Title}"
+                                            TextAlignment="{x:Bind CardTextAlignment}"
                                             TextTrimming="CharacterEllipsis"
                                             TextWrapping="Wrap"
                                             Style="{StaticResource BodyStrongTextBlockStyle}" />
                                         <!-- Subtitle: clickable to the artist page when it names a real artist. -->
                                         <HyperlinkButton
                                             Padding="0"
+                                            HorizontalAlignment="{x:Bind SubtitleHorizontalAlignment}"
                                             Click="OnSubtitleArtistClick"
                                             Tag="{x:Bind ArtistId}"
                                             Visibility="{x:Bind HasArtistLink, Converter={StaticResource BoolToVisibility}}">
@@ -162,20 +150,141 @@
                                         </HyperlinkButton>
                                         <TextBlock
                                             FontSize="13"
+                                            HorizontalAlignment="Stretch"
                                             MaxLines="1"
                                             Opacity="0.7"
                                             Text="{x:Bind Subtitle}"
+                                            TextAlignment="{x:Bind CardTextAlignment}"
                                             TextTrimming="CharacterEllipsis"
                                             Visibility="{x:Bind SubtitleIsPlain, Converter={StaticResource BoolToVisibility}}"
                                             Style="{StaticResource CaptionTextBlockStyle}" />
                                     </StackPanel>
                                 </Grid>
-                            </DataTemplate>
-                        </controls:ItemsRepeater.ItemTemplate>
+        </DataTemplate>
+
+        <!-- A single horizontal "shelf" of cards for one section. -->
+        <DataTemplate x:Key="SectionTemplate" x:DataType="vm:HomeSectionView">
+            <StackPanel Margin="0,0,0,8" Spacing="12">
+                <TextBlock
+                    Text="{x:Bind Title}"
+                    Style="{StaticResource SubtitleTextBlockStyle}" />
+                <ScrollViewer
+                    behaviors:VerticalWheelForwarder.IsEnabled="True"
+                    HorizontalScrollBarVisibility="Auto"
+                    HorizontalScrollMode="Enabled"
+                    VerticalScrollBarVisibility="Disabled"
+                    VerticalScrollMode="Disabled">
+                    <controls:ItemsRepeater ItemTemplate="{StaticResource HomeCardTemplate}" ItemsSource="{x:Bind Items}">
+                        <controls:ItemsRepeater.Layout>
+                            <controls:StackLayout Orientation="Horizontal" Spacing="16" />
+                        </controls:ItemsRepeater.Layout>
                     </controls:ItemsRepeater>
                 </ScrollViewer>
             </StackPanel>
         </DataTemplate>
+
+        <!-- One compact "Quick picks" row: thumb + title + subtitle (top-level so its x:Bind is not
+             an inline nested template, which crashes the XAML compiler). -->
+        <DataTemplate x:Key="QuickPickRowTemplate" x:DataType="vm:HomeCardItem">
+            <Grid
+                Width="460"
+                Height="56"
+                Padding="6,4"
+                Background="Transparent"
+                ColumnSpacing="12"
+                CornerRadius="8"
+                DataContext="{x:Bind}"
+                PointerEntered="OnChartCardEnter"
+                PointerExited="OnChartCardExit"
+                Tapped="OnItemClick">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="44" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Width="44" Height="44" VerticalAlignment="Center" CornerRadius="4">
+                    <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                </Border>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock
+                        MaxLines="1"
+                        Text="{x:Bind Title}"
+                        TextTrimming="CharacterEllipsis"
+                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock
+                        MaxLines="1"
+                        Opacity="0.7"
+                        Text="{x:Bind Subtitle}"
+                        TextTrimming="CharacterEllipsis"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Quick picks / Pilihan cepat: compact column-major song list (4 rows per column). -->
+        <DataTemplate x:Key="QuickPicksTemplate" x:DataType="vm:HomeSectionView">
+            <StackPanel Margin="0,0,0,8" Spacing="12">
+                <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <ScrollViewer
+                    behaviors:VerticalWheelForwarder.IsEnabled="True"
+                    HorizontalScrollBarVisibility="Auto"
+                    HorizontalScrollMode="Enabled"
+                    VerticalScrollBarVisibility="Disabled"
+                    VerticalScrollMode="Disabled">
+                    <controls:ItemsRepeater ItemTemplate="{StaticResource QuickPickRowTemplate}" ItemsSource="{x:Bind Items}">
+                        <controls:ItemsRepeater.Layout>
+                            <controls:UniformGridLayout
+                                MaximumRowsOrColumns="4"
+                                MinColumnSpacing="24"
+                                MinRowSpacing="4"
+                                Orientation="Vertical" />
+                        </controls:ItemsRepeater.Layout>
+                    </controls:ItemsRepeater>
+                </ScrollViewer>
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="ListenAgainTemplate" x:DataType="vm:HomeSectionView">
+            <StackPanel Margin="0,0,0,8" Spacing="12">
+                <StackPanel Orientation="Horizontal" Spacing="14">
+                    <Border
+                        Width="56"
+                        Height="56"
+                        VerticalAlignment="Center"
+                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                        CornerRadius="28">
+                        <Image Source="{x:Bind AccountAvatarUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.7"
+                            Text="{x:Bind AccountName}"
+                            Visibility="{x:Bind HasAccountName, Converter={StaticResource BoolToVisibility}}"
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                        <TextBlock Text="{x:Bind ListenAgainTitle}" Style="{StaticResource TitleTextBlockStyle}" />
+                    </StackPanel>
+                </StackPanel>
+                <ScrollViewer
+                    behaviors:VerticalWheelForwarder.IsEnabled="True"
+                    HorizontalScrollBarVisibility="Auto"
+                    HorizontalScrollMode="Enabled"
+                    VerticalScrollBarVisibility="Disabled"
+                    VerticalScrollMode="Disabled">
+                    <controls:ItemsRepeater ItemTemplate="{StaticResource HomeCardTemplate}" ItemsSource="{x:Bind Items}">
+                        <controls:ItemsRepeater.Layout>
+                            <controls:StackLayout Orientation="Horizontal" Spacing="16" />
+                        </controls:ItemsRepeater.Layout>
+                    </controls:ItemsRepeater>
+                </ScrollViewer>
+            </StackPanel>
+        </DataTemplate>
+
+        <views:HomeSectionTemplateSelector
+            x:Key="HomeSectionSelector"
+            ListenAgainTemplate="{StaticResource ListenAgainTemplate}"
+            QuickPicksTemplate="{StaticResource QuickPicksTemplate}"
+            ShelfTemplate="{StaticResource SectionTemplate}" />
+
     </Page.Resources>
 
     <Grid>
@@ -204,7 +313,7 @@
                 </StackPanel>
 
                 <controls:ItemsRepeater
-                    ItemTemplate="{StaticResource SectionTemplate}"
+                    ItemTemplate="{StaticResource HomeSectionSelector}"
                     ItemsSource="{x:Bind ViewModel.Sections}">
                     <controls:ItemsRepeater.Layout>
                         <controls:StackLayout Orientation="Vertical" Spacing="24" />

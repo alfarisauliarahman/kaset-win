@@ -152,6 +152,15 @@ internal static class AppHost
         services.AddSingleton<ILyricsProvider>(static sp => new LRCLibProvider(
             new HttpClient(),
             sp.GetService<ILogger<LRCLibProvider>>()));
+        services.AddSingleton<ILyricsProvider>(static sp => new NetEaseLyricsProvider(
+            new HttpClient(),
+            sp.GetService<ILogger<NetEaseLyricsProvider>>()));
+        // Podcast episodes: YouTube captions (CC) as synced "lyrics" (creator subs > auto/ASR).
+        // Registered as its concrete type too: the lyrics panel talks to it directly for the
+        // caption-track picker (list tracks / select / off).
+        services.AddSingleton(static sp => new YouTubeCaptionsProvider(
+            sp.GetRequiredService<IYTMusicClient>()));
+        services.AddSingleton<ILyricsProvider>(static sp => sp.GetRequiredService<YouTubeCaptionsProvider>());
         services.AddSingleton<ILyricsService, LyricsService>();
 
         // ── Core: player (task 11.1) ─────────────────────────────────────────────────────
