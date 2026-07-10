@@ -46,7 +46,7 @@
                                             <MenuFlyoutItem Click="OnUnsubscribe" Text="Unsubscribe" />
                                         </MenuFlyout>
                                     </Button.ContextFlyout>
-                                    <StackPanel Spacing="8">
+                                    <StackPanel Spacing="2">
                                         <Border
                                             Width="152"
                                             Height="152"
@@ -97,12 +97,28 @@
                     </controls:ItemsRepeater.Layout>
                 </controls:ItemsRepeater>
 
-                <!-- Available region with no content yet. -->
-                <TextBlock
-                    Opacity="0.7"
-                    Text="No podcasts to show right now."
-                    Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
-                    Style="{StaticResource BodyTextBlockStyle}" />
+                <!-- Podcasts landing is region-gated by YouTube Music (blocked in some countries,
+                     e.g. Indonesia). Individual shows still open from search/Home. -->
+                <StackPanel
+                    Margin="0,40,0,0"
+                    HorizontalAlignment="Center"
+                    Spacing="8"
+                    Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <FontIcon HorizontalAlignment="Center" FontSize="32" Glyph="&#xE704;" Opacity="0.5" />
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        Opacity="0.8"
+                        Text="Halaman Podcast belum tersedia di wilayahmu."
+                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        MaxWidth="420"
+                        Opacity="0.6"
+                        Text="YouTube Music membatasi jelajah podcast per negara. Kamu tetap bisa membuka acara/episode lewat pencarian atau dari Home."
+                        TextAlignment="Center"
+                        TextWrapping="Wrap"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
 

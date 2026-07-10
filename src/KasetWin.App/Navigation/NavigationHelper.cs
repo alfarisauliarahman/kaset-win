@@ -31,6 +31,8 @@ internal static class NavigationHelper
     private const string AlbumPageTypeName = "KasetWin.App.Views.AlbumPage";
     private const string PlaylistPageTypeName = "KasetWin.App.Views.PlaylistPage";
     private const string ArtistPageTypeName = "KasetWin.App.Views.ArtistPage";
+    private const string PodcastShowPageTypeName = "KasetWin.App.Views.PodcastShowPage";
+    private const string PodcastChannelPageTypeName = "KasetWin.App.Views.PodcastChannelPage";
 
     /// <summary>
     /// Resolves a shell page <see cref="Type"/> from its full name. <see cref="Type.GetType(string)"/>
@@ -43,16 +45,51 @@ internal static class NavigationHelper
         Type.GetType(typeName) ?? typeof(NavigationHelper).Assembly.GetType(typeName);
 
     /// <summary>Navigates to the artist page for <paramref name="artistId"/> (a <c>UC…</c> channel id).</summary>
-    public static bool NavigateToArtist(string? artistId) => NavigateToDetail(ArtistPageTypeName, artistId);
+    public static bool NavigateToArtist(string? artistId) =>
+        IsPodcastShowId(artistId)
+            ? NavigateToPodcastShow(artistId)
+            : NavigateToDetail(ArtistPageTypeName, artistId);
 
     /// <summary>Navigates to the album page for <paramref name="albumBrowseId"/> (an <c>MPRE…/OLAK…</c> id).</summary>
-    public static bool NavigateToAlbum(string? albumBrowseId) => NavigateToDetail(AlbumPageTypeName, albumBrowseId);
+    public static bool NavigateToAlbum(string? albumBrowseId) =>
+        IsPodcastShowId(albumBrowseId) ? NavigateToPodcastShow(albumBrowseId)
+        // A playlist id in the "album" slot (podcast episodes use their show/playlist here) must
+        // open the playlist surface — the album page renders it blank.
+        : albumBrowseId is not null
+            && (albumBrowseId.StartsWith("VL", StringComparison.Ordinal)
+                || albumBrowseId.StartsWith("PL", StringComparison.Ordinal))
+            ? NavigateToPlaylist(albumBrowseId)
+        : NavigateToDetail(AlbumPageTypeName, albumBrowseId);
+
+    /// <summary>
+    /// A podcast episode's "artist"/"album" links carry the show's <c>MPSP…</c> browse id; those
+    /// must open the podcast show page rather than the artist/album pages.
+    /// </summary>
+    private static bool IsPodcastShowId(string? id) =>
+        id is not null && id.StartsWith("MPSP", StringComparison.Ordinal);
 
     /// <summary>Navigates to the playlist page for <paramref name="playlistId"/> (a <c>VL…/PL…</c> id).</summary>
-    public static bool NavigateToPlaylist(string? playlistId) => NavigateToDetail(PlaylistPageTypeName, playlistId);
+    public static bool NavigateToPlaylist(string? playlistId) =>
+        IsPodcastShowId(playlistId)
+            ? NavigateToPodcastShow(playlistId)
+            : NavigateToDetail(PlaylistPageTypeName, playlistId);
 
-    /// <summary>Navigates to the first artist on <paramref name="song"/> that carries a real channel id.</summary>
-    public static bool NavigateToSongArtist(Song? song) => NavigateToArtist(song?.PrimaryArtistId);
+    /// <summary>Navigates to the podcast show page for <paramref name="showId"/> (an <c>MPSPP…/VLPL…</c> id).</summary>
+    public static bool NavigateToPodcastShow(string? showId) => NavigateToDetail(PodcastShowPageTypeName, showId);
+
+    /// <summary>Navigates to the podcast creator channel page for <paramref name="channelId"/> (<c>UC…</c>).</summary>
+    public static bool NavigateToPodcastChannel(string? channelId) => NavigateToDetail(PodcastChannelPageTypeName, channelId);
+
+    /// <summary>
+    /// Navigates to the first artist on <paramref name="song"/> that carries a real channel id.
+    /// A podcast episode's creator opens the podcast channel page, not the music artist page.
+    /// </summary>
+    public static bool NavigateToSongArtist(Song? song) =>
+        song?.IsPodcastEpisode == true
+            && song.PrimaryArtistId is { } channelId
+            && channelId.StartsWith("UC", StringComparison.Ordinal)
+            ? NavigateToPodcastChannel(channelId)
+            : NavigateToArtist(song?.PrimaryArtistId);
 
     /// <summary>Navigates to the album/single page <paramref name="song"/> belongs to, when one is known.</summary>
     public static bool NavigateToSongAlbum(Song? song) => NavigateToAlbum(song?.AlbumBrowseId);

@@ -82,6 +82,24 @@ public sealed partial class PlaylistPage : Page
             _playlistId = playlistId;
             await ViewModel.LoadPlaylistAsync(playlistId);
 
+            // A podcast playlist carries episode rows the track parser cannot represent, so this
+            // page would render an empty list — reroute to the podcast show surface (which parses
+            // episodes) and drop this blank entry from the back stack.
+            if (ViewModel.IsPodcastPlaylist
+                && Navigation.NavigationHelper.ResolvePageType("KasetWin.App.Views.PodcastShowPage") is { } podcastPage)
+            {
+                var browseId = playlistId.StartsWith("VL", StringComparison.Ordinal)
+                    ? playlistId
+                    : "VL" + playlistId;
+                Frame.Navigate(podcastPage, browseId);
+                if (Frame.BackStack.Count > 0)
+                {
+                    Frame.BackStack.RemoveAt(Frame.BackStack.Count - 1);
+                }
+
+                return;
+            }
+
             // Local custom cover override (YT Music has no cover-upload API).
             if (PlaylistCoverStore.Get(playlistId) is { } coverPath)
             {

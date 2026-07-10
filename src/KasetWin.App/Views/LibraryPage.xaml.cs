@@ -71,7 +71,9 @@ public sealed partial class LibraryPage : Page
     {
         if (e.ClickedItem is Playlist playlist)
         {
-            NavigateByName("KasetWin.App.Views.PlaylistPage", playlist.Id);
+            // Route via the shared helper: a saved podcast show/playlist (MPSP… id) must open the
+            // podcast page — navigating straight to PlaylistPage rendered it blank.
+            Navigation.NavigationHelper.NavigateToPlaylist(playlist.Id);
         }
     }
 

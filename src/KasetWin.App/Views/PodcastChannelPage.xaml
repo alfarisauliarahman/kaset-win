@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="KasetWin.App.Views.PodcastChannelPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="using:KasetWin.App.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:KasetWin.Core.Models"
+    xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
+    xmlns:vm="using:KasetWin.App.ViewModels"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+
+        <!-- 16:9 episode card, per the YT Music channel page: thumb + (date • duration / Telah
+             diputar) + bold title, with the red progress strip under the thumb. -->
+        <DataTemplate x:Key="ChannelEpisodeTemplate" x:DataType="models:PodcastEpisode">
+            <Button
+                Padding="8"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Stretch"
+                Click="OnEpisodeClick"
+                DataContext="{x:Bind}"
+                Style="{StaticResource SubtleButtonStyle}">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Spacing="0">
+                        <Border
+                            Width="128"
+                            Height="72"
+                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            CornerRadius="6">
+                            <Image Source="{Binding ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                        </Border>
+                        <ProgressBar
+                            Width="128"
+                            Margin="0,2,0,0"
+                            HorizontalAlignment="Left"
+                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            Foreground="#E03E52"
+                            Maximum="1"
+                            Value="{Binding Progress}"
+                            Visibility="{Binding HasProgress, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                    <StackPanel
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Spacing="2">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock
+                                FontSize="12"
+                                Opacity="0.6"
+                                Text="{Binding PublishedText}"
+                                Visibility="{Binding HasPublished, Converter={StaticResource BoolToVisibility}}"
+                                Style="{StaticResource CaptionTextBlockStyle}" />
+                            <TextBlock
+                                FontSize="12"
+                                Opacity="0.6"
+                                Text="•"
+                                Visibility="{Binding HasDuration, Converter={StaticResource BoolToVisibility}}"
+                                Style="{StaticResource CaptionTextBlockStyle}" />
+                            <TextBlock
+                                FontSize="12"
+                                Opacity="0.6"
+                                Text="{Binding DurationDisplay}"
+                                Visibility="{Binding HasDuration, Converter={StaticResource BoolToVisibility}}"
+                                Style="{StaticResource CaptionTextBlockStyle}" />
+                            <TextBlock
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="#E03E52"
+                                Text="Telah diputar"
+                                Visibility="{Binding IsPlayed, Converter={StaticResource BoolToVisibility}}"
+                                Style="{StaticResource CaptionTextBlockStyle}" />
+                        </StackPanel>
+                        <TextBlock
+                            FontSize="14"
+                            MaxLines="2"
+                            Text="{Binding Title}"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="Wrap"
+                            Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    </StackPanel>
+                </Grid>
+            </Button>
+        </DataTemplate>
+
+        <!-- Show card (square cover + title + author). -->
+        <DataTemplate x:Key="ChannelShowTemplate" x:DataType="models:PodcastShow">
+            <Button
+                Width="176"
+                Padding="8"
+                Click="OnShowClick"
+                DataContext="{x:Bind}"
+                Style="{StaticResource SubtleButtonStyle}">
+                <StackPanel Spacing="2">
+                    <Border
+                        Width="152"
+                        Height="152"
+                        Margin="0,0,0,4"
+                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                        CornerRadius="8">
+                        <Image Source="{Binding ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                    </Border>
+                    <TextBlock
+                        FontSize="15"
+                        MaxLines="2"
+                        Text="{Binding Title}"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="Wrap"
+                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock
+                        FontSize="13"
+                        MaxLines="1"
+                        Opacity="0.7"
+                        Text="{Binding Author}"
+                        TextTrimming="CharacterEllipsis"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                </StackPanel>
+            </Button>
+        </DataTemplate>
+    </Page.Resources>
+
+    <ScrollViewer Padding="24,0">
+        <StackPanel Margin="0,24,0,24" Spacing="24">
+
+            <!-- Header: round avatar + channel name + red Subscribe pill (YT Music web layout). -->
+            <Grid ColumnSpacing="24">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Border
+                    Grid.Column="0"
+                    Width="120"
+                    Height="120"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    CornerRadius="60">
+                    <Image Source="{x:Bind ViewModel.AvatarUrl, Mode=OneWay, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                </Border>
+                <StackPanel
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Spacing="4">
+                    <TextBlock
+                        MaxLines="2"
+                        Text="{x:Bind ViewModel.Title, Mode=OneWay}"
+                        TextWrapping="Wrap"
+                        Style="{StaticResource TitleLargeTextBlockStyle}" />
+                    <TextBlock
+                        MaxLines="2"
+                        Opacity="0.6"
+                        Text="{x:Bind ViewModel.Description, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="Wrap"
+                        Visibility="{x:Bind ViewModel.HasDescription, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                        Style="{StaticResource BodyTextBlockStyle}" />
+                </StackPanel>
+                <Button
+                    Grid.Column="2"
+                    Padding="18,8"
+                    VerticalAlignment="Center"
+                    Background="#CC0000"
+                    BorderBrush="Transparent"
+                    Click="OnSubscribeClick"
+                    CornerRadius="18"
+                    Foreground="White">
+                    <TextBlock FontWeight="SemiBold" Text="{x:Bind ViewModel.SubscribeLabel, Mode=OneWay}" />
+                </Button>
+            </Grid>
+
+            <!-- Episode terbaru -->
+            <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasEpisodes, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="{x:Bind ViewModel.EpisodesTitle, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <muxc:ItemsRepeater ItemTemplate="{StaticResource ChannelEpisodeTemplate}" ItemsSource="{x:Bind ViewModel.LatestEpisodes, Mode=OneWay}">
+                    <muxc:ItemsRepeater.Layout>
+                        <muxc:UniformGridLayout
+                            MinColumnSpacing="16"
+                            MinItemHeight="96"
+                            MinItemWidth="400"
+                            MinRowSpacing="6"
+                            Orientation="Horizontal" />
+                    </muxc:ItemsRepeater.Layout>
+                </muxc:ItemsRepeater>
+            </StackPanel>
+
+            <!-- Show sections (Podcast / …) -->
+            <muxc:ItemsRepeater ItemsSource="{x:Bind ViewModel.ShowSections, Mode=OneWay}">
+                <muxc:ItemsRepeater.Layout>
+                    <muxc:StackLayout Orientation="Vertical" Spacing="24" />
+                </muxc:ItemsRepeater.Layout>
+                <muxc:ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ChannelShowSection">
+                        <StackPanel DataContext="{x:Bind}" Spacing="10">
+                            <TextBlock Text="{Binding Title}" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <ScrollViewer
+                                HorizontalScrollBarVisibility="Auto"
+                                HorizontalScrollMode="Enabled"
+                                VerticalScrollBarVisibility="Disabled"
+                                VerticalScrollMode="Disabled">
+                                <muxc:ItemsRepeater ItemTemplate="{StaticResource ChannelShowTemplate}" ItemsSource="{Binding Shows}">
+                                    <muxc:ItemsRepeater.Layout>
+                                        <muxc:StackLayout Orientation="Horizontal" Spacing="12" />
+                                    </muxc:ItemsRepeater.Layout>
+                                </muxc:ItemsRepeater>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </DataTemplate>
+                </muxc:ItemsRepeater.ItemTemplate>
+            </muxc:ItemsRepeater>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
