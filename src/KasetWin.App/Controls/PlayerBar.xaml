@@ -18,198 +18,255 @@
         <converters:MuteGlyphConverter x:Key="MuteGlyph" />
         <converters:SecondsToTimeConverter x:Key="SecondsToTime" />
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:CoverDimensionConverter x:Key="CoverDimension" />
     </UserControl.Resources>
 
+    <!--
+        Docked player bar (Apple-Music layout): transport on the LEFT, a centered now-playing card
+        (rounded cover + title/artist·album, left-aligned, with the seek bar + times underneath) in
+        the MIDDLE, and lyrics/queue/volume on the RIGHT. Full-width bar along the bottom of the
+        content area, starting where the sidebar ends.
+    -->
     <Grid
-        Padding="12,8"
+        Padding="16,3"
         Background="{ThemeResource LayerFillColorDefaultBrush}"
         BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
         BorderThickness="0,1,0,0"
-        ColumnSpacing="12">
+        ColumnSpacing="16">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
-        <!-- Now playing: thumbnail + title/artist -->
+        <!-- LEFT: transport controls -->
         <StackPanel
             Grid.Column="0"
             VerticalAlignment="Center"
             Orientation="Horizontal"
-            Spacing="12">
-            <Border
-                Width="60"
-                Height="60"
-                CornerRadius="4">
-                <Border.ContextFlyout>
-                    <MenuFlyout>
-                        <MenuFlyoutItem Click="OnCtxPlayNext" Text="Putar setelah ini">
-                            <MenuFlyoutItem.Icon>
-                                <FontIcon Glyph="&#xE893;" />
-                            </MenuFlyoutItem.Icon>
-                        </MenuFlyoutItem>
-                        <MenuFlyoutItem Click="OnCtxAddToQueue" Text="Tambahkan ke antrean">
-                            <MenuFlyoutItem.Icon>
-                                <FontIcon Glyph="&#xE710;" />
-                            </MenuFlyoutItem.Icon>
-                        </MenuFlyoutItem>
-                        <MenuFlyoutItem Click="OnCtxToggleLike" Text="Suka / batal suka">
-                            <MenuFlyoutItem.Icon>
-                                <FontIcon Glyph="&#xEB51;" />
-                            </MenuFlyoutItem.Icon>
-                        </MenuFlyoutItem>
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Click="OnCtxGoToArtist" Text="Buka halaman artis">
-                            <MenuFlyoutItem.Icon>
-                                <FontIcon Glyph="&#xE77B;" />
-                            </MenuFlyoutItem.Icon>
-                        </MenuFlyoutItem>
-                        <MenuFlyoutItem Click="OnCtxGoToAlbum" Text="Buka album">
-                            <MenuFlyoutItem.Icon>
-                                <FontIcon Glyph="&#xE93C;" />
-                            </MenuFlyoutItem.Icon>
-                        </MenuFlyoutItem>
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Click="OnCtxShare" Text="Bagikan">
-                            <MenuFlyoutItem.Icon>
-                                <FontIcon Glyph="&#xE72D;" />
-                            </MenuFlyoutItem.Icon>
-                        </MenuFlyoutItem>
-                    </MenuFlyout>
-                </Border.ContextFlyout>
-                <Image
-                    Source="{Binding CurrentTrack.ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
-                    Stretch="UniformToFill" />
-            </Border>
-            <!-- Fixed width so a long/short title never shifts the transport controls or the
-                 action buttons (the region stays a constant size). -->
-            <controls:TrackInfo
-                Width="240"
-                VerticalAlignment="Center"
-                Large="True"
-                ShowAlbum="True"
-                Song="{Binding CurrentTrack}" />
-            <Border
-                VerticalAlignment="Center"
-                Padding="6,2"
-                Background="{ThemeResource SystemFillColorCriticalBrush}"
-                CornerRadius="4"
-                Visibility="{Binding IsLive, Converter={StaticResource BoolToVisibility}}">
-                <TextBlock
-                    FontWeight="SemiBold"
-                    Foreground="White"
-                    Text="LIVE"
-                    Style="{StaticResource CaptionTextBlockStyle}" />
-            </Border>
+            Spacing="6">
             <Button
-                x:Name="LikeButton"
-                VerticalAlignment="Center"
-                Click="OnLikeClick"
-                IsEnabled="False"
+                x:Name="ShuffleButton"
+                Click="OnShuffleClick"
+                Opacity="{Binding IsShuffled, Converter={StaticResource BoolOpacity}}"
                 Style="{StaticResource SubtleButtonStyle}"
-                ToolTipService.ToolTip="Like">
-                <FontIcon x:Name="LikeIcon" FontSize="16" Glyph="&#xEB51;" />
+                ToolTipService.ToolTip="Shuffle">
+                <FontIcon FontSize="16" Glyph="&#xE8B1;" />
+            </Button>
+            <Button
+                x:Name="PreviousButton"
+                Click="OnPreviousClick"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Previous">
+                <FontIcon FontSize="16" Glyph="&#xE892;" />
+            </Button>
+            <!-- Podcast-only: jump back 10s (YouTube convention). -->
+            <Button
+                x:Name="Rewind10Button"
+                Click="OnRewind10Click"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Mundur 10 detik"
+                Visibility="Collapsed">
+                <FontIcon FontSize="16" Glyph="&#xEB9E;" />
+            </Button>
+            <Button
+                x:Name="PlayPauseButton"
+                Width="36"
+                Height="36"
+                Padding="0"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center"
+                Click="OnPlayPauseClick"
+                CornerRadius="18"
+                Style="{StaticResource AccentButtonStyle}"
+                ToolTipService.ToolTip="Play/Pause">
+                <FontIcon FontSize="16" Glyph="{Binding IsPlaying, Converter={StaticResource PlayPauseGlyph}}" />
+            </Button>
+            <!-- Podcast-only: jump forward 30s (YouTube convention). -->
+            <Button
+                x:Name="Forward30Button"
+                Click="OnForward30Click"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Maju 30 detik"
+                Visibility="Collapsed">
+                <FontIcon FontSize="16" Glyph="&#xEB9D;" />
+            </Button>
+            <Button
+                x:Name="NextButton"
+                Click="OnNextClick"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Next">
+                <FontIcon FontSize="16" Glyph="&#xE893;" />
+            </Button>
+            <Button
+                x:Name="RepeatButton"
+                Click="OnRepeatClick"
+                Opacity="{Binding RepeatMode, Converter={StaticResource RepeatOpacity}}"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Repeat">
+                <FontIcon FontSize="16" Glyph="{Binding RepeatMode, Converter={StaticResource RepeatGlyph}}" />
             </Button>
         </StackPanel>
 
-        <!-- Transport + seek -->
-        <StackPanel
+        <!-- CENTER: now-playing group. Fills the middle column (wide → long seek bar). The inner
+             Row 0 is a responsive grid (TrackInfo in a * column) so it shrinks in a narrow window
+             instead of overflowing/clipping. -->
+        <Border
             Grid.Column="1"
+            HorizontalAlignment="Stretch"
             VerticalAlignment="Center"
-            Spacing="2">
-            <StackPanel
-                HorizontalAlignment="Center"
-                Orientation="Horizontal"
-                Spacing="8">
-                <Button
-                    x:Name="ShuffleButton"
-                    Click="OnShuffleClick"
-                    Opacity="{Binding IsShuffled, Converter={StaticResource BoolOpacity}}"
-                    Style="{StaticResource SubtleButtonStyle}"
-                    ToolTipService.ToolTip="Shuffle">
-                    <FontIcon FontSize="16" Glyph="&#xE8B1;" />
-                </Button>
-                <Button
-                    x:Name="PreviousButton"
-                    Click="OnPreviousClick"
-                    Style="{StaticResource SubtleButtonStyle}"
-                    ToolTipService.ToolTip="Previous">
-                    <FontIcon FontSize="16" Glyph="&#xE892;" />
-                </Button>
-                <Button
-                    x:Name="PlayPauseButton"
-                    Width="40"
-                    Height="40"
-                    Click="OnPlayPauseClick"
-                    CornerRadius="20"
-                    Style="{StaticResource AccentButtonStyle}"
-                    ToolTipService.ToolTip="Play/Pause">
-                    <FontIcon FontSize="16" Glyph="{Binding IsPlaying, Converter={StaticResource PlayPauseGlyph}}" />
-                </Button>
-                <Button
-                    x:Name="NextButton"
-                    Click="OnNextClick"
-                    Style="{StaticResource SubtleButtonStyle}"
-                    ToolTipService.ToolTip="Next">
-                    <FontIcon FontSize="16" Glyph="&#xE893;" />
-                </Button>
-                <Button
-                    x:Name="RepeatButton"
-                    Click="OnRepeatClick"
-                    Opacity="{Binding RepeatMode, Converter={StaticResource RepeatOpacity}}"
-                    Style="{StaticResource SubtleButtonStyle}"
-                    ToolTipService.ToolTip="Repeat">
-                    <FontIcon FontSize="16" Glyph="{Binding RepeatMode, Converter={StaticResource RepeatGlyph}}" />
-                </Button>
-            </StackPanel>
+            Padding="8,2"
+            Background="Transparent">
+            <Grid RowSpacing="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <!--
-                Seek row (Req 9.1): a 3-column Auto * Auto grid keeps the times pinned to the slider
-                ends and vertically centered. Elapsed (current Progress) sits at the LEFT edge aligned
-                with the slider start; total Duration sits at the RIGHT edge aligned with the slider
-                end; the Slider stretches full-width between them.
-            -->
-            <Grid ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock
-                    Grid.Column="0"
-                    MinWidth="40"
-                    HorizontalAlignment="Left"
-                    HorizontalTextAlignment="Right"
+                <!-- Row 0: cover + title + like as ONE tight group, CENTRED above the progress bar
+                     (love sits right next to the title). TrackInfo has a MaxWidth so a long title
+                     clips/marquees instead of stretching the group. -->
+                <StackPanel
+                    Grid.Row="0"
+                    HorizontalAlignment="Center"
                     VerticalAlignment="Center"
-                    Opacity="0.7"
-                    Text="{Binding Progress, Converter={StaticResource SecondsToTime}}"
-                    Style="{StaticResource CaptionTextBlockStyle}" />
-                <Slider
-                    x:Name="SeekSlider"
-                    Grid.Column="1"
-                    HorizontalAlignment="Stretch"
-                    Maximum="{Binding Duration}"
-                    Minimum="0"
-                    StepFrequency="1"
-                    VerticalAlignment="Center" />
-                <TextBlock
-                    Grid.Column="2"
-                    MinWidth="40"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    Opacity="0.7"
-                    Text="{Binding Duration, Converter={StaticResource SecondsToTime}}"
-                    Style="{StaticResource CaptionTextBlockStyle}" />
+                    Orientation="Horizontal"
+                    Spacing="10">
+                        <!-- Rounded cover; aspect adapts to the track (16:9 for a video, square otherwise) -->
+                        <Border
+                            Width="{Binding CurrentTrack, Converter={StaticResource CoverDimension}, ConverterParameter=w}"
+                            Height="{Binding CurrentTrack, Converter={StaticResource CoverDimension}, ConverterParameter=h}"
+                            VerticalAlignment="Center"
+                            CornerRadius="6">
+                    <Border.ContextFlyout>
+                        <MenuFlyout>
+                            <MenuFlyoutItem Click="OnCtxPlayNext" Text="Putar setelah ini">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE893;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem Click="OnCtxAddToQueue" Text="Tambahkan ke antrean">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE710;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem Click="OnCtxToggleLike" Text="Suka / batal suka">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xEB51;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutSeparator />
+                            <MenuFlyoutItem Click="OnCtxGoToArtist" Text="Buka halaman artis">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE77B;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem Click="OnCtxGoToAlbum" Text="Buka album">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE93C;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutSeparator />
+                            <MenuFlyoutItem Click="OnCtxShare" Text="Bagikan">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE72D;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                        </MenuFlyout>
+                    </Border.ContextFlyout>
+                            <Image
+                                Source="{Binding CurrentTrack.ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
+                                Stretch="UniformToFill" />
+                        </Border>
+                        <controls:TrackInfo
+                            MaxWidth="340"
+                            VerticalAlignment="Center"
+                            Large="True"
+                            ShowAlbum="True"
+                            Song="{Binding CurrentTrack}" />
+                        <Border
+                            VerticalAlignment="Center"
+                            Padding="6,2"
+                            Background="{ThemeResource SystemFillColorCriticalBrush}"
+                            CornerRadius="4"
+                            Visibility="{Binding IsLive, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock
+                                FontWeight="SemiBold"
+                                Foreground="White"
+                                Text="LIVE"
+                                Style="{StaticResource CaptionTextBlockStyle}" />
+                        </Border>
+                        <Button
+                            x:Name="LikeButton"
+                            VerticalAlignment="Center"
+                            Click="OnLikeClick"
+                            IsEnabled="False"
+                            Style="{StaticResource SubtleButtonStyle}"
+                            ToolTipService.ToolTip="Like">
+                            <FontIcon x:Name="LikeIcon" FontSize="16" Glyph="&#xEB51;" />
+                        </Button>
+                        <!-- Podcast-only: dislike (thumbs down), mirrors YT Music's episode rating. -->
+                        <Button
+                            x:Name="DislikeButton"
+                            VerticalAlignment="Center"
+                            Click="OnDislikeClick"
+                            Style="{StaticResource SubtleButtonStyle}"
+                            ToolTipService.ToolTip="Tidak suka"
+                            Visibility="Collapsed">
+                            <FontIcon x:Name="DislikeIcon" FontSize="16" Glyph="&#xE8E0;" />
+                        </Button>
+                    </StackPanel>
+
+                <!-- Row 1: progress bar spanning the full card width -->
+                <Grid Grid.Row="1" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        Grid.Column="0"
+                        MinWidth="36"
+                        HorizontalTextAlignment="Right"
+                        VerticalAlignment="Center"
+                        Opacity="0.7"
+                        Text="{Binding Progress, Converter={StaticResource SecondsToTime}}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                    <Slider
+                        x:Name="SeekSlider"
+                        Grid.Column="1"
+                        HorizontalAlignment="Stretch"
+                        Maximum="{Binding Duration}"
+                        Minimum="0"
+                        StepFrequency="1"
+                        VerticalAlignment="Center" />
+                    <TextBlock
+                        Grid.Column="2"
+                        MinWidth="36"
+                        VerticalAlignment="Center"
+                        Opacity="0.7"
+                        Text="{Binding Duration, Converter={StaticResource SecondsToTime}}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                </Grid>
             </Grid>
-        </StackPanel>
+        </Border>
 
-        <!-- Right cluster: lyrics / queue / video pop-out, then volume -->
+        <!-- RIGHT: lyrics / queue / volume -->
         <StackPanel
             Grid.Column="2"
             VerticalAlignment="Center"
             Orientation="Horizontal"
             Spacing="4">
+            <Button
+                x:Name="SpeedButton"
+                VerticalAlignment="Center"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Kecepatan pemutaran">
+                <FontIcon FontSize="16" Glyph="&#xEC4A;" />
+                <Button.Flyout>
+                    <MenuFlyout x:Name="SpeedFlyout" Placement="Top" />
+                </Button.Flyout>
+            </Button>
             <Button
                 x:Name="LyricsButton"
                 VerticalAlignment="Center"
@@ -217,7 +274,7 @@
                 IsEnabled="False"
                 Style="{StaticResource SubtleButtonStyle}"
                 ToolTipService.ToolTip="Lirik">
-                <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                <FontIcon x:Name="LyricsIcon" FontSize="16" Glyph="&#xE8D2;" />
             </Button>
             <Button
                 x:Name="QueueButton"

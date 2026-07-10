@@ -49,6 +49,9 @@ public sealed partial class PlayerBar : UserControl
     /// <summary>Local like state for the current track, updated optimistically on toggle.</summary>
     private LikeStatus? _currentLike;
 
+    /// <summary>Whether the bar is showing podcast affordances (thumbs instead of heart).</summary>
+    private bool _isPodcastUi;
+
     private bool _userSeeking;
 
     public PlayerBar()
@@ -66,6 +69,19 @@ public sealed partial class PlayerBar : UserControl
         if (_sidePanel is not null)
         {
             _sidePanel.Changed += OnSidePanelChanged;
+        }
+
+        // Playback-speed menu (0.5x–3x, like YT Music's "Kecepatan pemutaran").
+        var playback = (Application.Current as App)?.Services.GetService<KasetWin.Core.Abstractions.IPlaybackController>();
+        foreach (var rate in new[] { 0.5, 0.8, 1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0 })
+        {
+            var item = new MenuFlyoutItem
+            {
+                Text = rate == 1.0 ? "Normal" : $"{rate.ToString(System.Globalization.CultureInfo.InvariantCulture)}x",
+            };
+            var chosen = rate;
+            item.Click += (_, _) => _ = playback?.SetPlaybackRateAsync(chosen);
+            SpeedFlyout.Items.Add(item);
         }
 
         if (_player is not null)
@@ -183,7 +199,9 @@ public sealed partial class PlayerBar : UserControl
             ? stored
             : track?.LikeStatus;
         LikeButton.IsEnabled = _music is not null && !string.IsNullOrEmpty(track?.VideoId);
+        DislikeButton.IsEnabled = LikeButton.IsEnabled;
         ApplyLikeVisual();
+        ApplyDislikeVisual();
     }
 
     /// <summary>
@@ -194,6 +212,17 @@ public sealed partial class PlayerBar : UserControl
     {
         bool liked = _currentLike == LikeStatus.Like;
         LikeButton.Opacity = liked ? 1.0 : 0.5;
+        if (_isPodcastUi)
+        {
+            // Podcasts rate with thumbs (like YT), not the heart.
+            LikeIcon.Glyph = "";
+            LikeIcon.Foreground = liked
+                ? (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["AccentFillColorDefaultBrush"]
+                : (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["TextFillColorPrimaryBrush"];
+            ToolTipService.SetToolTip(LikeButton, liked ? "Batal suka" : "Suka");
+            return;
+        }
+
         // Filled red heart when liked, plain outline heart otherwise.
         LikeIcon.Glyph = liked ? "" : "";
         LikeIcon.Foreground = liked
@@ -244,8 +273,81 @@ public sealed partial class PlayerBar : UserControl
     /// (Bug 3). Routed through <see cref="NavigationHelper"/> because the PlayerBar lives outside
     /// the content <see cref="Frame"/>.
     /// </summary>
-    private void UpdateLyricsAvailability() =>
-        LyricsButton.IsEnabled = _player?.CurrentTrack is not null;
+    private void UpdateLyricsAvailability()
+    {
+        var track = _player?.CurrentTrack;
+        LyricsButton.IsEnabled = track is not null;
+
+        // Podcast episodes show captions (CC) instead of song lyrics — swap the button's
+        // glyph and tooltip so the affordance reads "Subtitel (CC)" like YT Music.
+        var isPodcast = track?.IsPodcastEpisode == true;
+        LyricsIcon.Glyph = isPodcast ? "" : ""; // ClosedCaption vs the default lyric glyph
+        ToolTipService.SetToolTip(LyricsButton, isPodcast ? "Subtitel (CC)" : "Lirik");
+
+        // Podcast-only affordances: ±seek jumps and the dislike rating.
+        _isPodcastUi = isPodcast;
+        var podcastVisibility = isPodcast ? Visibility.Visible : Visibility.Collapsed;
+        ApplyLikeVisual();
+        Rewind10Button.Visibility = podcastVisibility;
+        Forward30Button.Visibility = podcastVisibility;
+        DislikeButton.Visibility = podcastVisibility;
+        ApplyDislikeVisual();
+    }
+
+    /// <summary>Podcast: jump back 10 seconds.</summary>
+    private async void OnRewind10Click(object sender, RoutedEventArgs e)
+    {
+        if (_player is not null)
+        {
+            await _player.SeekAsync(System.Math.Max(0, _player.Progress - 10));
+        }
+    }
+
+    /// <summary>Podcast: jump forward 30 seconds (clamped by the player).</summary>
+    private async void OnForward30Click(object sender, RoutedEventArgs e)
+    {
+        if (_player is not null)
+        {
+            await _player.SeekAsync(_player.Progress + 30);
+        }
+    }
+
+    /// <summary>Dims/solidifies the thumbs-down to mirror the current dislike state.</summary>
+    private void ApplyDislikeVisual() =>
+        DislikeButton.Opacity = _currentLike == LikeStatus.Dislike ? 1.0 : 0.5;
+
+    /// <summary>
+    /// Toggles dislike for the current episode (podcast-only button): a disliked episode becomes
+    /// indifferent, anything else becomes disliked. Optimistic, reverts on server failure.
+    /// </summary>
+    private async void OnDislikeClick(object sender, RoutedEventArgs e)
+    {
+        var videoId = _player?.CurrentTrack?.VideoId;
+        if (_music is null || string.IsNullOrEmpty(videoId))
+        {
+            return;
+        }
+
+        LikeStatus? previous = _currentLike;
+        LikeStatus next = previous == LikeStatus.Dislike ? LikeStatus.Indifferent : LikeStatus.Dislike;
+
+        _currentLike = next;
+        ApplyLikeVisual();
+        ApplyDislikeVisual();
+
+        try
+        {
+            await _music.RateSongAsync(videoId, next);
+            _likeStore?.Set(videoId, next);
+        }
+        catch (Exception)
+        {
+            _currentLike = previous;
+            ApplyLikeVisual();
+            ApplyDislikeVisual();
+            _notifier?.Show("Gagal menyimpan penilaian.");
+        }
+    }
 
     private void OnLyricsClick(object sender, RoutedEventArgs e) => _sidePanel?.ToggleLyrics();
 

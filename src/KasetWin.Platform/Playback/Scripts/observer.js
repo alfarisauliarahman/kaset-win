@@ -90,13 +90,28 @@
         return text;
     }
 
+    // Drops view/like/count segments from a video byline ("​.Feast • 1.3M views • 5.4K likes"
+    // → ".Feast") so the player bar shows only the artist/channel, not the video stats.
+    function cleanByline(text) {
+        if (!text) { return ''; }
+        var parts = text.split(/[•,]/);
+        var kept = [];
+        for (var i = 0; i < parts.length; i++) {
+            var seg = parts[i].trim();
+            if (seg === '') { continue; }
+            if (/(views?|likes?|tayangan|ditonton|suka|penonton|x\s*ditonton)/i.test(seg)) { continue; }
+            kept.push(seg);
+        }
+        return kept.length ? kept.join(' • ') : text.trim();
+    }
+
     function readArtist() {
         var byline = document.querySelector('.byline.ytmusic-player-bar');
-        var text = byline ? (byline.textContent || '').trim() : '';
+        var text = byline ? cleanByline((byline.textContent || '').trim()) : '';
         if (text === '') {
             var data = videoData();
             if (data && data.author) {
-                text = ('' + data.author).trim();
+                text = cleanByline(('' + data.author).trim());
             }
         }
         return text;
@@ -294,9 +309,83 @@
         sendUpdate();
     }
 
+    // Global keyboard shortcuts inside the player (so Space / Ctrl+Arrows work as soon as the web
+    // player has focus, without first clicking the native player bar). Ignored while typing in an
+    // input/search box so it never steals the space bar from text fields.
+    function isTypingTarget(el) {
+        if (!el) { return false; }
+        var tag = (el.tagName || '').toUpperCase();
+        return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+    }
+
+    function clickSelector(selectors) {
+        for (var i = 0; i < selectors.length; i++) {
+            var el = document.querySelector(selectors[i]);
+            if (el) { el.click(); return true; }
+        }
+        return false;
+    }
+
+    function installKeyboardShortcuts() {
+        document.addEventListener('keydown', function (e) {
+            if (isTypingTarget(e.target)) { return; }
+
+            // Space (no modifiers): toggle play/pause on the <video> directly.
+            if (e.code === 'Space' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                var video = playerElement();
+                if (video) {
+                    if (video.paused) { video.play(); } else { video.pause(); }
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                return;
+            }
+
+            // Ctrl + Right / Left: next / previous track via the player-bar buttons.
+            if (e.ctrlKey && !e.altKey && !e.metaKey) {
+                if (e.code === 'ArrowRight') {
+                    if (clickSelector(['.next-button.ytmusic-player-bar', 'tp-yt-paper-icon-button.next-button'])) {
+                        e.preventDefault(); e.stopPropagation();
+                    }
+                } else if (e.code === 'ArrowLeft') {
+                    if (clickSelector(['.previous-button.ytmusic-player-bar', 'tp-yt-paper-icon-button.previous-button'])) {
+                        e.preventDefault(); e.stopPropagation();
+                    }
+                }
+                return;
+            }
+
+            // Bare keys: seek, volume, mute — applied straight to the <video> so they are consistent
+            // and work as soon as the player has focus.
+            var v = playerElement();
+            if (!v || e.altKey || e.metaKey) { return; }
+
+            if (e.code === 'ArrowRight') {
+                v.currentTime = Math.min((v.duration || 0), v.currentTime + 5);
+                e.preventDefault(); e.stopPropagation();
+            } else if (e.code === 'ArrowLeft') {
+                v.currentTime = Math.max(0, v.currentTime - 5);
+                e.preventDefault(); e.stopPropagation();
+            } else if (e.code === 'ArrowUp') {
+                v.volume = Math.min(1, v.volume + 0.05);
+                e.preventDefault(); e.stopPropagation();
+            } else if (e.code === 'ArrowDown') {
+                v.volume = Math.max(0, v.volume - 0.05);
+                e.preventDefault(); e.stopPropagation();
+            } else if (e.code === 'KeyM') {
+                v.muted = !v.muted;
+                e.preventDefault(); e.stopPropagation();
+            } else if (e.code === 'KeyL') {
+                // Like the current track via the player-bar thumb-up button.
+                clickSelector(['.ytmusic-player-bar #button-shape-like button', 'ytmusic-like-button-renderer #button-shape-like button']);
+            }
+        }, true);
+    }
+
     // ~1 Hz heartbeat plus DOM mutation re-binding.
     function start() {
         probeDrm();
+        installKeyboardShortcuts();
         bindVideo();
         sendUpdate();
         setInterval(tick, 1000);

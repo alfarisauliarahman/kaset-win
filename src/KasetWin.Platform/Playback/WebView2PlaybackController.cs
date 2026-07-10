@@ -47,6 +47,7 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
 
     private const string ObserverResourceName = "KasetWin.Platform.Playback.Scripts.observer.js";
     private const string AudioQualityResourceName = "KasetWin.Platform.Playback.Scripts.audioQuality.js";
+    private const string EqualizerResourceName = "KasetWin.Platform.Playback.Scripts.equalizer.js";
 
     private readonly Func<CancellationToken, Task<CoreWebView2>>? _coreWebViewFactory;
     private readonly ILogger<WebView2PlaybackController> _logger;
@@ -59,6 +60,8 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
     private int _targetVolume = 100; // 0..100
     private bool _isMuted;
     private string? _pendingAudioQualityValue;
+    private bool _eqEnabled;
+    private int[] _eqGains = new int[9];
     private PlaybackDisplayMode _displayMode = PlaybackDisplayMode.Hidden;
     private bool _disposed;
 
@@ -274,6 +277,53 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
     }
 
     /// <inheritdoc />
+    public Task SetEqualizerAsync(bool enabled, IReadOnlyList<int> gainsDb)
+    {
+        _eqEnabled = enabled;
+        var gains = new int[9];
+        if (gainsDb is not null)
+        {
+            for (var i = 0; i < gains.Length && i < gainsDb.Count; i++)
+            {
+                gains[i] = Math.Clamp(gainsDb[i], -12, 12);
+            }
+        }
+
+        _eqGains = gains;
+        return ApplyEqualizerAsync();
+    }
+
+    private Task ApplyEqualizerAsync()
+    {
+        if (_core is null)
+        {
+            return Task.CompletedTask; // Applied on next attach/navigation instead.
+        }
+
+        var gainsLiteral = JsonSerializer.Serialize(_eqGains);
+        var enabledLiteral = _eqEnabled ? "true" : "false";
+        return ExecuteVideoScriptAsync(
+            $"(function(){{if(typeof window.__kasetSetEq==='function'){{window.__kasetSetEq({enabledLiteral},{gainsLiteral});}}}})()");
+    }
+
+    /// <summary>The user's chosen playback rate; re-applied after navigations (1 = normal).</summary>
+    private double _playbackRate = 1.0;
+
+    /// <inheritdoc />
+    public Task SetPlaybackRateAsync(double rate)
+    {
+        _playbackRate = Math.Clamp(rate, 0.25, 3.0);
+        return ApplyPlaybackRateAsync();
+    }
+
+    private Task ApplyPlaybackRateAsync()
+    {
+        var literal = _playbackRate.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return ExecuteVideoScriptAsync(
+            $"(function(){{var v=document.querySelector('video');if(v){{v.playbackRate={literal};}}}})()");
+    }
+
+    /// <inheritdoc />
     public Task SetDisplayModeAsync(PlaybackDisplayMode mode)
     {
         // Seam (Req 26): the controller tracks the desired mode and notifies the host which owns
@@ -360,6 +410,7 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
 
         await core.AddScriptToExecuteOnDocumentCreatedAsync(LoadScript(ObserverResourceName));
         await core.AddScriptToExecuteOnDocumentCreatedAsync(audioQualityScript);
+        await core.AddScriptToExecuteOnDocumentCreatedAsync(LoadScript(EqualizerResourceName));
     }
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
@@ -367,6 +418,19 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
         try
         {
             await ApplyPlaybackPreferencesAsync().ConfigureAwait(true);
+
+            // The doc-created EQ script re-installs fresh on each navigation; re-push the current
+            // bands so an enabled equalizer survives page/track changes.
+            if (_eqEnabled)
+            {
+                await ApplyEqualizerAsync().ConfigureAwait(true);
+            }
+
+            // A new watch page resets the media element's playbackRate; restore the user's choice.
+            if (Math.Abs(_playbackRate - 1.0) > 0.001)
+            {
+                await ApplyPlaybackRateAsync().ConfigureAwait(true);
+            }
         }
         catch (Exception ex) when (ex is COMException or InvalidOperationException)
         {
