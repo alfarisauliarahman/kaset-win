@@ -51,6 +51,19 @@ public sealed partial class SearchPage : Page
         }
     }
 
+    /// <summary>
+    /// A unified-mode row (podcast queries): routes through the same activation as Home/Explore —
+    /// songs/episodes play, shows/playlists/albums/artists navigate to their pages.
+    /// </summary>
+    private void OnUnifiedRowClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: SearchRow row })
+        {
+            FeedNavigation.Activate(
+                Frame, row.Item, ((App)Application.Current).Services.GetService<IPlayerService>());
+        }
+    }
+
     // â”€â”€ Query box (Req 12.2 / 12.3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)

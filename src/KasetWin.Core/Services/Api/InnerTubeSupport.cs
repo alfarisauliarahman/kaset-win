@@ -28,6 +28,10 @@ public static class InnerTubeSupport
     public const string ClientNameMusic = "WEB_REMIX";
 
     /// <summary>InnerTube <c>clientVersion</c> paired with <see cref="ClientNameMusic"/>.</summary>
+    // REVERTED to the known-good version: the guessed "1.20250630.01.00" bump made BOTH the
+    // universal and the podcasts-filtered searches return query-unrelated results (dump-verified —
+    // the target show vanished entirely). With this version the filtered searches carried the
+    // target. Do not bump blindly; verify against a dump.
     public const string ClientVersionMusic = "1.20231204.01.00";
 
     /// <summary>

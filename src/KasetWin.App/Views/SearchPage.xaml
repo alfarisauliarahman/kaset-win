@@ -6,6 +6,7 @@
     xmlns:controls="using:KasetWin.App.Controls"
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:core="using:KasetWin.Core.Models"
+    xmlns:vm="using:KasetWin.App.ViewModels"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
@@ -106,6 +107,16 @@
                         TextTrimming="CharacterEllipsis"
                         TextWrapping="Wrap"
                         Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock
+                        FontSize="12"
+                        HorizontalAlignment="Center"
+                        MaxLines="1"
+                        Opacity="0.6"
+                        Text="{Binding SubtitleText}"
+                        TextAlignment="Center"
+                        TextTrimming="CharacterEllipsis"
+                        Visibility="{Binding HasSubtitle, Converter={StaticResource BoolToVisibility}}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
                 </StackPanel>
             </Button>
         </DataTemplate>
@@ -203,7 +214,8 @@
                 <ProgressRing
                     Margin="0,12"
                     HorizontalAlignment="Center"
-                    IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" />
+                    IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
 
                 <InfoBar
                     IsClosable="False"
@@ -215,10 +227,11 @@
                 <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasTopResult, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Top Results" />
                     <Button
-                        MaxWidth="480"
-                        Padding="12"
-                        HorizontalAlignment="Left"
-                        HorizontalContentAlignment="Left"
+                        MaxWidth="620"
+                        MinWidth="440"
+                        Padding="16"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Stretch"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1"
@@ -230,9 +243,10 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Border
-                                Width="88"
-                                Height="88"
-                                CornerRadius="8">
+                                Width="{x:Bind ViewModel.TopResultThumbWidth, Mode=OneWay}"
+                                Height="{x:Bind ViewModel.TopResultThumbHeight, Mode=OneWay}"
+                                VerticalAlignment="Center"
+                                CornerRadius="{x:Bind ViewModel.TopResultThumbCorner, Mode=OneWay}">
                                 <Image Source="{x:Bind ViewModel.TopResultThumbnail, Mode=OneWay, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
                             </Border>
                             <StackPanel
@@ -286,6 +300,69 @@
                         </muxc:ItemsRepeater>
                     </ScrollViewer>
                 </StackPanel>
+
+                <!-- Unified results (podcast queries): YT's shelves verbatim, no classification. -->
+                <muxc:ItemsRepeater ItemsSource="{x:Bind ViewModel.UnifiedSections, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsUnifiedResults, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <muxc:ItemsRepeater.Layout>
+                        <muxc:StackLayout Orientation="Vertical" Spacing="24" />
+                    </muxc:ItemsRepeater.Layout>
+                    <muxc:ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SearchUnifiedSection">
+                            <!-- ItemsRepeater does not set DataContext on realized items (WinUI gotcha);
+                                 x:Bind it explicitly so the inner {Binding}s resolve. -->
+                            <StackPanel DataContext="{x:Bind}" Spacing="10">
+                                <TextBlock Text="{Binding Title}" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                <muxc:ItemsRepeater ItemsSource="{Binding Rows}">
+                                    <muxc:ItemsRepeater.Layout>
+                                        <muxc:StackLayout Orientation="Vertical" Spacing="2" />
+                                    </muxc:ItemsRepeater.Layout>
+                                    <muxc:ItemsRepeater.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SearchRow">
+                                            <Button
+                                                Padding="8"
+                                                HorizontalAlignment="Stretch"
+                                                HorizontalContentAlignment="Stretch"
+                                                Click="OnUnifiedRowClick"
+                                                DataContext="{x:Bind}"
+                                                Style="{StaticResource SubtleButtonStyle}">
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border
+                                                        Width="48"
+                                                        Height="48"
+                                                        CornerRadius="6">
+                                                        <Image Source="{Binding Thumbnail, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                                                    </Border>
+                                                    <StackPanel
+                                                        Grid.Column="1"
+                                                        VerticalAlignment="Center"
+                                                        Spacing="1">
+                                                        <TextBlock
+                                                            FontSize="15"
+                                                            MaxLines="1"
+                                                            Text="{Binding Title}"
+                                                            TextTrimming="CharacterEllipsis"
+                                                            Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                        <TextBlock
+                                                            FontSize="13"
+                                                            MaxLines="1"
+                                                            Opacity="0.7"
+                                                            Text="{Binding Subtitle}"
+                                                            TextTrimming="CharacterEllipsis"
+                                                            Style="{StaticResource CaptionTextBlockStyle}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Button>
+                                        </DataTemplate>
+                                    </muxc:ItemsRepeater.ItemTemplate>
+                                </muxc:ItemsRepeater>
+                            </StackPanel>
+                        </DataTemplate>
+                    </muxc:ItemsRepeater.ItemTemplate>
+                </muxc:ItemsRepeater>
 
                 <!-- Songs: multi-column wrap grid (Apple-Music style). -->
                 <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasSongs, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
@@ -382,6 +459,21 @@
                             </muxc:ItemsRepeater.Layout>
                         </muxc:ItemsRepeater>
                     </ScrollViewer>
+                </StackPanel>
+
+                <!-- Episodes: multi-column wrap grid (episode rows play on click). -->
+                <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasEpisodes, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Episodes" />
+                    <muxc:ItemsRepeater ItemTemplate="{StaticResource SongTemplate}" ItemsSource="{x:Bind ViewModel.Episodes, Mode=OneWay}">
+                        <muxc:ItemsRepeater.Layout>
+                            <muxc:UniformGridLayout
+                                MinColumnSpacing="16"
+                                MinItemHeight="60"
+                                MinItemWidth="380"
+                                MinRowSpacing="2"
+                                Orientation="Horizontal" />
+                        </muxc:ItemsRepeater.Layout>
+                    </muxc:ItemsRepeater>
                 </StackPanel>
 
                 <!-- Empty state. -->

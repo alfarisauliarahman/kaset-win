@@ -74,38 +74,158 @@ public static class SearchResponseParser
         var playlists = new List<Playlist>();
         var podcasts = new List<Playlist>();
 
-        // musicShelfRenderer holds the regular (non-top) results. Searching recursively keeps
-        // us resilient to the tabbed vs filtered container layouts YouTube returns.
-        foreach (var shelf in ResponseTreeSearch.FindAll(contents, "musicShelfRenderer"))
-        {
-            if (shelf is not JsonObject shelfObj
-                || !shelfObj.TryGetPropertyValue("contents", out var shelfContents)
-                || shelfContents is not JsonArray rows)
-            {
-                continue;
-            }
+        // 2025 universal search: the selected tab's sectionListRenderer interleaves
+        // musicShelfRenderer sections with per-item itemSectionRenderer wrappers — together they
+        // form ONE flat, relevance-ordered result list (exactly what the web shows). Walk the
+        // section list in document order; consecutive single-item sections merge into the flat
+        // relevance list, while titled shelves keep their own section.
+        string? continuationToken = null;
+        var sections = new List<SearchSection>();
+        var flat = new List<HomeSectionItem>();
 
+        void ParseRows(JsonArray rows, List<HomeSectionItem> into)
+        {
             foreach (var row in rows)
             {
-                var renderer = Prop(row, "musicResponsiveListItemRenderer");
-                if (renderer is null)
+                if (Prop(row, "musicResponsiveListItemRenderer") is { } renderer
+                    && ParseRowItem(renderer) is { } item)
                 {
-                    continue;
+                    into.Add(item);
+                    ClassifyItem(item, songs, albums, artists, playlists, podcasts);
                 }
-
-                ClassifyListItem(renderer, songs, albums, artists, playlists, podcasts);
             }
+        }
+
+        var sectionList = ResponseTreeSearch.FindFirst(contents, "sectionListRenderer");
+        if (Prop(sectionList, "contents") is JsonArray orderedSections)
+        {
+            foreach (var sectionNode in orderedSections)
+            {
+                if (Prop(sectionNode, "musicShelfRenderer") is JsonObject shelfObj)
+                {
+                    var title = ParsingHelpers.ExtractText(shelfObj);
+                    if (Prop(shelfObj, "contents") is JsonArray shelfRows)
+                    {
+                        if (string.IsNullOrEmpty(title))
+                        {
+                            // An untitled shelf is part of the flat relevance list.
+                            ParseRows(shelfRows, flat);
+                        }
+                        else
+                        {
+                            var shelfItems = new List<HomeSectionItem>();
+                            ParseRows(shelfRows, shelfItems);
+                            if (shelfItems.Count > 0)
+                            {
+                                sections.Add(new SearchSection(title, shelfItems));
+                            }
+                        }
+                    }
+
+                    // A filtered (single-type) search returns one pageable shelf; keep the first
+                    // token found.
+                    continuationToken ??= ExtractContinuationToken(shelfObj);
+                }
+                else if (Prop(sectionNode, "itemSectionRenderer") is { } itemSection
+                    && Prop(itemSection, "contents") is JsonArray itemRows)
+                {
+                    ParseRows(itemRows, flat);
+                }
+            }
+        }
+        else
+        {
+            // Fallback (older/odd containers): find shelves anywhere in the tree.
+            foreach (var shelf in ResponseTreeSearch.FindAll(contents, "musicShelfRenderer"))
+            {
+                if (shelf is JsonObject shelfObj && Prop(shelfObj, "contents") is JsonArray rows)
+                {
+                    ParseRows(rows, flat);
+                    continuationToken ??= ExtractContinuationToken(shelfObj);
+                }
+            }
+        }
+
+        if (flat.Count > 0)
+        {
+            // The flat relevance list leads (it is what the web shows first).
+            sections.Insert(0, new SearchSection("Hasil teratas", flat));
         }
 
         return new SearchResponse
         {
             TopResult = topResult,
+            Sections = sections,
             Songs = songs,
             Albums = albums,
             Artists = artists,
             Playlists = playlists,
             Podcasts = podcasts,
+            ContinuationToken = continuationToken,
         };
+    }
+
+    /// <summary>
+    /// Parses a <b>search continuation</b> response (the next page of a filtered shelf) into the
+    /// additional rows and the following continuation token. Mirrors <see cref="Parse"/> row
+    /// classification but reads the <c>musicShelfContinuation</c> envelope. A response with no
+    /// recognisable continuation contents yields an empty response (null token) — the natural end of
+    /// the shelf, not an error.
+    /// </summary>
+    public static SearchResponse ParseContinuation(JsonNode? root)
+    {
+        if (root is not JsonObject)
+        {
+            throw new KasetError(KasetErrorKind.ParseError, "Search continuation root is missing or not a JSON object.");
+        }
+
+        var songs = new List<Song>();
+        var albums = new List<Album>();
+        var artists = new List<Artist>();
+        var playlists = new List<Playlist>();
+        var podcasts = new List<Playlist>();
+
+        var shelf = ResponseTreeSearch.FindFirst(root, "musicShelfContinuation");
+        if (shelf is JsonObject shelfObj
+            && shelfObj.TryGetPropertyValue("contents", out var shelfContents)
+            && shelfContents is JsonArray rows)
+        {
+            foreach (var row in rows)
+            {
+                var renderer = Prop(row, "musicResponsiveListItemRenderer");
+                if (renderer is not null && ParseRowItem(renderer) is { } item)
+                {
+                    ClassifyItem(item, songs, albums, artists, playlists, podcasts);
+                }
+            }
+        }
+
+        return new SearchResponse
+        {
+            Songs = songs,
+            Albums = albums,
+            Artists = artists,
+            Playlists = playlists,
+            Podcasts = podcasts,
+            ContinuationToken = ExtractContinuationToken(shelf),
+        };
+    }
+
+    /// <summary>Reads the next-page token from a shelf's <c>continuations</c> (legacy or command).</summary>
+    private static string? ExtractContinuationToken(JsonNode? shelf)
+    {
+        if (Prop(shelf, "continuations") is JsonArray continuations && continuations.Count > 0)
+        {
+            var token = GetString(Prop(continuations[0], "nextContinuationData"), "continuation");
+            if (!string.IsNullOrEmpty(token))
+            {
+                return token;
+            }
+        }
+
+        var command = ResponseTreeSearch.FindFirst(shelf, "continuationCommand");
+        var newToken = GetString(command, "token");
+        return string.IsNullOrEmpty(newToken) ? null : newToken;
     }
 
     // MARK: - Top Result (musicCardShelfRenderer)
@@ -137,8 +257,14 @@ public static class SearchResponseParser
                 Id = videoId,
                 VideoId = videoId,
                 Title = title,
+                // Without artists the player bar shows a blank second line when a top result is
+                // played (Bug #6). The card subtitle carries them ("Song • Artist • Album …").
+                Artists = ExtractCardArtists(card, subtitle),
                 ThumbnailUrl = thumbnail,
                 IsExplicit = ParsingHelpers.ExtractIsExplicit(card),
+                // The card subtitle leads with the kind ("Video …" / "Song …"); a video top result
+                // gets a 16:9 cover in the UI, a song a square one.
+                VideoType = LooksLikeVideoSubtitle(subtitle) ? MusicVideoType.Omv : null,
             });
         }
 
@@ -173,6 +299,7 @@ public static class SearchResponseParser
                 Id = browseId,
                 Name = title,
                 ThumbnailUrl = thumbnail,
+                SubtitleText = CleanArtistSubtitle(subtitle),
             }),
             BrowseIdKind.Podcast or BrowseIdKind.Playlist => new HomeSectionItem.PlaylistItem(new Playlist
             {
@@ -189,15 +316,14 @@ public static class SearchResponseParser
 
     // MARK: - Regular results (musicResponsiveListItemRenderer)
 
-    private static void ClassifyListItem(
-        JsonNode renderer,
-        List<Song> songs,
-        List<Album> albums,
-        List<Artist> artists,
-        List<Playlist> playlists,
-        List<Playlist> podcasts)
+    /// <summary>
+    /// Parses one result row into its section item (song / album / artist / playlist / podcast),
+    /// or <see langword="null"/> when the row is not navigable. Single source of truth for both
+    /// the verbatim shelf sections and the per-type grouped lists.
+    /// </summary>
+    private static HomeSectionItem? ParseRowItem(JsonNode renderer)
     {
-        // Songs: a videoId in playlistItemData or in the title run's watchEndpoint.
+        // Songs / episodes: a videoId in playlistItemData or in the title run's watchEndpoint.
         var videoId = GetString(Prop(renderer, "playlistItemData"), "videoId")
                       ?? GetString(Prop(FlexColumnFirstRun(renderer, 0), "watchEndpoint"), "videoId")
                       ?? GetString(Prop(Prop(renderer, "navigationEndpoint"), "watchEndpoint"), "videoId");
@@ -206,7 +332,7 @@ public static class SearchResponseParser
 
         if (!string.IsNullOrEmpty(videoId))
         {
-            songs.Add(new Song
+            return new HomeSectionItem.SongItem(new Song
             {
                 Id = videoId,
                 VideoId = videoId,
@@ -216,7 +342,6 @@ public static class SearchResponseParser
                 ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(renderer),
                 IsExplicit = ParsingHelpers.ExtractIsExplicit(renderer),
             });
-            return;
         }
 
         // Other types: browseEndpoint either at the renderer root or on the title run.
@@ -225,41 +350,44 @@ public static class SearchResponseParser
         var browseId = GetString(browse, "browseId");
         if (string.IsNullOrEmpty(browseId))
         {
-            return;
+            return null;
         }
 
-        var pageType = ExtractPageType(browse);
-        var thumbnail = ParsingHelpers.BestThumbnailUrl(renderer);
-        var subtitle = ParsingHelpers.JoinRunTexts(FlexColumn(renderer, 1), "text");
-        var displayTitle = title ?? "Unknown";
+        return CreateSectionItem(
+            browseId,
+            ExtractPageType(browse),
+            title ?? "Unknown",
+            ParsingHelpers.BestThumbnailUrl(renderer),
+            ParsingHelpers.JoinRunTexts(FlexColumn(renderer, 1), "text"));
+    }
 
-        switch (ResolveBrowseKind(browseId, pageType))
+    /// <summary>Routes a parsed row item into the per-type grouped lists.</summary>
+    private static void ClassifyItem(
+        HomeSectionItem item,
+        List<Song> songs,
+        List<Album> albums,
+        List<Artist> artists,
+        List<Playlist> playlists,
+        List<Playlist> podcasts)
+    {
+        switch (item)
         {
-            case BrowseIdKind.Album:
-                albums.Add(new Album { Id = browseId, Title = displayTitle, ThumbnailUrl = thumbnail });
+            case HomeSectionItem.SongItem s:
+                songs.Add(s.Song);
                 break;
-            case BrowseIdKind.Artist:
-                artists.Add(new Artist { Id = browseId, Name = displayTitle, ThumbnailUrl = thumbnail });
+            case HomeSectionItem.AlbumItem a:
+                albums.Add(a.Album);
                 break;
-            case BrowseIdKind.Podcast:
-                podcasts.Add(MakePlaylist(browseId, displayTitle, thumbnail, subtitle));
+            case HomeSectionItem.ArtistItem ar:
+                artists.Add(ar.Artist);
                 break;
-            case BrowseIdKind.Playlist:
-                playlists.Add(MakePlaylist(browseId, displayTitle, thumbnail, subtitle));
+            case HomeSectionItem.PlaylistItem p:
+                // A podcast show's browseId is always MPSPP-prefixed (same signal ResolveBrowseKind
+                // uses); everything else is an ordinary playlist.
+                (p.Pl.Id.StartsWith("MPSPP", StringComparison.Ordinal) ? podcasts : playlists).Add(p.Pl);
                 break;
         }
     }
-
-    private static Playlist MakePlaylist(string browseId, string title, Uri? thumbnail, string? subtitle) =>
-        new()
-        {
-            Id = browseId,
-            Title = title,
-            ThumbnailUrl = thumbnail,
-            Author = string.IsNullOrEmpty(subtitle)
-                ? null
-                : new Artist { Id = ParsingHelpers.StableId("playlist-author", subtitle), Name = subtitle },
-        };
 
     // MARK: - Classification
 
@@ -289,6 +417,100 @@ public static class SearchResponseParser
 
         return BrowseIdClassifier.Classify(browseId);
     }
+
+    // MARK: - Card artists
+
+    /// <summary>
+    /// Extracts the artists backing a Top-Result <c>musicCardShelfRenderer</c> song. Prefers the
+    /// subtitle runs that carry an artist <c>browseEndpoint</c> (real channel ids, navigable); if the
+    /// card exposes none it falls back to the plain artist segment of the joined subtitle
+    /// ("Song • <artist> • Album …") so the player bar still shows a name (Bug #6).
+    /// </summary>
+    private static IReadOnlyList<Artist> ExtractCardArtists(JsonNode card, string? subtitle)
+    {
+        var artists = new List<Artist>();
+        if (Prop(Prop(card, "subtitle"), "runs") is JsonArray runs)
+        {
+            foreach (var run in runs)
+            {
+                var browse = Prop(Prop(run, "navigationEndpoint"), "browseEndpoint");
+                var browseId = GetString(browse, "browseId");
+                if (string.IsNullOrEmpty(browseId)
+                    || ResolveBrowseKind(browseId, ExtractPageType(browse)) != BrowseIdKind.Artist)
+                {
+                    continue;
+                }
+
+                var name = GetString(run, "text");
+                if (!string.IsNullOrEmpty(name))
+                {
+                    artists.Add(new Artist { Id = browseId, Name = name });
+                }
+            }
+        }
+
+        if (artists.Count == 0 && !string.IsNullOrWhiteSpace(subtitle))
+        {
+            // "Song • Artist Name • Album …" → the second "•"-separated segment is the artist line.
+            var segments = subtitle.Split('•', '·');
+            if (segments.Length >= 2)
+            {
+                var name = segments[1].Trim();
+                if (name.Length > 0)
+                {
+                    artists.Add(new Artist { Id = ParsingHelpers.StableId("artist", name), Name = name });
+                }
+            }
+        }
+
+        return artists;
+    }
+
+    // MARK: - Subtitle helpers
+
+    /// <summary>
+    /// True when a card/list subtitle leads with a video kind ("Video", "Music video",
+    /// "Video musik", "Klip"), so the UI can render a 16:9 cover instead of a square one. The kind
+    /// is always the first "•"-separated segment, so we only inspect that segment.
+    /// </summary>
+    private static bool LooksLikeVideoSubtitle(string? subtitle)
+    {
+        if (string.IsNullOrWhiteSpace(subtitle))
+        {
+            return false;
+        }
+
+        var first = subtitle.Split('•', '·')[0];
+        return first.Contains("Video", StringComparison.OrdinalIgnoreCase)
+            || first.Contains("Klip", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Extracts the informative tail of an artist subtitle (subscriber / monthly-listener count)
+    /// by stripping the leading kind label ("Artist" / "Artis") and its separator. Returns
+    /// <see langword="null"/> when nothing informative remains.
+    /// </summary>
+    private static string? CleanArtistSubtitle(string? subtitle)
+    {
+        if (string.IsNullOrWhiteSpace(subtitle))
+        {
+            return null;
+        }
+
+        var s = subtitle.Trim();
+        foreach (var prefix in ArtistKindPrefixes)
+        {
+            if (s.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                s = s[prefix.Length..].TrimStart(' ', '•', '·', '-', '–').Trim();
+                break;
+            }
+        }
+
+        return string.IsNullOrWhiteSpace(s) ? null : s;
+    }
+
+    private static readonly string[] ArtistKindPrefixes = ["Artist", "Artis"];
 
     // MARK: - JsonNode helpers
 

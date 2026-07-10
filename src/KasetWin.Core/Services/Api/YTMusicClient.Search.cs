@@ -26,7 +26,34 @@ public sealed partial class YTMusicClient
         }
 
         var node = await RequestAsync("search", body, ApiCacheTtl.Search, ct).ConfigureAwait(false);
+
+        // TEMP diag: the universal (unfiltered) search comes back nearly empty for this client while
+        // the web gets full shelves — dump the raw response for offline shape analysis.
+        if (filter is null)
+        {
+            // Query in the log line + inside the dump so a stale dump can't mislead the analysis.
+            Diag.Write($"search base: query='{query}'");
+            Diag.Dump("search-base.json", $"{{\"__query\":{JsonValue.Create(query).ToJsonString()},\"response\":{node?.ToJsonString() ?? "null"}}}");
+        }
+        else if (string.Equals(filter.Label, "Podcasts", StringComparison.Ordinal))
+        {
+            // The podcasts-filtered results have started looking unrelated to the query too —
+            // record the raw response for the same offline verdict as the base search.
+            Diag.Dump("search-podcasts.json", $"{{\"__query\":{JsonValue.Create(query).ToJsonString()},\"response\":{node?.ToJsonString() ?? "null"}}}");
+        }
+
         return SearchResponseParser.Parse(node);
+    }
+
+    /// <inheritdoc />
+    public async Task<SearchResponse> SearchContinuationAsync(string token, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(token);
+
+        // Search continuations reuse the InnerTube continuation-in-body pattern (same as browse).
+        var body = new JsonObject { ["continuation"] = token };
+        var node = await RequestAsync("search", body, ApiCacheTtl.Search, ct).ConfigureAwait(false);
+        return SearchResponseParser.ParseContinuation(node);
     }
 
     /// <inheritdoc />
