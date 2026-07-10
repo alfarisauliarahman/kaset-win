@@ -27,6 +27,19 @@ public enum AudioQuality
 }
 
 /// <summary>
+/// Chart movement for a ranked entry, from the InnerTube <c>musicCustomIndexColumnRenderer</c>
+/// icon (<c>TRENDING_UP</c> / <c>TRENDING_DOWN</c> / <c>ARROW_CHART_NEUTRAL</c>). <see cref="None"/>
+/// means the row carried no trend indicator (not a chart entry, or a "new" entry).
+/// </summary>
+public enum TrendDirection
+{
+    None,
+    Up,
+    Down,
+    Neutral,
+}
+
+/// <summary>
 /// Kind of music video backing a song, derived from InnerTube <c>musicVideoType</c>.
 /// Only <see cref="Omv"/> exposes genuine standalone video content (see
 /// <see cref="MusicVideoTypeExtensions.HasVideoContent"/>).

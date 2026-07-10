@@ -59,6 +59,33 @@ public sealed record PodcastsResult(bool IsAvailable, IReadOnlyList<PodcastSecti
 }
 
 /// <summary>
+/// A podcast creator's channel page (browseId <c>UC…</c>): round-avatar header with the
+/// subscribe affordance plus the channel's shelves ("Episode terbaru", shows, …) as
+/// <see cref="PodcastSection"/>s.
+/// </summary>
+public sealed record PodcastChannel
+{
+    public required string Id { get; init; }
+
+    public required string Title { get; init; }
+
+    /// <summary>Channel description, when the header carries one.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Round avatar image.</summary>
+    public Uri? AvatarUrl { get; init; }
+
+    /// <summary>Subscriber count exactly as YT displays it ("11,7 jt subscriber").</summary>
+    public string? SubscriberText { get; init; }
+
+    /// <summary>Whether the signed-in account subscribes to the channel.</summary>
+    public bool IsSubscribed { get; init; }
+
+    /// <summary>The channel's shelves in page order (episodes, shows, …).</summary>
+    public IReadOnlyList<PodcastSection> Sections { get; init; } = [];
+}
+
+/// <summary>
 /// Persisted playback progress for a single podcast episode (Req 27.3).
 /// </summary>
 /// <remarks>

@@ -22,6 +22,16 @@ public sealed record Song
 
     public int? TrackNumber { get; init; }
 
+    /// <summary>
+    /// 1-based chart position when this song appears in a chart playlist row (parsed from the row's
+    /// <c>customIndexColumn</c>); <c>0</c> outside charts. Distinct from <see cref="TrackNumber"/>,
+    /// which is the album/playlist ordinal.
+    /// </summary>
+    public int Rank { get; init; }
+
+    /// <summary>Week-over-week chart movement arrow (up/down/steady); <see cref="TrendDirection.None"/> outside charts.</summary>
+    public TrendDirection Trend { get; init; }
+
     public string? ListenerCountText { get; init; }
 
     /// <summary>Whether a non-empty <see cref="ListenerCountText"/> (plays / views line) is available.</summary>
@@ -71,6 +81,17 @@ public sealed record Song
 
     /// <summary>Whether the song title can navigate to an album page (a real album browseId exists).</summary>
     public bool HasAlbumLink => AlbumBrowseId is not null;
+
+    /// <summary>
+    /// Whether this track is a podcast episode. Checks <see cref="VideoType"/> first, then the
+    /// podcast-show browse ids some surfaces put in the album/artist slots (<c>MPSP…</c>) — tracks
+    /// re-materialised by the queue/web bridge can lose <see cref="VideoType"/>, so a single
+    /// signal is not enough.
+    /// </summary>
+    public bool IsPodcastEpisode =>
+        VideoType == MusicVideoType.PodcastEpisode
+        || (Album?.Id?.StartsWith("MPSP", StringComparison.Ordinal) ?? false)
+        || (PrimaryArtistId?.StartsWith("MPSP", StringComparison.Ordinal) ?? false);
 }
 
 /// <summary>
@@ -92,6 +113,18 @@ public sealed record Artist
 
     /// <summary>Whether a non-empty <see cref="SubtitleText"/> is available to show.</summary>
     public bool HasSubtitle => !string.IsNullOrWhiteSpace(SubtitleText);
+
+    /// <summary>
+    /// 1-based chart position when this artist appears in a chart ("Top artists") row, parsed from
+    /// the <c>customIndexColumn</c>; <c>0</c> when the artist did not come from a chart.
+    /// </summary>
+    public int Rank { get; init; }
+
+    /// <summary>
+    /// The week-over-week movement arrow shown beside a chart rank (up / down / steady), parsed from
+    /// the chart row's trend icon; <see cref="TrendDirection.None"/> outside charts.
+    /// </summary>
+    public TrendDirection Trend { get; init; }
 }
 
 /// <summary>
@@ -167,6 +200,13 @@ public sealed record PlaylistDetail
     /// collection. <c>null</c> when the response carried none (callers fall back to the browseId).
     /// </summary>
     public string? LikePlaylistId { get; init; }
+
+    /// <summary>
+    /// Whether the shelf rows are podcast episodes (<c>musicMultiRowListItemRenderer</c>) rather
+    /// than music tracks. The track parser cannot represent episodes, so callers should route the
+    /// surface to the podcast show page instead of rendering an empty track list.
+    /// </summary>
+    public bool IsPodcastPlaylist { get; init; }
 }
 
 /// <summary>

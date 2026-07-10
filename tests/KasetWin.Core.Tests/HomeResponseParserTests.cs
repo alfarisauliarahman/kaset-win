@@ -164,4 +164,58 @@ public class HomeResponseParserTests
         var ex = Assert.Throws<KasetError>(() => HomeResponseParser.Parse(node));
         Assert.Equal(KasetErrorKind.ParseError, ex.Kind);
     }
+
+    [Fact]
+    public void Parses_top_artists_chart_rank_trend_and_subscriber()
+    {
+        // A "Top artists" chart shelf: responsive rows carry customIndexColumn (rank + trend icon)
+        // and the subscriber count in the second flex column.
+        var node = JsonNode.Parse("""
+        {
+          "contents": {
+            "sectionListRenderer": {
+              "contents": [
+                {
+                  "musicShelfRenderer": {
+                    "title": { "runs": [ { "text": "Top artists" } ] },
+                    "contents": [
+                      {
+                        "musicResponsiveListItemRenderer": {
+                          "customIndexColumn": {
+                            "musicCustomIndexColumnRenderer": {
+                              "text": { "runs": [ { "text": "10" } ] },
+                              "icon": { "iconType": "TRENDING_UP" }
+                            }
+                          },
+                          "flexColumns": [
+                            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "Tulus" } ] } } },
+                            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "2,22 jt subscriber" } ] } } }
+                          ],
+                          "navigationEndpoint": {
+                            "browseEndpoint": {
+                              "browseId": "UCartist0000000000001",
+                              "browseEndpointContextSupportedConfigs": {
+                                "browseEndpointContextMusicConfig": { "pageType": "MUSIC_PAGE_TYPE_ARTIST" }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+        """);
+
+        var response = HomeResponseParser.Parse(node);
+
+        var artist = Assert.IsType<HomeSectionItem.ArtistItem>(response.Sections[0].Items[0]).Artist;
+        Assert.Equal("Tulus", artist.Name);
+        Assert.Equal(10, artist.Rank);
+        Assert.Equal(TrendDirection.Up, artist.Trend);
+        Assert.Equal("2,22 jt subscriber", artist.SubtitleText);
+    }
 }

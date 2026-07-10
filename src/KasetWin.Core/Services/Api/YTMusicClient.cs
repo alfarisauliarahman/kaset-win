@@ -180,7 +180,9 @@ public sealed partial class YTMusicClient : IYTMusicClient
         string endpoint,
         JsonObject body,
         TimeSpan? ttl,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? glOverride = null,
+        string? clientVersionOverride = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(endpoint);
         ArgumentNullException.ThrowIfNull(body);
@@ -190,6 +192,25 @@ public sealed partial class YTMusicClient : IYTMusicClient
 
         // Merge the WEB_REMIX context (+ optional brand account) with the endpoint body.
         var payload = InnerTubeSupport.BuildContext(snapshot.OnBehalfOfUser);
+
+        // Optional client overrides (e.g. podcasts, a surface the pinned 2023 WEB_REMIX version
+        // 404s — a newer clientVersion unlocks it). gl/hl pin the region; clientVersion the build.
+        if ((glOverride is not null || clientVersionOverride is not null)
+            && payload["context"] is JsonObject ctx
+            && ctx["client"] is JsonObject client)
+        {
+            if (glOverride is not null)
+            {
+                // Region only — DON'T pin hl, or YT translates text (e.g. podcast descriptions) to
+                // English instead of the account's original language.
+                client["gl"] = glOverride;
+            }
+
+            if (clientVersionOverride is not null)
+            {
+                client["clientVersion"] = clientVersionOverride;
+            }
+        }
         foreach (var pair in body)
         {
             payload[pair.Key] = pair.Value?.DeepClone();

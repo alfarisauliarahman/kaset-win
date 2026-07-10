@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using KasetWin.Core.Errors;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Api.Parsers;
 
@@ -375,24 +376,140 @@ public sealed partial class YTMusicClient
     {
         ArgumentException.ThrowIfNullOrEmpty(showId);
 
+        // No region override: an individual show isn't region-locked, and forcing gl=US made YT
+        // return English descriptions/durations instead of the account's original language.
+        // ConfigureAwait(true): the follow-up continuation requests below must START on the caller's
+        // (UI) thread — the WebView2 cookie source is thread-affine and throws COMException when a
+        // request begins on the thread pool (same lesson as GetSongRelatedAsync).
         var node = await RequestAsync("browse", BrowseBody(showId), ApiCacheTtl.Playlist, ct)
-            .ConfigureAwait(false);
+            .ConfigureAwait(true);
 
-        // TODO(task 7.x): port a dedicated PodcastParser. For now return a minimal, crash-safe
-        // show: best-effort title from any header renderer, with no episodes.
-        var title = ResponseTreeSearch.FindFirst(node, "musicDetailHeaderRenderer") is { } detail
-                ? ParsingHelpers.ExtractText(detail, "title")
-            : ResponseTreeSearch.FindFirst(node, "musicResponsiveHeaderRenderer") is { } responsive
-                ? ParsingHelpers.ExtractText(responsive, "title")
-            : ResponseTreeSearch.FindFirst(node, "musicImmersiveHeaderRenderer") is { } immersive
-                ? ParsingHelpers.ExtractText(immersive, "title")
-                : null;
+        // TEMP diag: dump the raw page for offline analysis (playback-progress fields, header).
+        Diag.Dump("podcast-show.json", node?.ToJsonString() ?? "null");
+
+        // Header extraction is scoped to the page's header renderer so the cover/author don't get
+        // grabbed from an arbitrary episode row (the old FindFirst-anywhere bug).
+        var headerNode = ResponseTreeSearch.FindFirst(node, "musicResponsiveHeaderRenderer")
+            ?? ResponseTreeSearch.FindFirst(node, "musicDetailHeaderRenderer")
+            ?? ResponseTreeSearch.FindFirst(node, "musicImmersiveHeaderRenderer");
+
+        var title = ParsingHelpers.ExtractText(headerNode, "title");
+
+        // Author / publisher line: the 2024+ responsive header carries it in straplineTextOne;
+        // older detail headers put it in the subtitle runs.
+        var author = ParsingHelpers.ExtractText(headerNode, "straplineTextOne")
+            ?? ParsingHelpers.ExtractText(headerNode, "subtitle");
+
+        // Author channel id: the first UC browse endpoint inside the header (strapline link).
+        string? authorChannelId = null;
+        foreach (var browseEndpoint in ResponseTreeSearch.FindAll(headerNode ?? node, "browseEndpoint"))
+        {
+            if (browseEndpoint is JsonObject be
+                && be["browseId"] is JsonValue bv
+                && bv.TryGetValue<string>(out var bid)
+                && bid.StartsWith("UC", StringComparison.Ordinal))
+            {
+                authorChannelId = bid;
+                break;
+            }
+        }
+
+        // Show/playlist description (the header hosts a description shelf on 2024+ pages).
+        var description = ParsingHelpers.ExtractText(
+            ResponseTreeSearch.FindFirst(headerNode ?? node, "musicDescriptionShelfRenderer"), "description");
+
+        // Saved-to-library state: the header's bookmark toggle button carries isToggled=true when
+        // the show/playlist is already in the user's collection (drives the Simpan/Tersimpan label).
+        var isSaved = false;
+        if (ResponseTreeSearch.FindFirst(headerNode, "toggleButtonRenderer") is JsonObject toggle
+            && toggle["isToggled"] is JsonValue toggledValue
+            && toggledValue.TryGetValue<bool>(out var toggled))
+        {
+            isSaved = toggled;
+        }
+
+        // Episodes: reuse the discovery/section parser, then flatten every episode row across the
+        // show's shelves in order (the show page lays its episodes out as musicResponsiveListItem
+        // / multi-row renderers that PodcastParser already understands).
+        var episodes = new List<PodcastEpisode>();
+        try
+        {
+            foreach (var section in PodcastParser.ParseDiscovery(node))
+            {
+                foreach (var item in section.Items)
+                {
+                    if (item is PodcastSectionItem.EpisodeItem ep)
+                    {
+                        // The page title is the authoritative show name here; a row's own subtitle
+                        // is the publish date on playlist pages and would leak into the player bar
+                        // as the "artist".
+                        episodes.Add(ep.Episode with
+                        {
+                            ShowTitle = title ?? ep.Episode.ShowTitle,
+                            Number = episodes.Count + 1,
+                        });
+                    }
+                }
+            }
+
+            // The first page is capped (~100 rows); follow continuations until the list is
+            // exhausted so long shows/playlists load completely. Best-effort: a failing page
+            // keeps what already landed.
+            var token = PodcastParser.ExtractEpisodesContinuationToken(node);
+            Diag.Write($"podcast show {showId}: first page episodes={episodes.Count} contToken={(token is null ? "NONE" : "yes")}");
+            var pages = 0;
+            while (!string.IsNullOrEmpty(token) && pages < 30)
+            {
+                ct.ThrowIfCancellationRequested();
+                var contNode = await RequestAsync("browse", ContinuationBody(token), ttl: null, ct)
+                    .ConfigureAwait(true);
+                var (more, nextToken) = PodcastParser.ParseEpisodesContinuation(contNode);
+                Diag.Write($"podcast show {showId}: cont page {pages + 1} episodes+={more.Count} next={(nextToken is null ? "NONE" : "yes")}");
+                foreach (var episode in more)
+                {
+                    episodes.Add(episode with
+                    {
+                        ShowTitle = title ?? episode.ShowTitle,
+                        Number = episodes.Count + 1,
+                    });
+                }
+
+                if (more.Count == 0)
+                {
+                    break;
+                }
+
+                token = nextToken;
+                pages++;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Malformed show page / failed paging: keep whatever episodes landed rather than
+            // failing the whole page.
+            Diag.Write($"podcast show {showId}: paging FAILED {ex.GetType().Name}: {ex.Message}");
+        }
+
+        // Cover: strictly from the header renderer; falling back to the whole tree grabbed the
+        // first episode's thumbnail instead of the show/playlist cover.
+        var thumbnail = ParsingHelpers.BestThumbnailUrl(headerNode ?? node);
+
+        Diag.Write($"podcast show {showId}: episodes={episodes.Count} title={(string.IsNullOrEmpty(title) ? "<none>" : title)}");
 
         return new PodcastShow
         {
             Id = showId,
             Title = string.IsNullOrEmpty(title) ? "Podcast" : title,
-            Episodes = Array.Empty<PodcastEpisode>(),
+            Author = author,
+            AuthorChannelId = authorChannelId,
+            Description = description,
+            IsSaved = isSaved,
+            ThumbnailUrl = thumbnail,
+            Episodes = episodes,
         };
     }
 

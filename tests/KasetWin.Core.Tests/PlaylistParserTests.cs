@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using KasetWin.Core.Errors;
+using KasetWin.Core.Models;
 using KasetWin.Core.Services.Api.Parsers;
 using Xunit;
 
@@ -324,6 +325,62 @@ public class PlaylistParserTests
 
         Assert.Equal("video0000003", Assert.Single(page.Tracks).VideoId);
         Assert.Equal("TOKEN_PAGE_2", page.ContinuationToken);
+    }
+
+    [Fact]
+    public void Parses_chart_playlist_row_rank_and_trend_from_custom_index_column()
+    {
+        var node = JsonNode.Parse("""
+        {
+          "continuationContents": {
+            "musicPlaylistShelfContinuation": {
+              "contents": [
+                { "musicResponsiveListItemRenderer": {
+                    "customIndexColumn": {
+                      "musicCustomIndexColumnRenderer": {
+                        "text": { "runs": [ { "text": "3" } ] },
+                        "icon": { "iconType": "ARROW_CHART_DOWN" }
+                      }
+                    },
+                    "flexColumns": [ { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "Chart Hit" } ] } } } ],
+                    "playlistItemData": { "videoId": "video0000009" } } }
+              ]
+            }
+          }
+        }
+        """);
+
+        var track = Assert.Single(PlaylistParser.ParsePlaylistContinuation(node).Tracks);
+
+        Assert.Equal(3, track.Rank);
+        Assert.Equal(TrendDirection.Down, track.Trend);
+    }
+
+    [Fact]
+    public void Flags_podcast_playlist_when_rows_are_multi_row_episodes()
+    {
+        var node = JsonNode.Parse("""
+        {
+          "contents": {
+            "sectionListRenderer": {
+              "contents": [
+                { "musicPlaylistShelfRenderer": {
+                    "contents": [
+                      { "musicMultiRowListItemRenderer": {
+                          "title": { "runs": [ { "text": "Episode 1" } ] },
+                          "onTap": { "watchEndpoint": { "videoId": "episode00001" } } } }
+                    ] } }
+              ]
+            }
+          },
+          "header": { "musicResponsiveHeaderRenderer": { "title": { "runs": [ { "text": "My Podcast Playlist" } ] } } }
+        }
+        """);
+
+        var detail = PlaylistParser.ParsePlaylistDetail(node, "PLZNTEST");
+
+        Assert.Empty(detail.Tracks);
+        Assert.True(detail.IsPodcastPlaylist);
     }
 
     [Fact]

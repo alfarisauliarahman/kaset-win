@@ -96,7 +96,8 @@ public static class HomeResponseParser
     /// </summary>
     /// <exception cref="KasetError">
     /// Thrown with <see cref="KasetErrorKind.ParseError"/> when <paramref name="root"/> is not a
-    /// JSON object or carries no continuation contents (Property 34).
+    /// JSON object. A continuation envelope with no further contents is treated as end-of-feed and
+    /// returns an empty response (null token), not an error.
     /// </exception>
     public static HomeResponse ParseContinuation(JsonNode? root)
     {
@@ -129,17 +130,45 @@ public static class HomeResponseParser
                 tokenSource ??= shelfContinuation;
             }
 
-            if (sectionListContinuation is null && shelfContinuation is null)
+            // 2025 envelope: onResponseReceivedActions[].appendContinuationItemsAction carries the
+            // next sections directly (plus an optional trailing continuationItemRenderer token).
+            string? appendToken = null;
+            var appendAction = ResponseTreeSearch.FindFirst(root, "appendContinuationItemsAction");
+            if (appendAction is not null && Arr(Prop(appendAction, "continuationItems")) is { } appendItems)
             {
-                throw new KasetError(
-                    KasetErrorKind.ParseError,
-                    "Home continuation contains no recognisable continuation contents.");
+                sections.AddRange(ParseSections(appendItems));
+                var command = ResponseTreeSearch.FindFirst(appendAction, "continuationCommand");
+                if (command is JsonObject cmd && cmd["token"] is JsonValue tv && tv.TryGetValue<string>(out var t))
+                {
+                    appendToken = t;
+                }
+            }
+
+            if (sectionListContinuation is null && shelfContinuation is null && appendAction is null)
+            {
+                // 2025: the server frequently answers a continuation request with a FULL page shape
+                // (root "contents" + sectionListRenderer), not a continuation envelope. Parse it as
+                // an initial page — sections plus the next token come out the same way.
+                if (((JsonObject)root).ContainsKey("contents"))
+                {
+                    return Parse(root);
+                }
+
+                // Genuinely unrecognisable envelope: treated as end-of-feed (no error toast), but
+                // log the shape so a NEW envelope kind shows up in diagnostics instead of silently
+                // truncating the Home feed.
+                Diag.Write($"home continuation UNRECOGNIZED: rootKeys=[{string.Join(",", ((JsonObject)root).Select(kv => kv.Key))}]");
+                return new HomeResponse
+                {
+                    Sections = sections,
+                    ContinuationToken = null,
+                };
             }
 
             return new HomeResponse
             {
                 Sections = sections,
-                ContinuationToken = ExtractContinuationToken(tokenSource ?? root),
+                ContinuationToken = appendToken ?? ExtractContinuationToken(tokenSource ?? root),
             };
         }
         catch (KasetError)
@@ -410,13 +439,17 @@ public static class HomeResponseParser
             }
 
             var browseTitle = ExtractTitleFromFlexColumns(data) ?? "Unknown";
+            var (rank, trend) = ExtractChartIndex(data);
             return CreateBrowseItem(
                 browseId,
                 ExtractPageType(browseEndpoint),
                 browseTitle,
                 ParsingHelpers.BestThumbnailUrl(data),
                 ParsingHelpers.ExtractArtistsFromFlexColumns(data),
-                playlistAuthor: null);
+                playlistAuthor: null,
+                subtitle: ExtractSubtitleFromFlexColumns(data),
+                rank: rank,
+                trend: trend);
         }
 
         var title = ExtractTitleFromFlexColumns(data) ?? "Unknown";
@@ -474,7 +507,10 @@ public static class HomeResponseParser
         string title,
         Uri? thumbnail,
         IReadOnlyList<Artist> artists,
-        string? playlistAuthor)
+        string? playlistAuthor,
+        string? subtitle = null,
+        int rank = 0,
+        TrendDirection trend = TrendDirection.None)
     {
         var kind = ResolveBrowseKind(browseId, pageType);
 
@@ -495,6 +531,10 @@ public static class HomeResponseParser
                     Id = browseId,
                     Name = title,
                     ThumbnailUrl = thumbnail,
+                    // On a "Top artists" chart row the subtitle carries the subscriber count.
+                    SubtitleText = subtitle,
+                    Rank = rank,
+                    Trend = trend,
                 });
 
             // Podcast shows are browsable like playlists; surface them as a playlist item so
@@ -612,6 +652,53 @@ public static class HomeResponseParser
             null => null,
             _ => MusicVideoType.Unknown,
         };
+    }
+
+    /// <summary>
+    /// Reads a chart row's <c>customIndexColumn.musicCustomIndexColumnRenderer</c>: the rank number
+    /// (its <c>text</c>) and the movement arrow (its <c>icon.iconType</c>: <c>TRENDING_UP</c> /
+    /// <c>TRENDING_DOWN</c> / <c>ARROW_CHART_NEUTRAL</c>). Returns <c>(0, None)</c> when the row is
+    /// not a chart row (no custom index column).
+    /// </summary>
+    private static (int Rank, TrendDirection Trend) ExtractChartIndex(JsonNode data)
+    {
+        var renderer = Prop(Prop(data, "customIndexColumn"), "musicCustomIndexColumnRenderer");
+        if (renderer is null)
+        {
+            return (0, TrendDirection.None);
+        }
+
+        var rankText = ParsingHelpers.ExtractText(renderer, "text");
+        var rank = 0;
+        if (rankText is not null)
+        {
+            // Strip any grouping separators ("1.234" / "1,234") before parsing the rank digits.
+            var digits = new string(rankText.Where(char.IsDigit).ToArray());
+            _ = int.TryParse(digits, out rank);
+        }
+
+        var trend = Str(Prop(renderer, "icon"), "iconType") switch
+        {
+            "ARROW_DROP_UP" or "TRENDING_UP" or "ARROW_CHART_UP" => TrendDirection.Up,
+            "ARROW_DROP_DOWN" or "TRENDING_DOWN" or "ARROW_CHART_DOWN" => TrendDirection.Down,
+            "ARROW_CHART_NEUTRAL" => TrendDirection.Neutral,
+            _ => TrendDirection.None,
+        };
+
+        return (rank, trend);
+    }
+
+    /// <summary>Reads the second flex column's plain text (subtitle), e.g. a chart artist's subscriber count.</summary>
+    private static string? ExtractSubtitleFromFlexColumns(JsonNode data)
+    {
+        var flexColumns = Arr(Prop(data, "flexColumns"));
+        if (flexColumns is null || flexColumns.Count < 2)
+        {
+            return null;
+        }
+
+        var renderer = Prop(flexColumns[1], "musicResponsiveListItemFlexColumnRenderer");
+        return ParsingHelpers.ExtractText(renderer, "text");
     }
 
     private static string? ExtractResponsiveVideoId(JsonNode data)

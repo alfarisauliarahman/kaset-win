@@ -52,11 +52,13 @@ internal sealed class FakeYTMusicClient : IYTMusicClient
     public Task<LibraryContent> GetLibraryLandingAsync(CancellationToken ct = default) => throw new NotSupportedException();
     public Task<IReadOnlyList<Playlist>> GetLibraryPlaylistsAsync(CancellationToken ct = default) => throw new NotSupportedException();
     public Task<PlaylistDetail> GetLikedSongsAsync(CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<IReadOnlyList<Song>> GetLibrarySongsAsync(CancellationToken ct = default) => throw new NotSupportedException();
     public Task<IReadOnlyList<Song>> GetUploadedSongsAsync(CancellationToken ct = default) => throw new NotSupportedException();
     public Task<PlaylistDetail> GetPlaylistAsync(string playlistId, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<PlaylistDetail> GetPlaylistContinuationAsync(string token, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<ArtistDetail> GetArtistAsync(string channelId, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<SearchResponse> SearchAsync(string query, SearchFilter? filter = null, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<SearchResponse> SearchContinuationAsync(string token, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<IReadOnlyList<string>> GetSearchSuggestionsAsync(string input, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<SongMetadata> GetSongMetadataAsync(string videoId, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<RadioQueueResult> GetRadioQueueAsync(string videoId, CancellationToken ct = default) => throw new NotSupportedException();
@@ -84,4 +86,7 @@ internal sealed class FakeYTMusicClient : IYTMusicClient
     public Task<PodcastsResult> GetPodcastsAsync(CancellationToken ct = default) => throw new NotSupportedException();
     public Task SubscribePodcastAsync(string showId, CancellationToken ct = default) => throw new NotSupportedException();
     public Task UnsubscribePodcastAsync(string showId, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<PodcastChannel> GetPodcastChannelAsync(string channelId, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<IReadOnlyList<CaptionTrack>> GetPodcastCaptionTracksAsync(string videoId, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<SyncedLyrics?> GetPodcastCaptionsAsync(string videoId, string? trackBaseUrl = null, CancellationToken ct = default) => throw new NotSupportedException();
 }

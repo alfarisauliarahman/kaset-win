@@ -125,6 +125,94 @@ public static class PodcastParser
         return sections;
     }
 
+    /// <summary>
+    /// Parses an episode-list continuation page (podcast show / podcast playlist) into its episode
+    /// items plus the next continuation token. Understands both the 2025
+    /// <c>appendContinuationItemsAction.continuationItems</c> envelope and the legacy
+    /// <c>musicPlaylistShelfContinuation</c> / <c>musicShelfContinuation</c> shapes.
+    /// </summary>
+    public static (IReadOnlyList<PodcastEpisode> Episodes, string? NextToken) ParseEpisodesContinuation(JsonNode? root)
+    {
+        JsonArray? rows = null;
+        JsonNode? legacyShelf = null;
+
+        if (ResponseTreeSearch.FindFirst(root, "appendContinuationItemsAction") is { } append)
+        {
+            rows = Arr(Prop(append, "continuationItems"));
+        }
+
+        if (rows is null)
+        {
+            legacyShelf = ResponseTreeSearch.FindFirst(root, "musicPlaylistShelfContinuation")
+                ?? ResponseTreeSearch.FindFirst(root, "musicShelfContinuation");
+            rows = Arr(Prop(legacyShelf, "contents"));
+        }
+
+        if (rows is null)
+        {
+            // 2025: continuation requests are often answered with a FULL page shape (root
+            // "contents" + sectionListRenderer) instead of a continuation envelope — parse it
+            // like an initial page and pull the next token the same way.
+            var fullPage = new List<PodcastEpisode>();
+            foreach (var section in ParseDiscovery(root))
+            {
+                foreach (var item in section.Items)
+                {
+                    if (item is PodcastSectionItem.EpisodeItem pageEp)
+                    {
+                        fullPage.Add(pageEp.Episode);
+                    }
+                }
+            }
+
+            return (fullPage, fullPage.Count > 0 ? ExtractEpisodesContinuationToken(root) : null);
+        }
+
+        var episodes = new List<PodcastEpisode>();
+        string? nextToken = null;
+        foreach (var row in rows)
+        {
+            if (ParseItem(row) is PodcastSectionItem.EpisodeItem ep)
+            {
+                episodes.Add(ep.Episode);
+            }
+            else if (Prop(row, "continuationItemRenderer") is { } contRow)
+            {
+                nextToken = Str(ResponseTreeSearch.FindFirst(contRow, "continuationCommand"), "token");
+            }
+        }
+
+        // Legacy shelves carry the next token in shelf.continuations[0].nextContinuationData.
+        if (nextToken is null && Arr(Prop(legacyShelf, "continuations")) is { Count: > 0 } continuations)
+        {
+            nextToken = Str(Prop(continuations[0], "nextContinuationData"), "continuation");
+        }
+
+        return (episodes, nextToken);
+    }
+
+    /// <summary>
+    /// Extracts the first episode-list continuation token from an initial show/playlist page
+    /// (a trailing <c>continuationItemRenderer</c> or legacy shelf <c>continuations</c>).
+    /// </summary>
+    public static string? ExtractEpisodesContinuationToken(JsonNode? root)
+    {
+        if (ResponseTreeSearch.FindFirst(root, "continuationItemRenderer") is { } contRow
+            && Str(ResponseTreeSearch.FindFirst(contRow, "continuationCommand"), "token") is { } token)
+        {
+            return token;
+        }
+
+        var shelf = ResponseTreeSearch.FindFirst(root, "musicPlaylistShelfRenderer")
+            ?? ResponseTreeSearch.FindFirst(root, "musicShelfRenderer");
+        if (Arr(Prop(shelf, "continuations")) is { Count: > 0 } continuations)
+        {
+            return Str(Prop(continuations[0], "nextContinuationData"), "continuation");
+        }
+
+        return null;
+    }
+
     // MARK: - Section parsing
 
     private static PodcastSection? ParseSection(JsonNode? data)
@@ -137,6 +225,13 @@ public static class PodcastParser
         if (Prop(data, "musicShelfRenderer") is { } shelf)
         {
             return ParseShelf(shelf, ParsingHelpers.ExtractText(shelf) ?? "Podcasts", "contents");
+        }
+
+        // A podcast playlist page (VLPL...) lays its episodes out in a musicPlaylistShelfRenderer,
+        // with the same multi-row episode items the discovery shelves use.
+        if (Prop(data, "musicPlaylistShelfRenderer") is { } playlistShelf)
+        {
+            return ParseShelf(playlistShelf, "Episodes", "contents");
         }
 
         if (Prop(data, "gridRenderer") is { } grid)
@@ -265,10 +360,12 @@ public static class PodcastParser
         var showTitle = ParsingHelpers.ExtractText(data, "subtitle");
         var showBrowseId = ExtractShowBrowseIdFromSubtitle(data);
 
-        // Playback progress: playbackProgress.playbackProgressPercentage (0-100).
+        // Progress + duration live under playbackProgress.musicPlaybackProgressRenderer (NOT directly
+        // on the row): playbackProgressPercentage (0-100) and durationText (total episode length).
+        var progressRenderer = Prop(Prop(data, "playbackProgress"), "musicPlaybackProgressRenderer");
         double progress = 0;
         var played = false;
-        var percent = Int(Prop(data, "playbackProgress"), "playbackProgressPercentage");
+        var percent = Int(progressRenderer, "playbackProgressPercentage");
         if (percent is { } pct)
         {
             progress = Math.Clamp(pct / 100.0, 0.0, 1.0);
@@ -283,20 +380,61 @@ public static class PodcastParser
             progress = 1.0;
         }
 
+        // durationText.runs come as ["​ • ", "50:46"] — join all runs (not just the first) and
+        // strip the leading bullet/space, then parse. Falls back to a root-level durationText.
         TimeSpan? duration = null;
-        var durationText = ParsingHelpers.ExtractText(data, "durationText");
-        if (durationText is not null)
+        string? cleanedDurationText = null;
+        var durationText = ParsingHelpers.JoinRunTexts(progressRenderer, "durationText")
+            ?? ParsingHelpers.JoinRunTexts(data, "durationText");
+        if (!string.IsNullOrWhiteSpace(durationText))
         {
-            duration = ParseEpisodeDuration(durationText);
+            cleanedDurationText = durationText.Trim().TrimStart('•', ' ', '·', '•').Trim();
+            duration = ParseEpisodeDuration(cleanedDurationText);
         }
 
         return new PodcastSectionItem.EpisodeItem(new PodcastEpisode(videoId, title, duration, progress, played)
         {
+            DurationText = cleanedDurationText,
             ThumbnailUrl = thumbnail,
             ShowTitle = showTitle,
             ShowBrowseId = showBrowseId,
+            Description = CollapseWhitespace(ParsingHelpers.ExtractText(data, "description")),
+            PublishedText = ParsingHelpers.ExtractText(data, "subtitle"),
+            PlayedFeedback = ExtractPlayedFeedback(data),
         });
     }
+
+    /// <summary>
+    /// Extracts the "Mark as played"/"Mark as unplayed" feedback tokens from the row's menu. The
+    /// item is a <c>toggleMenuServiceItemRenderer</c> whose default icon is <c>CHECK</c> (language
+    /// independent); its default endpoint marks played, the toggled endpoint marks unplayed.
+    /// </summary>
+    private static FeedbackTokens? ExtractPlayedFeedback(JsonNode data)
+    {
+        foreach (var toggle in ResponseTreeSearch.FindAll(data, "toggleMenuServiceItemRenderer"))
+        {
+            if (!string.Equals(Str(Prop(toggle, "defaultIcon"), "iconType"), "CHECK", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var markPlayed = Str(
+                ResponseTreeSearch.FindFirst(Prop(toggle, "defaultServiceEndpoint"), "feedbackEndpoint"), "feedbackToken");
+            var markUnplayed = Str(
+                ResponseTreeSearch.FindFirst(Prop(toggle, "toggledServiceEndpoint"), "feedbackEndpoint"), "feedbackToken");
+            if (markPlayed is not null || markUnplayed is not null)
+            {
+                return new FeedbackTokens(markPlayed, markUnplayed);
+            }
+        }
+
+        return null;
+    }
+
+    // Flattens newlines/runs of whitespace into single spaces so a multi-paragraph episode
+    // description fills the 2-line clamp instead of breaking after the first short line.
+    private static string? CollapseWhitespace(string? s) =>
+        s is null ? null : System.Text.RegularExpressions.Regex.Replace(s, @"\s+", " ").Trim();
 
     /// <summary>Responsive list item: fallback for episodes (videoId) or shows (MPSPP browseId).</summary>
     private static PodcastSectionItem? ParseResponsiveItem(JsonNode data)

@@ -26,7 +26,8 @@ public interface IYTMusicClient
     // ── Library (core) ──────────────────────────────────────────────────────────────────
     Task<LibraryContent> GetLibraryLandingAsync(CancellationToken ct = default);     // FEmusic_library_landing (Req 13)
     Task<IReadOnlyList<Playlist>> GetLibraryPlaylistsAsync(CancellationToken ct = default); // FEmusic_liked_playlists
-    Task<PlaylistDetail> GetLikedSongsAsync(CancellationToken ct = default);         // VLLM (quirk, not FEmusic_liked_videos)
+    Task<PlaylistDetail> GetLikedSongsAsync(CancellationToken ct = default);         // VLLM (Liked Music playlist)
+    Task<IReadOnlyList<Song>> GetLibrarySongsAsync(CancellationToken ct = default);  // FEmusic_liked_videos (library saved songs)
     Task<IReadOnlyList<Song>> GetUploadedSongsAsync(CancellationToken ct = default); // FEmusic_library_privately_owned_tracks
 
     // ── Detail ──────────────────────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ public interface IYTMusicClient
 
     // ── Search (core) ───────────────────────────────────────────────────────────────────
     Task<SearchResponse> SearchAsync(string query, SearchFilter? filter = null, CancellationToken ct = default); // Req 12
+    Task<SearchResponse> SearchContinuationAsync(string token, CancellationToken ct = default);                   // Req 12 (paging)
     Task<IReadOnlyList<string>> GetSearchSuggestionsAsync(string input, CancellationToken ct = default);          // Req 12.3
 
     // ── Now playing / radio ─────────────────────────────────────────────────────────────
@@ -83,4 +85,17 @@ public interface IYTMusicClient
     Task<PodcastsResult> GetPodcastsAsync(CancellationToken ct = default);                    // FEmusic_podcasts (Req 27.1/27.2)
     Task SubscribePodcastAsync(string showId, CancellationToken ct = default);                // like/like (MPSPP→P) (Req 27.4)
     Task UnsubscribePodcastAsync(string showId, CancellationToken ct = default);              // like/removelike (MPSPP→P) (Req 27.4)
+
+    /// <summary>The podcast creator's channel page (<c>UC…</c>): header + shelves (episodes / shows).</summary>
+    Task<PodcastChannel> GetPodcastChannelAsync(string channelId, CancellationToken ct = default); // UC{id} channel browse
+
+    /// <summary>Lists the episode's selectable caption (CC) tracks; empty when none exist.</summary>
+    Task<IReadOnlyList<CaptionTrack>> GetPodcastCaptionTracksAsync(string videoId, CancellationToken ct = default); // player captionTracks
+
+    /// <summary>
+    /// Fetches the episode's captions as timed lines shaped like synced lyrics, or <c>null</c> when
+    /// the video has no caption tracks. <paramref name="trackBaseUrl"/> selects a specific track
+    /// (from <see cref="GetPodcastCaptionTracksAsync"/>); <c>null</c> picks creator subs, then ASR.
+    /// </summary>
+    Task<SyncedLyrics?> GetPodcastCaptionsAsync(string videoId, string? trackBaseUrl = null, CancellationToken ct = default); // player + timedtext (CC)
 }

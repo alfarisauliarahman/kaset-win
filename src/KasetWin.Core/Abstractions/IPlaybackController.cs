@@ -86,6 +86,17 @@ public interface IPlaybackController
     /// </summary>
     Task SetAudioQualityAsync(AudioQuality quality);
 
+    /// <summary>
+    /// Applies the 9-band graphic equalizer to the running player. <paramref name="gainsDb"/> holds
+    /// the per-band gains in dB (-12..+12) for 62 Hz … 16 kHz; when <paramref name="enabled"/> is
+    /// <see langword="false"/> the bands are flattened (transparent). Best-effort: the audio path is
+    /// only routed through the EQ graph once enabled, so it never silences playback when unused.
+    /// </summary>
+    Task SetEqualizerAsync(bool enabled, IReadOnlyList<int> gainsDb);
+
+    /// <summary>Sets the playback speed of the underlying media element (0.25–3.0, 1 = normal).</summary>
+    Task SetPlaybackRateAsync(double rate);
+
     /// <summary>Switches the WebView2 surface between Hidden / MiniPlayer / Video (Req 26).</summary>
     Task SetDisplayModeAsync(PlaybackDisplayMode mode);
 

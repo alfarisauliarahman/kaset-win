@@ -86,6 +86,15 @@ public sealed record PodcastShow
     /// <summary>Optional author / publisher line for display.</summary>
     public string? Author { get; init; }
 
+    /// <summary>Optional show/playlist description from the header (truncated in the UI).</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Optional author channel id (<c>UC…</c>) for artist-page navigation.</summary>
+    public string? AuthorChannelId { get; init; }
+
+    /// <summary>Whether the show/playlist is already saved to the user's library (header bookmark toggle).</summary>
+    public bool IsSaved { get; init; }
+
     /// <summary>Optional best thumbnail for the show card.</summary>
     public Uri? ThumbnailUrl { get; init; }
 
@@ -115,6 +124,48 @@ public sealed record PodcastEpisode(string Id, string Title, TimeSpan? Duration,
 
     /// <summary>Optional show browse id (<c>MPSPP...</c>) for back-navigation.</summary>
     public string? ShowBrowseId { get; init; }
+
+    /// <summary>Optional episode description/summary (truncated in the UI).</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Optional publish date, as YT sends it ("5 days ago" / "Jun 13, 2025").</summary>
+    public string? PublishedText { get; init; }
+
+    /// <summary>Whether a non-empty <see cref="Description"/> is available.</summary>
+    public bool HasDescription => !string.IsNullOrWhiteSpace(Description);
+
+    /// <summary>Whether a non-empty <see cref="PublishedText"/> is available.</summary>
+    public bool HasPublished => !string.IsNullOrWhiteSpace(PublishedText);
+
+    /// <summary>1-based position within its show/playlist (assigned when the list is built).</summary>
+    public int Number { get; init; }
+
+    /// <summary>The number as display text (empty when unset).</summary>
+    public string NumberText => Number > 0 ? Number.ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty;
+
+    /// <summary>
+    /// The duration exactly as YT displayed it ("49 min" / "1 hr 5 min"). YT only sends a rounded
+    /// value here, so showing it verbatim is honest — formatting the parsed TimeSpan as "49:00"
+    /// implied a precision the data doesn't have.
+    /// </summary>
+    public string? DurationText { get; init; }
+
+    /// <summary>Display duration: YT's own text, falling back to the parsed TimeSpan.</summary>
+    public string DurationDisplay => DurationText
+        ?? (Duration is { } d ? (d.Hours > 0 ? d.ToString(@"h\:mm\:ss") : d.ToString(@"m\:ss")) : string.Empty);
+
+    /// <summary>Whether a duration (text or parsed) is available to show.</summary>
+    public bool HasDuration => !string.IsNullOrWhiteSpace(DurationText) || (Duration is { } dur && dur > TimeSpan.Zero);
+
+    /// <summary>Whether any playback progress exists (drives the red progress strip).</summary>
+    public bool HasProgress => Progress > 0;
+
+    /// <summary>
+    /// Server tokens for the "Mark as played" (<see cref="FeedbackTokens.Add"/>) and "Mark as
+    /// unplayed" (<see cref="FeedbackTokens.Remove"/>) mutations, when the row's menu carried them.
+    /// Lets the played state sync to the YT Music account instead of staying local-only.
+    /// </summary>
+    public FeedbackTokens? PlayedFeedback { get; init; }
 }
 
 /// <summary>

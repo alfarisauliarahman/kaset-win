@@ -99,6 +99,10 @@ internal sealed class FakeLifecyclePlaybackController : IPlaybackController
 
     /// <inheritdoc />
     public Task SetAudioQualityAsync(AudioQuality quality) => Task.CompletedTask;
+    public Task SetEqualizerAsync(bool enabled, IReadOnlyList<int> gainsDb) => Task.CompletedTask;
+
+    /// <inheritdoc />
+    public Task SetPlaybackRateAsync(double rate) => Task.CompletedTask;
 
     /// <inheritdoc />
     public Task SetDisplayModeAsync(PlaybackDisplayMode mode) => Task.CompletedTask;

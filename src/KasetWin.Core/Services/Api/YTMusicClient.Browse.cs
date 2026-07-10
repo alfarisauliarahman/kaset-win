@@ -167,6 +167,45 @@ public sealed partial class YTMusicClient
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<Song>> GetLibrarySongsAsync(CancellationToken ct = default)
+    {
+        // Library "Songs" = the saved-to-library tracks (FEmusic_liked_videos), a DIFFERENT dataset
+        // from the Liked Music playlist (VLLM / GetLikedSongsAsync). This surface is capped per page,
+        // so follow a few continuations to build a fuller list.
+        var node = await RequestAsync("browse", BrowseBody("FEmusic_liked_videos"), ApiCacheTtl.Library, ct)
+            .ConfigureAwait(false);
+
+        var detail = PlaylistParser.ParsePlaylistDetail(node, "FEmusic_liked_videos");
+        var songs = new List<Song>(detail.Tracks);
+
+        // Paging is best-effort enrichment: a failing continuation returns what we already have
+        // rather than throwing (which would blank the whole Library page).
+        try
+        {
+            var token = detail.ContinuationToken;
+            var pages = 0;
+            while (!string.IsNullOrEmpty(token) && pages < 6)
+            {
+                ct.ThrowIfCancellationRequested();
+                var cont = await GetPlaylistContinuationAsync(token, ct).ConfigureAwait(false);
+                songs.AddRange(cont.Tracks);
+                token = cont.ContinuationToken;
+                pages++;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // Return the first page(s) collected so far.
+        }
+
+        return songs;
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<Song>> GetUploadedSongsAsync(CancellationToken ct = default)
     {
         var node = await RequestAsync(
@@ -323,14 +362,22 @@ public sealed partial class YTMusicClient
     {
         try
         {
+            // NOTE: the podcasts landing is region-gated by IP + account country (confirmed: Indonesia
+            // 404s / redirects to home; only a real US IP via VPN works). Request-body gl/clientVersion
+            // overrides do NOT bypass it, so we just issue the normal request and treat 404 as
+            // "unavailable" (the tab shows an empty state).
             var node = await RequestAsync("browse", BrowseBody("FEmusic_podcasts"), ApiCacheTtl.Explore, ct)
                 .ConfigureAwait(false);
             var sections = PodcastParser.ParseDiscovery(node);
+            // TEMP diag: distinguish "region OK but parser found nothing" from a real region block.
+            var hasSectionList = ResponseTreeSearch.FindFirst(node, "sectionListRenderer") is not null;
+            Diag.Write($"podcasts landing: sections={sections.Count} hasSectionListRenderer={hasSectionList} rootLen={node?.ToJsonString().Length ?? 0}");
             return new PodcastsResult(IsAvailable: true, sections);
         }
         catch (KasetError ex) when (ex.Kind == KasetErrorKind.ApiError && ex.ApiStatusCode == 404)
         {
             // Unsupported region: hide the tab, no sections (Req 27.2).
+            Diag.Write("podcasts landing: 404 (region unavailable)");
             return PodcastsResult.Unavailable;
         }
     }

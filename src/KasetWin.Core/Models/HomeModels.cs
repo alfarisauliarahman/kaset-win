@@ -76,9 +76,19 @@ public sealed record HomeResponse
 /// Grouped search results. <see cref="TopResult"/> is the highlighted card
 /// (<c>musicCardShelfRenderer</c>), the remaining lists are per-type groups.
 /// </summary>
+/// <summary>
+/// One shelf of a universal search response, in the exact order and grouping YT Music sent it
+/// (e.g. "Podcasts", "Episodes", "Community playlists"). Backs the unified (unclassified)
+/// search presentation.
+/// </summary>
+public sealed record SearchSection(string Title, IReadOnlyList<HomeSectionItem> Items);
+
 public sealed record SearchResponse
 {
     public HomeSectionItem? TopResult { get; init; }
+
+    /// <summary>The response's shelves verbatim (title + rows), preserving YT's order.</summary>
+    public IReadOnlyList<SearchSection> Sections { get; init; } = [];
 
     public IReadOnlyList<Song> Songs { get; init; } = [];
 
@@ -90,6 +100,13 @@ public sealed record SearchResponse
 
     /// <summary>Podcast shows surfaced in search (advanced phase, Req 27).</summary>
     public IReadOnlyList<Playlist> Podcasts { get; init; } = [];
+
+    /// <summary>
+    /// Token for the next page of a filtered search shelf, or <see langword="null"/> when the shelf
+    /// has no more results. Only populated for single-type (filtered) searches, which return one
+    /// pageable <c>musicShelfRenderer</c>.
+    /// </summary>
+    public string? ContinuationToken { get; init; }
 }
 
 /// <summary>

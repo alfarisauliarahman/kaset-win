@@ -11,4 +11,10 @@ public static class Diag
 
     /// <summary>Emits a diagnostic line (no-op when no sink is attached).</summary>
     public static void Write(string message) => Log?.Invoke(message);
+
+    /// <summary>Set by the App to persist large diagnostic payloads (name, content) to files.</summary>
+    public static System.Action<string, string>? DumpSink { get; set; }
+
+    /// <summary>Persists a large diagnostic payload under <paramref name="name"/> (no-op without a sink).</summary>
+    public static void Dump(string name, string content) => DumpSink?.Invoke(name, content);
 }

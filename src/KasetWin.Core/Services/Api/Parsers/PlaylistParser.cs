@@ -100,6 +100,11 @@ public static class PlaylistParser
             Tracks = tracks,
             ContinuationToken = ExtractContinuationToken(obj),
             LikePlaylistId = ExtractLikeablePlaylistId(obj),
+            // A podcast playlist lays its episodes out as musicMultiRowListItemRenderer rows, which
+            // the track parser (musicResponsiveListItemRenderer only) yields nothing for. Flag it so
+            // the caller can reroute to the podcast surface instead of showing an empty playlist.
+            IsPodcastPlaylist = tracks.Count == 0
+                && ResponseTreeSearch.FindFirst(obj, "musicMultiRowListItemRenderer") is not null,
         };
     }
 
@@ -570,7 +575,15 @@ public static class PlaylistParser
         var playlistShelf = ResponseTreeSearch.FindFirst(root, "musicPlaylistShelfRenderer");
         if (playlistShelf is not null && AsArray(Prop(playlistShelf, "contents")) is { } shelfRows)
         {
-            return ParseTrackRows(shelfRows, fallbackThumb);
+            var parsed = ParseTrackRows(shelfRows, fallbackThumb);
+            // TEMP diag: a podcast playlist renders 0 tracks because its episode rows use a different
+            // renderer than musicResponsiveListItemRenderer — log the row renderer keys to confirm.
+            if (parsed.Count == 0 && shelfRows.Count > 0 && shelfRows[0] is JsonObject firstRow)
+            {
+                Diag.Write($"playlist rows=0 rowKeys=[{string.Join(",", firstRow.Select(kv => kv.Key))}] rowCount={shelfRows.Count}");
+            }
+
+            return parsed;
         }
 
         // Fallback: collect rows from non-suggestion musicShelfRenderer sections.
@@ -619,6 +632,7 @@ public static class PlaylistParser
             return null;
         }
 
+        var (rank, trend) = ChartIndexFromRow(renderer);
         return new Song
         {
             Id = videoId,
@@ -628,10 +642,44 @@ public static class PlaylistParser
             Album = AlbumFromFlexColumns(renderer),
             Duration = DurationFromRow(renderer),
             TrackNumber = TrackNumberFromRow(renderer) ?? fallbackTrackNumber,
+            Rank = rank,
+            Trend = trend,
             ListenerCountText = ListenerCountFromRow(renderer),
             ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(renderer) ?? fallbackThumb,
             IsExplicit = ParsingHelpers.ExtractIsExplicit(renderer),
         };
+    }
+
+    /// <summary>
+    /// Reads a chart playlist row's <c>customIndexColumn.musicCustomIndexColumnRenderer</c>: the
+    /// rank number and the trend arrow (<c>icon.iconType</c>). Returns <c>(0, None)</c> for ordinary
+    /// (non-chart) playlist rows that carry no custom index column.
+    /// </summary>
+    private static (int Rank, TrendDirection Trend) ChartIndexFromRow(JsonNode? renderer)
+    {
+        var custom = Prop(Prop(renderer, "customIndexColumn"), "musicCustomIndexColumnRenderer");
+        if (custom is null)
+        {
+            return (0, TrendDirection.None);
+        }
+
+        var rank = 0;
+        var rankText = ParsingHelpers.ExtractText(custom, "text");
+        if (rankText is not null)
+        {
+            var digits = new string(rankText.Where(char.IsDigit).ToArray());
+            _ = int.TryParse(digits, out rank);
+        }
+
+        var trend = GetString(Prop(custom, "icon"), "iconType") switch
+        {
+            "ARROW_DROP_UP" or "TRENDING_UP" or "ARROW_CHART_UP" => TrendDirection.Up,
+            "ARROW_DROP_DOWN" or "TRENDING_DOWN" or "ARROW_CHART_DOWN" => TrendDirection.Down,
+            "ARROW_CHART_NEUTRAL" => TrendDirection.Neutral,
+            _ => TrendDirection.None,
+        };
+
+        return (rank, trend);
     }
 
     private static int? TrackNumberFromRow(JsonNode? renderer)
