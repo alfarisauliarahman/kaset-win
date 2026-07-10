@@ -12,9 +12,14 @@ namespace KasetWin.Core.Services.Lyrics;
 /// Stable YouTube <c>videoId</c>. Used by <see cref="ILyricsService"/> as the cache key and to
 /// detect track changes (Req 17.4).
 /// </param>
+/// <param name="IsPodcast">
+/// Whether the track is a podcast episode. Podcast episodes have no song lyrics; the YouTube
+/// captions (CC) provider serves their auto/creator subtitles instead.
+/// </param>
 public sealed record LyricsSearchInfo(
     string Title,
     string Artist,
     string? Album,
     TimeSpan? Duration,
-    string VideoId);
+    string VideoId,
+    bool IsPodcast = false);

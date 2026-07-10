@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Linq;
 using KasetWin.App.Navigation;
 using KasetWin.App.ViewModels;
 using KasetWin.App.Views;
@@ -81,6 +82,12 @@ public sealed partial class NowPlayingPanel : UserControl
         // Refill "Berikutnya" whenever the playing track changes while the queue panel is open —
         // opening-only refill made the autofill feel intermittent.
         Queue.PropertyChanged += OnQueueVmPropertyChanged;
+
+        // The lyrics header (Lirik vs Subtitel CC) and the CC picker follow the current track.
+        if (_player is not null)
+        {
+            _player.PropertyChanged += OnPlayerPropertyChanged;
+        }
 
         Unloaded += OnUnloaded;
     }
@@ -247,6 +254,68 @@ public sealed partial class NowPlayingPanel : UserControl
         }
     }
 
+    // ── Subtitle/CC track picker (podcast episodes) ───────────────────────────────────────────
+
+    /// <summary>Header title: podcasts show captions, so the panel is titled accordingly.</summary>
+    public string LyricsHeaderText =>
+        _player?.CurrentTrack?.IsPodcastEpisode == true ? "Subtitel (CC)" : "Lirik";
+
+    /// <summary>Whether the CC track picker applies (lyrics mode + podcast episode).</summary>
+    public bool ShowCcPicker => IsLyrics && _player?.CurrentTrack?.IsPodcastEpisode == true;
+
+    /// <summary>Builds the CC menu on open: Nonaktif + every caption track of the current video.</summary>
+    private async void OnCcFlyoutOpening(object? sender, object e)
+    {
+        var videoId = _player?.CurrentTrack?.VideoId;
+        var services = ((App)Application.Current).Services;
+        var provider = services.GetService<YouTubeCaptionsProvider>();
+        var lyricsService = services.GetService<ILyricsService>();
+        if (provider is null || lyricsService is null || string.IsNullOrEmpty(videoId))
+        {
+            return;
+        }
+
+        CcFlyout.Items.Clear();
+        var (isOff, selectedUrl) = provider.GetSelection(videoId);
+
+        var off = new ToggleMenuFlyoutItem { Text = "Nonaktif", IsChecked = isOff };
+        off.Click += async (_, _) =>
+        {
+            provider.SelectOff(videoId);
+            lyricsService.Invalidate(videoId);
+            await Lyrics.RefreshAsync();
+        };
+        CcFlyout.Items.Add(off);
+
+        IReadOnlyList<CaptionTrack> tracks;
+        try
+        {
+            tracks = await provider.GetTracksAsync(videoId);
+        }
+        catch (System.Exception)
+        {
+            tracks = [];
+        }
+
+        foreach (var track in tracks)
+        {
+            var isSelected = !isOff && (selectedUrl == track.BaseUrl
+                // No explicit selection yet: the automatic pick highlights the default
+                // (first creator track, else the first track at all).
+                || (selectedUrl is null && ReferenceEquals(
+                    track, tracks.FirstOrDefault(t => !t.IsAsr) ?? tracks.FirstOrDefault())));
+            var item = new ToggleMenuFlyoutItem { Text = track.Name, IsChecked = isSelected };
+            var chosen = track;
+            item.Click += async (_, _) =>
+            {
+                provider.SelectTrack(videoId, chosen);
+                lyricsService.Invalidate(videoId);
+                await Lyrics.RefreshAsync();
+            };
+            CcFlyout.Items.Add(item);
+        }
+    }
+
     private void OnCloseClick(object sender, RoutedEventArgs e) => _controller?.Close();
 
     private void OnTrackClick(object sender, ItemClickEventArgs e)
@@ -272,11 +341,23 @@ public sealed partial class NowPlayingPanel : UserControl
         }
     }
 
+    private void OnPlayerPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(IPlayerService.CurrentTrack) or null or "")
+        {
+            DispatcherQueue.TryEnqueue(() => this.Bindings.Update());
+        }
+    }
+
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         Unloaded -= OnUnloaded;
         Lyrics.ActiveLineChanged -= OnActiveLineChanged;
         Queue.PropertyChanged -= OnQueueVmPropertyChanged;
+        if (_player is not null)
+        {
+            _player.PropertyChanged -= OnPlayerPropertyChanged;
+        }
         if (_controller is not null)
         {
             _controller.Changed -= OnControllerChanged;

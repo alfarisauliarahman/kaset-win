@@ -51,6 +51,19 @@ public sealed partial class LyricsService : ObservableObject, ILyricsService
     }
 
     /// <inheritdoc />
+    public void Invalidate(string videoId)
+    {
+        if (!string.IsNullOrEmpty(videoId))
+        {
+            _cache.TryRemove(videoId, out _);
+        }
+    }
+
+    // In-flight lookups keyed by videoId: concurrent loads for the same track (panel open +
+    // track-change + refresh racing) share ONE provider query instead of re-fetching each time.
+    private readonly ConcurrentDictionary<string, Task<LyricResult>> _inFlight = new(StringComparer.Ordinal);
+
+    /// <inheritdoc />
     public async Task LoadForTrackAsync(LyricsSearchInfo info, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(info);
@@ -65,11 +78,21 @@ public sealed partial class LyricsService : ObservableObject, ILyricsService
             return;
         }
 
+        _latestVideoId = info.VideoId;
         IsLoading = true;
         LyricResult result;
         try
         {
-            result = await ResolveAsync(info, ct).ConfigureAwait(false);
+            // Single-flight: piggyback on an identical lookup already running.
+            var task = _inFlight.GetOrAdd(info.VideoId, _ => ResolveAsync(info));
+            try
+            {
+                result = await task.WaitAsync(ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                _inFlight.TryRemove(info.VideoId, out _);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -100,53 +123,103 @@ public sealed partial class LyricsService : ObservableObject, ILyricsService
     /// Queries every provider and selects the best result with the priority
     /// <c>synced → plain → unavailable</c> (Req 17.2, 17.3). Provider order breaks ties within a tier.
     /// </summary>
-    private async Task<LyricResult> ResolveAsync(LyricsSearchInfo info, CancellationToken ct)
+    /// <summary>The videoId of the most recent load request; interim publishes gate on it.</summary>
+    private string? _latestVideoId;
+
+    /// <summary>Hard per-provider deadline so one hung provider can never stall the lookup.</summary>
+    private static readonly TimeSpan ProviderTimeout = TimeSpan.FromSeconds(15);
+
+    private async Task<LyricResult> ResolveAsync(LyricsSearchInfo info)
     {
         if (_providers.Count == 0)
         {
             return new LyricResult.Unavailable();
         }
 
-        var tasks = new List<Task<LyricResult>>(_providers.Count);
+        var pending = new List<Task<LyricResult>>(_providers.Count);
         foreach (var provider in _providers)
         {
-            tasks.Add(SafeSearchAsync(provider, info, ct));
+            pending.Add(SafeSearchAsync(provider, info));
         }
 
-        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
-
-        // Synced wins outright; otherwise the first plain result; otherwise unavailable.
-        foreach (var result in results)
+        // Race the providers instead of waiting for ALL of them (one slow provider used to delay
+        // every lyric by its full latency). Results are published PROGRESSIVELY: the first hit
+        // (plain or synced) shows immediately and is upgraded when a better one lands, so the
+        // panel never sits empty waiting for the slowest provider.
+        LyricResult? bestSynced = null;
+        LyricResult? bestPlain = null;
+        while (pending.Count > 0)
         {
+            var done = await Task.WhenAny(pending).ConfigureAwait(false);
+            pending.Remove(done);
+            var result = await done.ConfigureAwait(false);
+
             if (result is LyricResult.Synced)
             {
-                return result;
-            }
-        }
+                if (string.IsNullOrEmpty(PreferredProvider) || ResultSource(result) == PreferredProvider)
+                {
+                    return result;
+                }
 
-        foreach (var result in results)
-        {
-            if (result is LyricResult.Plain)
+                bestSynced ??= result;
+                PublishInterim(info.VideoId, bestSynced);
+            }
+            else if (result is LyricResult.Plain)
             {
-                return result;
+                if (ResultSource(result) == PreferredProvider)
+                {
+                    bestPlain = result;
+                }
+                else
+                {
+                    bestPlain ??= result;
+                }
+
+                if (bestSynced is null)
+                {
+                    PublishInterim(info.VideoId, bestPlain!);
+                }
             }
         }
 
-        return new LyricResult.Unavailable();
+        return bestSynced ?? bestPlain ?? new LyricResult.Unavailable();
     }
 
-    private async Task<LyricResult> SafeSearchAsync(
-        ILyricsProvider provider,
-        LyricsSearchInfo info,
-        CancellationToken ct)
+    /// <summary>
+    /// Shows a provisional result while other providers are still running — only when the load it
+    /// belongs to is still the track the UI asked about last. <see cref="IsLoading"/> stays on.
+    /// </summary>
+    private void PublishInterim(string videoId, LyricResult result)
+    {
+        if (string.Equals(videoId, _latestVideoId, StringComparison.Ordinal))
+        {
+            CurrentLyrics = result;
+            ActiveProvider = ResultSource(result);
+        }
+    }
+
+    /// <summary>The provider name the user prefers; its results are tried first. <c>null</c> = auto.</summary>
+    public string? PreferredProvider { get; set; }
+
+    private static string? ResultSource(LyricResult result) => result switch
+    {
+        LyricResult.Synced s => s.Lyrics.Source,
+        LyricResult.Plain p => p.Lyrics.Source,
+        _ => null,
+    };
+
+    private async Task<LyricResult> SafeSearchAsync(ILyricsProvider provider, LyricsSearchInfo info)
     {
         try
         {
-            return await provider.SearchAsync(info, ct).ConfigureAwait(false);
+            // A hard deadline: a hung provider must not keep the lookup (and its spinner) alive.
+            return await provider.SearchAsync(info, CancellationToken.None)
+                .WaitAsync(ProviderTimeout).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (TimeoutException)
         {
-            throw;
+            _logger.LogWarning("Provider {Provider} timed out for {VideoId}.", provider.Name, info.VideoId);
+            return new LyricResult.Unavailable();
         }
         catch (Exception ex)
         {

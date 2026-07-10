@@ -36,6 +36,13 @@ public sealed record SyncedLyrics(IReadOnlyList<SyncedLyricLine> Lines, string S
 public sealed record PlainLyrics(string Text, string? Source);
 
 /// <summary>
+/// One selectable caption (CC) track of a video: its display name (e.g. "Indonesia",
+/// "Indonesia (dibuat otomatis)"), the timedtext download URL, and whether it is
+/// auto-generated (ASR) rather than creator-provided.
+/// </summary>
+public sealed record CaptionTrack(string Name, string BaseUrl, bool IsAsr);
+
+/// <summary>
 /// Outcome of a lyrics lookup: synced, plain, or unavailable. Modelled as a
 /// discriminated union so the UI can pick the right rendering path (Req 17).
 /// <para>

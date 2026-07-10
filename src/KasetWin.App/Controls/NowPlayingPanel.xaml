@@ -19,6 +19,7 @@
         <converters:BoolToOpacityConverter x:Key="BoolToOpacity" />
         <converters:ActiveLineToFontWeightConverter x:Key="ActiveLineToFontWeight" />
         <converters:ActiveLineToScaleConverter x:Key="ActiveLineToScale" />
+        <converters:ActiveLineToFontSizeConverter x:Key="ActiveLineToFontSize" />
 
         <DataTemplate x:Key="PanelRowTemplate" x:DataType="models:Song">
             <Grid Padding="8,6" ColumnSpacing="12">
@@ -51,7 +52,7 @@
         </Grid.RowDefinitions>
 
         <!-- Header: mode tabs + close -->
-        <Grid Grid.Row="0" Padding="16,14,12,8" ColumnSpacing="8">
+        <Grid Grid.Row="0" Padding="10,12,8,8" ColumnSpacing="4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -63,17 +64,41 @@
                 Grid.Column="0"
                 SelectionChanged="OnQueueTabChanged"
                 Visibility="{x:Bind IsQueue, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <SelectorBar.Resources>
+                    <!-- Compact tabs so three fit the 380px panel without overflow scroll arrows. -->
+                    <Thickness x:Key="SelectorBarItemPadding">8,4,8,4</Thickness>
+                </SelectorBar.Resources>
                 <SelectorBarItem x:Name="UpNextTab" IsSelected="True" Text="Berikutnya" />
                 <SelectorBarItem x:Name="HistoryTab" Text="Riwayat" />
                 <SelectorBarItem x:Name="RelatedTab" Text="Terkait" />
             </SelectorBar>
 
-            <TextBlock
+            <StackPanel
                 Grid.Column="0"
-                VerticalAlignment="Center"
-                Text="Lirik"
-                Visibility="{x:Bind IsLyrics, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
-                Style="{StaticResource BodyStrongTextBlockStyle}" />
+                Orientation="Horizontal"
+                Spacing="8"
+                Visibility="{x:Bind IsLyrics, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock
+                    VerticalAlignment="Center"
+                    Text="{x:Bind LyricsHeaderText, Mode=OneWay}"
+                    Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <!-- Subtitle/CC track picker (podcast episodes only): Nonaktif + the video's tracks. -->
+                <Button
+                    x:Name="CcPickerButton"
+                    Padding="6,2"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource SubtleButtonStyle}"
+                    ToolTipService.ToolTip="Pilih subtitel"
+                    Visibility="{x:Bind ShowCcPicker, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon FontSize="14" Glyph="&#xE190;" />
+                        <FontIcon FontSize="10" Glyph="&#xE70D;" />
+                    </StackPanel>
+                    <Button.Flyout>
+                        <MenuFlyout x:Name="CcFlyout" Opening="OnCcFlyoutOpening" Placement="Bottom" />
+                    </Button.Flyout>
+                </Button>
+            </StackPanel>
 
             <Button
                 Grid.Column="1"
@@ -321,30 +346,41 @@
             <ListView
                 x:Name="LyricsList"
                 Padding="20,4,20,24"
+                HorizontalContentAlignment="Stretch"
                 IsItemClickEnabled="False"
                 ItemsSource="{x:Bind Lyrics.Lines, Mode=OneWay}"
                 SelectionMode="None"
                 Visibility="{x:Bind Lyrics.ShowSynced, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="vm:LyricLineItem">
-                        <!-- Scale + opacity transitions animate the active line growing/brightening as
-                             the current line changes (Apple-Music style). -->
-                        <TextBlock
-                            Margin="0,8"
-                            FontSize="22"
-                            FontWeight="{x:Bind IsActive, Converter={StaticResource ActiveLineToFontWeight}, Mode=OneWay}"
-                            Opacity="{x:Bind IsActive, Converter={StaticResource BoolToOpacity}, Mode=OneWay}"
-                            Scale="{x:Bind IsActive, Converter={StaticResource ActiveLineToScale}, Mode=OneWay}"
-                            Text="{x:Bind Text}"
-                            TextWrapping="Wrap"
-                            Style="{StaticResource SubtitleTextBlockStyle}">
-                            <TextBlock.OpacityTransition>
-                                <ScalarTransition Duration="0:0:0.35" />
-                            </TextBlock.OpacityTransition>
-                            <TextBlock.ScaleTransition>
-                                <Vector3Transition Duration="0:0:0.35" />
-                            </TextBlock.ScaleTransition>
-                        </TextBlock>
+                        <StackPanel>
+                            <!-- Active line grows via FONT SIZE (layout-aware, so it wraps instead of being
+                                 clipped) + brightens; opacity animates smoothly as the current line changes. -->
+                            <TextBlock
+                                Margin="0,8"
+                                HorizontalAlignment="Left"
+                                FontSize="{x:Bind IsActive, Converter={StaticResource ActiveLineToFontSize}, Mode=OneWay}"
+                                FontWeight="{x:Bind IsActive, Converter={StaticResource ActiveLineToFontWeight}, Mode=OneWay}"
+                                Opacity="{x:Bind IsActive, Converter={StaticResource BoolToOpacity}, Mode=OneWay}"
+                                Text="{x:Bind Text}"
+                                TextWrapping="Wrap"
+                                Visibility="{x:Bind ShowPlainText, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                                Style="{StaticResource SubtitleTextBlockStyle}">
+                                <TextBlock.OpacityTransition>
+                                    <ScalarTransition Duration="0:0:0.35" />
+                                </TextBlock.OpacityTransition>
+                            </TextBlock>
+                            <!-- Karaoke rendering for the active line when word timing exists (podcast
+                                 auto-subtitles): the spoken part lights up word by word. -->
+                            <TextBlock
+                                Margin="0,8"
+                                HorizontalAlignment="Left"
+                                FontSize="{x:Bind IsActive, Converter={StaticResource ActiveLineToFontSize}, Mode=OneWay}"
+                                FontWeight="SemiBold"
+                                TextWrapping="Wrap"
+                                Visibility="{x:Bind ShowKaraoke, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                                Style="{StaticResource SubtitleTextBlockStyle}"><Run Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Text="{x:Bind SungText, Mode=OneWay}" /><Run Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{x:Bind UnsungText, Mode=OneWay}" /></TextBlock>
+                        </StackPanel>
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>

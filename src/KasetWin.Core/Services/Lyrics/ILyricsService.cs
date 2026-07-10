@@ -18,6 +18,9 @@ public interface ILyricsService : INotifyPropertyChanged
     /// <summary>Label of the provider that produced <see cref="CurrentLyrics"/> (e.g. <c>"LRCLib"</c>), or <see langword="null"/>.</summary>
     string? ActiveProvider { get; }
 
+    /// <summary>Preferred provider name whose results win ties; <c>null</c>/empty = automatic (any).</summary>
+    string? PreferredProvider { get; set; }
+
     /// <summary><see langword="true"/> while a lookup is in flight.</summary>
     bool IsLoading { get; }
 
@@ -28,4 +31,11 @@ public interface ILyricsService : INotifyPropertyChanged
     /// that has been superseded by a newer <see cref="LoadForTrackAsync"/> are discarded (Req 17.4).
     /// </summary>
     Task LoadForTrackAsync(LyricsSearchInfo info, CancellationToken ct = default);
+
+    /// <summary>
+    /// Drops the cached result for <paramref name="videoId"/> so the next
+    /// <see cref="LoadForTrackAsync"/> re-queries providers (e.g. after the user picked a
+    /// different caption track).
+    /// </summary>
+    void Invalidate(string videoId);
 }

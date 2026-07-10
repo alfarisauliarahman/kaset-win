@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Lyrics;
@@ -69,8 +70,13 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
         IsLoadingLyrics = _lyrics.IsLoading;
     }
 
-    /// <summary>The synced lyric lines (each with its own active flag), in time order (Req 17.2).</summary>
-    public ObservableCollection<LyricLineItem> Lines { get; } = [];
+    /// <summary>
+    /// The synced lyric lines (each with its own active flag), in time order (Req 17.2). Set as a
+    /// whole list (one change notification) — populating an ObservableCollection item-by-item made
+    /// long caption tracks (podcasts run 2000+ lines) take visible seconds to appear.
+    /// </summary>
+    [ObservableProperty]
+    private IReadOnlyList<LyricLineItem> _lines = [];
 
     /// <summary>Title of the track lyrics are shown for, or <c>null</c> when nothing is playing.</summary>
     [ObservableProperty]
@@ -190,7 +196,8 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
             Artist: track.ArtistsDisplay,
             Album: track.Album?.Title,
             Duration: track.Duration,
-            VideoId: track.VideoId);
+            VideoId: track.VideoId,
+            IsPodcast: track.IsPodcastEpisode);
     }
 
     // ── Player observation ──────────────────────────────────────────────────────────────────────
@@ -267,13 +274,14 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
         _syncedLyrics = lyrics;
         _activeLineIndex = -1;
 
-        Lines.Clear();
+        var items = new List<LyricLineItem>(lyrics.Lines.Count);
         for (var i = 0; i < lyrics.Lines.Count; i++)
         {
             var line = lyrics.Lines[i];
-            Lines.Add(new LyricLineItem(i, line.TimeInMs, line.Text));
+            items.Add(new LyricLineItem(i, line.TimeInMs, line.Text, line.Words));
         }
 
+        Lines = items;
         PlainText = null;
         ShowSynced = lyrics.Lines.Count > 0;
         ShowPlain = false;
@@ -287,7 +295,7 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
     {
         _syncedLyrics = null;
         _activeLineIndex = -1;
-        Lines.Clear();
+        Lines = [];
 
         PlainText = text;
         ShowSynced = false;
@@ -299,7 +307,7 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
     {
         _syncedLyrics = null;
         _activeLineIndex = -1;
-        Lines.Clear();
+        Lines = [];
         PlainText = null;
         ShowSynced = false;
         ShowPlain = false;
@@ -322,12 +330,20 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
 
         if (index == _activeLineIndex)
         {
+            // Same line — still advance the word-level (karaoke) highlight within it.
+            if (index >= 0 && index < Lines.Count)
+            {
+                Lines[index].UpdateKaraoke(positionMs);
+            }
+
             return;
         }
 
         if (_activeLineIndex >= 0 && _activeLineIndex < Lines.Count)
         {
-            Lines[_activeLineIndex].IsActive = false;
+            var previous = Lines[_activeLineIndex];
+            previous.IsActive = false;
+            previous.ShowKaraoke = false;
         }
 
         _activeLineIndex = index;
@@ -337,6 +353,7 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
         {
             active = Lines[index];
             active.IsActive = true;
+            active.UpdateKaraoke(positionMs);
         }
 
         ActiveLineChanged?.Invoke(this, active);
@@ -374,12 +391,15 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
 /// </summary>
 public sealed partial class LyricLineItem : ObservableObject
 {
-    /// <summary>Creates a line item.</summary>
-    public LyricLineItem(int index, int timeInMs, string text)
+    private readonly IReadOnlyList<TimedWord>? _words;
+
+    /// <summary>Creates a line item; <paramref name="words"/> enables word-level (karaoke) highlighting.</summary>
+    public LyricLineItem(int index, int timeInMs, string text, IReadOnlyList<TimedWord>? words = null)
     {
         Index = index;
         TimeInMs = timeInMs;
         Text = text;
+        _words = words is { Count: > 0 } ? words : null;
     }
 
     /// <summary>Stable zero-based index of the line within the synced lyrics (identity for the list).</summary>
@@ -394,4 +414,48 @@ public sealed partial class LyricLineItem : ObservableObject
     /// <summary>Whether this is the line currently being sung; drives the highlight style.</summary>
     [ObservableProperty]
     private bool _isActive;
+
+    /// <summary>Whether the active line renders as karaoke (two-tone spoken/unspoken split).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowPlainText))]
+    private bool _showKaraoke;
+
+    /// <summary>Whether the regular single-tone text should render (inverse of karaoke mode).</summary>
+    public bool ShowPlainText => !ShowKaraoke;
+
+    /// <summary>The already-spoken words of the active line (bright karaoke segment).</summary>
+    [ObservableProperty]
+    private string _sungText = string.Empty;
+
+    /// <summary>The not-yet-spoken remainder of the active line (dim karaoke segment).</summary>
+    [ObservableProperty]
+    private string _unsungText = string.Empty;
+
+    /// <summary>
+    /// Advances the karaoke split for the playback position. Lines without word timing keep the
+    /// plain rendering. Called only for the active line (cheap: one linear scan over its words).
+    /// </summary>
+    public void UpdateKaraoke(long positionMs)
+    {
+        if (_words is null)
+        {
+            return;
+        }
+
+        var sungCount = 0;
+        while (sungCount < _words.Count && _words[sungCount].TimeInMs <= positionMs)
+        {
+            sungCount++;
+        }
+
+        var unsung = sungCount == _words.Count
+            ? string.Empty
+            : string.Join(' ', _words.Skip(sungCount).Select(w => w.Word));
+
+        SungText = sungCount == 0
+            ? string.Empty
+            : string.Join(' ', _words.Take(sungCount).Select(w => w.Word)) + (unsung.Length > 0 ? " " : string.Empty);
+        UnsungText = unsung;
+        ShowKaraoke = true;
+    }
 }

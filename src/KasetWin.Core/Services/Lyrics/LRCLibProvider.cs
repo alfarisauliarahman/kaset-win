@@ -65,6 +65,13 @@ public sealed class LRCLibProvider : ILyricsProvider
     {
         ArgumentNullException.ThrowIfNull(info);
 
+        // Podcast episodes have no song lyrics here — skip the network round-trips entirely
+        // (the YouTube CC provider serves them).
+        if (info.IsPodcast)
+        {
+            return new LyricResult.Unavailable();
+        }
+
         // 1) Precise lookup: /api/get keyed on title + artist (+ album/duration when known).
         var exact = await TryGetAsync(info, ct).ConfigureAwait(false);
         if (exact is not null)
