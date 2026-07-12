@@ -565,9 +565,12 @@ public static class ParsingHelpers
             return null;
         }
 
+        // Match the count word in every UI language the app pins (hl): English "songs"/"tracks"
+        // and Indonesian "lagu". Without the localized form, a server response under hl=id returns
+        // "6 lagu", the count is not recognised, and it leaks into the artist/author line.
         var match = System.Text.RegularExpressions.Regex.Match(
             text,
-            @"([\d,]+)\s+(?:songs?|tracks?)",
+            @"([\d,]+)\s+(?:songs?|tracks?|lagu)",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         if (!match.Success)

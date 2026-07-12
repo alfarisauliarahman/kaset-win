@@ -767,7 +767,7 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
     {
         // Prefer the loaded count once tracks are present; fall back to the metadata-reported count.
         var count = Tracks.Count > 0 ? Tracks.Count : metadataCount ?? 0;
-        TrackCountDisplay = count == 1 ? "1 song" : $"{count} songs";
+        TrackCountDisplay = Localization.UiStrings.TrackCountText(count);
     }
 
     /// <summary>Sums the durations of the loaded tracks into a friendly header line (Indonesian).</summary>

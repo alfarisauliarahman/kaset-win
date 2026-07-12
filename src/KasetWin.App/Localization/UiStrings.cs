@@ -184,6 +184,9 @@ internal static class UiStrings
     internal static string ArtistFeaturedOn => IsIndonesian ? "Tampil di" : "Featured on";
     internal static string ArtistFansMayLike => IsIndonesian ? "Penggemar mungkin juga suka" : "Fans might also like";
     internal static string NoData => IsIndonesian ? "Tidak ada data." : "No data.";
+    internal static string TrackCountText(int count) => IsIndonesian
+        ? $"{count} lagu"
+        : (count == 1 ? "1 song" : $"{count} songs");
     internal static string FollowLabel => IsIndonesian ? "Ikuti" : "Follow";
     internal static string FollowingLabel => IsIndonesian ? "Diikuti" : "Following";
     internal static string SubscribedLabel => IsIndonesian ? "Disubscribe" : "Subscribed";
