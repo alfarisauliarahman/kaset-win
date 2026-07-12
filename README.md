@@ -13,8 +13,6 @@ A native **Windows** client for YouTube Music, built with **C# / .NET 8 + WinUI 
   </tr>
 </table>
 
-> **Note:** the images above are placeholders — drop real screenshots into `docs/` (e.g. `docs/screenshot-home.png`, `docs/screenshot-nowplaying.png`).
-
 ## Features
 
 - 🪟 **Native Windows 11 Experience** — WinUI 3 / Fluent design with a Mica backdrop, an Apple-Music-style player bar, a clean sidebar, and a Music ↔ YouTube source toggle
