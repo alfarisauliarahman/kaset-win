@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build & test (headless core)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # The class libraries (Core / Platform / ApiExplorer) and the tests build
+      # without the MSIX / Windows App SDK packaging tooling. The WinUI app
+      # (KasetWin.App) is intentionally not built here — it needs the App SDK
+      # workload — so CI stays fast and reliable on a stock runner.
+      - name: Restore
+        run: dotnet restore tests/KasetWin.Core.Tests/KasetWin.Core.Tests.csproj
+
+      - name: Build (Release)
+        run: dotnet build tests/KasetWin.Core.Tests/KasetWin.Core.Tests.csproj -c Release --no-restore
+
+      - name: Test
+        run: dotnet test tests/KasetWin.Core.Tests/KasetWin.Core.Tests.csproj -c Release --no-build --verbosity normal

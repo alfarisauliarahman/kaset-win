@@ -1,0 +1,48 @@
+name: Feature Request
+description: Suggest a new feature or improvement for KasetWin
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an idea! Please describe what you'd like to see.
+
+  - type: checkboxes
+    id: existing-issue
+    attributes:
+      label: Is there an existing request for this?
+      description: Please search to see if a similar feature has already been requested.
+      options:
+        - label: I have searched the existing issues
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Motivation
+      description: What problem does this solve, or what would it improve?
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the feature or behavior you'd like.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you've thought about.
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        > Note: this is a personal port and some macOS-only features (Apple Intelligence, haptics, AppleScript) are intentionally out of scope. YouTube mode is a work in progress.
