@@ -110,7 +110,7 @@ public sealed partial class MainWindow : Window
         {
             try
             {
-                var path = System.IO.Path.Combine(Windows.Storage.ApplicationData.Current.LocalFolder.Path, "diag.log");
+                var path = System.IO.Path.Combine(KasetWin.Platform.Storage.AppData.LocalFolder, "diag.log");
                 System.IO.File.AppendAllText(path, $"{DateTime.Now:HH:mm:ss.fff} {msg}{Environment.NewLine}");
             }
             catch
@@ -122,7 +122,7 @@ public sealed partial class MainWindow : Window
         {
             try
             {
-                var path = System.IO.Path.Combine(Windows.Storage.ApplicationData.Current.LocalFolder.Path, name);
+                var path = System.IO.Path.Combine(KasetWin.Platform.Storage.AppData.LocalFolder, name);
                 System.IO.File.WriteAllText(path, content);
             }
             catch

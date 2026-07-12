@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using KasetWin.Platform.Storage;
 
 namespace KasetWin.App;
 
@@ -17,7 +18,7 @@ public static class PlaylistCoverStore
     {
         try
         {
-            var raw = Windows.Storage.ApplicationData.Current.LocalSettings.Values[Key] as string;
+            var raw = AppData.Settings[Key] as string;
             return string.IsNullOrEmpty(raw)
                 ? []
                 : JsonSerializer.Deserialize<Dictionary<string, string>>(raw) ?? [];
@@ -32,7 +33,7 @@ public static class PlaylistCoverStore
     {
         try
         {
-            Windows.Storage.ApplicationData.Current.LocalSettings.Values[Key] = JsonSerializer.Serialize(map);
+            AppData.Settings[Key] = JsonSerializer.Serialize(map);
         }
         catch (Exception)
         {
@@ -57,7 +58,7 @@ public static class PlaylistCoverStore
     {
         try
         {
-            var folder = System.IO.Path.Combine(Windows.Storage.ApplicationData.Current.LocalFolder.Path, "covers");
+            var folder = System.IO.Path.Combine(AppData.LocalFolder, "covers");
             System.IO.Directory.CreateDirectory(folder);
             var target = System.IO.Path.Combine(folder, Normalize(playlistId) + System.IO.Path.GetExtension(sourcePath));
             System.IO.File.Copy(sourcePath, target, overwrite: true);

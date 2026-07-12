@@ -73,7 +73,7 @@ public partial class App : Application
         // Apply the saved preferred lyrics provider at startup (else it only takes effect once the
         // Settings page is opened).
         if (Services.GetService(typeof(Core.Services.Lyrics.ILyricsService)) is Core.Services.Lyrics.ILyricsService lyrics
-            && Windows.Storage.ApplicationData.Current.LocalSettings.Values["lyrics.provider"] as string is { Length: > 0 } provider)
+            && KasetWin.Platform.Storage.AppData.Settings["lyrics.provider"] as string is { Length: > 0 } provider)
         {
             lyrics.PreferredProvider = provider;
         }

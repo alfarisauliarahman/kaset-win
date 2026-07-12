@@ -149,7 +149,7 @@ public sealed partial class MainWindow
     {
         try
         {
-            var raw = Windows.Storage.ApplicationData.Current.LocalSettings.Values[SearchHistoryKey] as string;
+            var raw = KasetWin.Platform.Storage.AppData.Settings[SearchHistoryKey] as string;
             return string.IsNullOrEmpty(raw)
                 ? []
                 : System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.List<string>>(raw) ?? [];
@@ -164,7 +164,7 @@ public sealed partial class MainWindow
     {
         try
         {
-            Windows.Storage.ApplicationData.Current.LocalSettings.Values[SearchHistoryKey] =
+            KasetWin.Platform.Storage.AppData.Settings[SearchHistoryKey] =
                 System.Text.Json.JsonSerializer.Serialize(_searchHistory);
         }
         catch (Exception)

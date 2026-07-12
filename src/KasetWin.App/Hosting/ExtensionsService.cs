@@ -39,7 +39,7 @@ public sealed class ExtensionsService
     /// direct sub-folder that contains a <c>manifest.json</c> is treated as one extension.
     /// </summary>
     public static string ExtensionsFolderPath =>
-        Path.Combine(ApplicationData.Current.LocalFolder.Path, "Extensions");
+        Path.Combine(KasetWin.Platform.Storage.AppData.LocalFolder, "Extensions");
 
     private static string UBlockFolderPath => Path.Combine(ExtensionsFolderPath, "uBlockOrigin");
 

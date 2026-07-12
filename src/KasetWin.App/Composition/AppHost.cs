@@ -218,20 +218,9 @@ internal static class AppHost
         services.AddSingleton<Notifications.IInAppNotifier, Notifications.InAppNotifier>();
 
         // ── Settings persistence (task 13.1, Req 18.x) ───────────────────────────────────
-        // Prefer the packaged on-disk store (ApplicationData.LocalSettings). When the process runs
-        // unpackaged ApplicationData.Current throws, so fall back to the volatile in-memory store so
-        // the app still launches (settings simply won't persist across runs).
-        services.AddSingleton<ISettingsStore>(static _ =>
-        {
-            try
-            {
-                return new LocalSettingsStore();
-            }
-            catch
-            {
-                return new InMemorySettingsStore();
-            }
-        });
+        // One store for both packaging modes: LocalSettings when packaged, %LOCALAPPDATA%\Kaset\
+        // settings.json when the app runs as a standalone .exe (see AppData / AppDataSettingsStore).
+        services.AddSingleton<ISettingsStore>(static _ => new AppDataSettingsStore());
         services.AddSingleton<ISettingsService, SettingsService>();
 
         // ── Favorites / pinned items (task 22.1, Req 29) ─────────────────────────────────

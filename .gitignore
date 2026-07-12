@@ -21,3 +21,6 @@ BundleArtifacts/
 # Test results
 [Tt]est[Rr]esults/
 *.trx
+
+# Velopack / standalone distribution output
+dist/

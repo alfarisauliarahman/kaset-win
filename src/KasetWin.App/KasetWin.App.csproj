@@ -50,6 +50,12 @@
       otherwise treated as an error.
     -->
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+
+    <!--
+      Custom entry point (Program.cs) so Velopack's install/update hooks run before any UI is
+      created. Disabling the XAML-generated Main is required to provide our own STAThread Main.
+    -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -73,6 +79,7 @@
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <!-- Used to render Segoe Fluent media glyphs into HICONs for the taskbar thumbbar buttons. -->
     <PackageReference Include="System.Drawing.Common" Version="8.0.10" />
+    <PackageReference Include="Velopack" Version="1.2.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -113,8 +120,7 @@
   -->
   <Target Name="_DedupWebView2CorePayload" BeforeTargets="_ComputeAppxPackagePayload">
     <ItemGroup>
-      <PackagingOutputs Remove="@(PackagingOutputs)"
-                        Condition="'%(FileName)%(Extension)' == 'Microsoft.Web.WebView2.Core.dll' And $([System.String]::Copy('%(FullPath)').Contains('native_uap'))" />
+      <PackagingOutputs Remove="@(PackagingOutputs)" Condition="'%(FileName)%(Extension)' == 'Microsoft.Web.WebView2.Core.dll' And $([System.String]::Copy('%(FullPath)').Contains('native_uap'))" />
     </ItemGroup>
   </Target>
 

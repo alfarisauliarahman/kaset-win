@@ -1,5 +1,5 @@
+using KasetWin.Platform.Storage;
 using Microsoft.Web.WebView2.Core;
-using Windows.Storage;
 
 namespace KasetWin.Platform.Playback;
 
@@ -49,10 +49,11 @@ public sealed class WebViewEnvironmentProvider
 
     private static async Task<CoreWebView2Environment> CreateAsync()
     {
-        // Use LocalState as the user-data base so WebView2 creates/reuses the SAME `EBWebView`
-        // profile the default (no-environment) EnsureCoreWebView2Async already uses — this keeps the
-        // existing signed-in session instead of resetting it, while still enabling extensions.
-        var userDataFolder = ApplicationData.Current.LocalFolder.Path;
+        // Use the app's local folder as the user-data base so WebView2 creates/reuses the SAME
+        // `EBWebView` profile across launches — keeping the signed-in session while still enabling
+        // extensions. AppData.LocalFolder is the package LocalState when packaged and
+        // %LOCALAPPDATA%\Kaset when the app runs standalone (the standalone build has its own session).
+        var userDataFolder = AppData.LocalFolder;
 
         var options = new CoreWebView2EnvironmentOptions
         {

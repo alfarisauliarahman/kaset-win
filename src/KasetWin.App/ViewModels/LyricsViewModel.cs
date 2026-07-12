@@ -173,7 +173,7 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            return Windows.Storage.ApplicationData.Current.LocalSettings.Values[KaraokeSettingKey] is bool b && b;
+            return KasetWin.Platform.Storage.AppData.Settings[KaraokeSettingKey] is bool b && b;
         }
         catch (Exception)
         {
@@ -185,7 +185,7 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            Windows.Storage.ApplicationData.Current.LocalSettings.Values[KaraokeSettingKey] = value;
+            KasetWin.Platform.Storage.AppData.Settings[KaraokeSettingKey] = value;
         }
         catch (Exception)
         {

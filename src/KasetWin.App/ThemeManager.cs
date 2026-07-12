@@ -1,14 +1,14 @@
+using KasetWin.Platform.Storage;
 using Microsoft.UI.Xaml;
-using Windows.Storage;
 
 namespace KasetWin.App;
 
 /// <summary>
 /// Applies and persists the app-wide light/dark theme. The XAML already uses theme-aware
 /// <c>ThemeResource</c> brushes + a Mica backdrop, so switching is just a matter of stamping
-/// <see cref="FrameworkElement.RequestedTheme"/> on the window root. Persisted in
-/// <see cref="ApplicationData.LocalSettings"/> (same lightweight store the equalizer uses) so it
-/// survives relaunches.
+/// <see cref="FrameworkElement.RequestedTheme"/> on the window root. Persisted via
+/// <see cref="AppData.Settings"/> (same lightweight store the equalizer uses) so it survives
+/// relaunches — in both packaged and standalone (.exe) modes.
 /// </summary>
 public static class ThemeManager
 {
@@ -17,13 +17,13 @@ public static class ThemeManager
     /// <summary>The persisted theme, defaulting to <see cref="ElementTheme.Default"/> (follow the OS).</summary>
     public static ElementTheme Current
     {
-        get => ApplicationData.Current.LocalSettings.Values[ThemeKey] switch
+        get => AppData.Settings[ThemeKey] switch
         {
             "Light" => ElementTheme.Light,
             "Dark" => ElementTheme.Dark,
             _ => ElementTheme.Default,
         };
-        private set => ApplicationData.Current.LocalSettings.Values[ThemeKey] =
+        private set => AppData.Settings[ThemeKey] =
             value switch { ElementTheme.Light => "Light", ElementTheme.Dark => "Dark", _ => "Default" };
     }
 

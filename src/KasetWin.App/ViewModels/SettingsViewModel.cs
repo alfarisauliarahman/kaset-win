@@ -5,7 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using KasetWin.Core.Abstractions;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Settings;
-using Windows.Storage;
+using KasetWin.Platform.Storage;
 
 namespace KasetWin.App.ViewModels;
 
@@ -68,7 +68,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             _ => 0,
         };
 
-        var savedProvider = ApplicationData.Current.LocalSettings.Values[LyricsProviderKey] as string;
+        var savedProvider = AppData.Settings[LyricsProviderKey] as string;
         SelectedLyricsProviderIndex = savedProvider switch { "LRCLib" => 1, "NetEase" => 2, _ => 0 };
         ApplyLyricsProvider(SelectedLyricsProviderIndex);
 
@@ -168,7 +168,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             _lyrics.PreferredProvider = name;
         }
 
-        ApplicationData.Current.LocalSettings.Values[LyricsProviderKey] = name ?? string.Empty;
+        AppData.Settings[LyricsProviderKey] = name ?? string.Empty;
     }
 
     partial void OnSelectedThemeIndexChanged(int value)
@@ -215,13 +215,13 @@ public sealed partial class SettingsViewModel : ViewModelBase
     {
         var hl = index == 1 ? "en" : "id";
         KasetWin.Core.Services.Api.InnerTubeSupport.LanguageOverride = hl;
-        ApplicationData.Current.LocalSettings.Values[LanguageKey] = hl;
+        AppData.Settings[LanguageKey] = hl;
     }
 
     /// <summary>The persisted content-language code: <c>"en"</c>, or <c>"id"</c> (the default).</summary>
     public static string LoadLanguageSetting()
     {
-        var saved = ApplicationData.Current.LocalSettings.Values[LanguageKey] as string;
+        var saved = AppData.Settings[LanguageKey] as string;
         return saved == "en" ? "en" : "id";
     }
 
@@ -401,7 +401,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     {
         try
         {
-            var values = ApplicationData.Current.LocalSettings.Values;
+            var values = AppData.Settings;
             IsEqualizerEnabled = values[EqEnabledKey] is bool b && b;
             LinkNearbyBands = values["eq.link"] is bool lb && lb;
             SelectedEqPreset = values[EqPresetKey] as string ?? "Flat";
@@ -435,7 +435,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     {
         try
         {
-            var values = ApplicationData.Current.LocalSettings.Values;
+            var values = AppData.Settings;
             values[EqEnabledKey] = IsEqualizerEnabled;
             values["eq.link"] = LinkNearbyBands;
             values[EqPresetKey] = SelectedEqPreset;
