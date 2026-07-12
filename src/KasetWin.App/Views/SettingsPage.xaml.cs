@@ -120,11 +120,14 @@ public sealed partial class SettingsPage : Page
         try
         {
             var v = Windows.ApplicationModel.Package.Current.Id.Version;
-            return $"{v.Major}.{v.Minor}.{v.Build}.{v.Revision}";
+            // Show the familiar SemVer (Major.Minor.Build) — MSIX carries a 4th "revision" that is
+            // always 0 here and just reads as noise (e.g. "0.2.0" not "0.2.0.0").
+            return $"{v.Major}.{v.Minor}.{v.Build}";
         }
         catch
         {
-            return typeof(SettingsPage).Assembly.GetName().Version?.ToString() ?? "";
+            var v = typeof(SettingsPage).Assembly.GetName().Version;
+            return v is null ? "" : $"{v.Major}.{v.Minor}.{v.Build}";
         }
     }
 

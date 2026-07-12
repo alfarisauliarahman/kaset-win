@@ -290,10 +290,13 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <!-- dB axis: labels centred on the same gridlines the 150px sliders span
-                             (+12 top, 0 middle, -12 bottom) so the scale lines up with the thumbs. -->
+                        <!-- dB axis aligned to the slider THUMB travel, not the raw control height:
+                             a 150px vertical Slider insets its thumb by ~10px top and bottom, so the
+                             scale is 130px tall pushed down 10px (+12 at the top thumb, 0 mid, -12 at
+                             the bottom thumb). -->
                         <Grid
-                            Height="150"
+                            Height="130"
+                            Margin="0,10,4,0"
                             VerticalAlignment="Top"
                             Opacity="0.55">
                             <Grid.RowDefinitions>
