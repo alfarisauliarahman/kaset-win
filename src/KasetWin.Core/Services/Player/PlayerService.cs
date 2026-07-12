@@ -31,6 +31,13 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// </summary>
     private readonly InfiniteMixCoordinator? _mixCoordinator;
 
+    /// <summary>
+    /// Optional metadata fetcher (videoId → enriched <see cref="Song"/>). When present, a track loaded
+    /// without its album is enriched in the background so the now-playing UI always shows the album and
+    /// "Go to album" works, regardless of which surface playback started from. <c>null</c> disables it.
+    /// </summary>
+    private readonly Func<string, CancellationToken, Task<Song?>>? _metadataFetcher;
+
     private readonly EventHandler<PlaybackStateMessage> _stateHandler;
     private readonly EventHandler<TrackEndedMessage> _trackEndedHandler;
 
@@ -44,6 +51,18 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// is a no-op and notifications are raised inline exactly as before.
     /// </summary>
     private readonly SynchronizationContext? _uiContext = SynchronizationContext.Current;
+
+    /// <summary>
+    /// The videoId Kaset is deliberately loading right now, set for the duration of
+    /// <see cref="LoadTrackAsync"/> (and the repeat-one replay). While it is set, a STATE_UPDATE that
+    /// reports a <em>different</em> videoId is ignored: the music host is headless, so a foreign id
+    /// arriving mid-load is YouTube autoplay / transient drift bleeding in, and adopting it would yank
+    /// the now-playing UI (and the queue) to an unrelated track before snapping back once our track
+    /// settles — the "queue jumps around when changing tracks in an album/playlist" bug. Cleared once
+    /// the load finishes (or the expected id is observed), so genuine autoplay drift after playback has
+    /// settled is still adopted (Req 2.6).
+    /// </summary>
+    private volatile string? _expectedVideoId;
 
     private Song? _currentTrack;
     private bool _isPlaying;
@@ -75,12 +94,14 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         IQueueService queue,
         IPlaybackController controller,
         IJsBridge bridge,
-        InfiniteMixCoordinator? mixCoordinator = null)
+        InfiniteMixCoordinator? mixCoordinator = null,
+        Func<string, CancellationToken, Task<Song?>>? metadataFetcher = null)
     {
         _queue = queue ?? throw new ArgumentNullException(nameof(queue));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _bridge = bridge ?? throw new ArgumentNullException(nameof(bridge));
         _mixCoordinator = mixCoordinator;
+        _metadataFetcher = metadataFetcher;
 
         _stateHandler = (_, message) => HandleStateUpdate(message);
         _trackEndedHandler = (_, message) => _ = HandleTrackEndedAsync(message.VideoId);
@@ -407,6 +428,11 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
 
         _queue.SetRepeatMode(next);
         RepeatMode = next;
+
+        // Repeat One loops the media element natively (video.loop) so the track repeats seamlessly and
+        // YouTube Music's own autoplay can't advance past it; the controller re-applies this after each
+        // navigation, so it follows to whatever track is loaded next.
+        _ = _controller.SetRepeatOneAsync(next == RepeatMode.One);
     }
 
     /// <inheritdoc />
@@ -437,14 +463,24 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
                 }
 
                 // Repeat-One resolves to the same track: restart it from the beginning rather
-                // than relying on a (no-op) reload of the already-loaded video.
+                // than relying on a (no-op) reload of the already-loaded video. Guard the replay
+                // window so a YouTube-autoplay pick that fired at track end can't be adopted over
+                // the repeated track (the "repeat jumps to another song" bug).
                 if (string.Equals(next.VideoId, expected, StringComparison.Ordinal))
                 {
-                    CurrentTrack = next;
-                    await _controller.SeekAsync(0).ConfigureAwait(false);
-                    await _controller.PlayAsync().ConfigureAwait(false);
-                    Progress = 0;
-                    IsPlaying = true;
+                    _expectedVideoId = next.VideoId;
+                    try
+                    {
+                        CurrentTrack = next;
+                        await _controller.SeekAsync(0).ConfigureAwait(false);
+                        await _controller.PlayAsync().ConfigureAwait(false);
+                        Progress = 0;
+                        IsPlaying = true;
+                    }
+                    finally
+                    {
+                        _expectedVideoId = null;
+                    }
                 }
                 else
                 {
@@ -483,12 +519,32 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     {
         ArgumentNullException.ThrowIfNull(message);
 
+        // Queue authority during a load: while Kaset is deliberately loading a track, ignore any
+        // STATE_UPDATE that reports a *different* videoId. Such a report is YouTube autoplay or
+        // transient drift bleeding in mid-transition; adopting it would jump the now-playing UI and
+        // queue to an unrelated track before snapping back once our track settles (see
+        // <see cref="_expectedVideoId"/>). Empty reported ids (pure play/pause/progress ticks) always
+        // pass through.
+        if (!string.IsNullOrEmpty(message.VideoId)
+            && _expectedVideoId is { } pending
+            && !string.Equals(message.VideoId, pending, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         IsPlaying = message.IsPlaying;
         Progress = message.Progress;
         Duration = message.Duration;
 
         if (!string.IsNullOrEmpty(message.VideoId))
         {
+            // The deliberately-loaded track has now reported — stop guarding so later genuine drift
+            // (autoplay past the queue) is adopted again.
+            if (string.Equals(message.VideoId, _expectedVideoId, StringComparison.Ordinal))
+            {
+                _expectedVideoId = null;
+            }
+
             // A non-empty reported videoId is authoritative even if the DOM title is stale (Req 2.6).
             // If YouTube Music autoplay moves outside Kaset's native queue, append the reported
             // track as ephemeral history before aligning the index. Without this, transport controls
@@ -564,18 +620,66 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// </summary>
     private async Task LoadTrackAsync(Song track)
     {
+        // Guard the load window: transient STATE_UPDATEs for other videos (autoplay/drift) that
+        // arrive while the controller is switching tracks must not hijack the queue (see
+        // <see cref="_expectedVideoId"/>). Cleared in the finally so a failed load never wedges the
+        // player into permanently ignoring updates.
+        _expectedVideoId = track.VideoId;
+
         CurrentTrack = track;
         // A freshly loaded on-demand track is not live until proven otherwise (set via SetLive).
         IsLive = false;
         Progress = 0;
 
-        await _controller.LoadVideoAsync(track.VideoId).ConfigureAwait(false);
-        await _controller.SetAudioQualityAsync(_audioQuality).ConfigureAwait(false);
-        // A freshly loaded <video> defaults to full volume, so re-apply the user's volume/mute state
-        // - otherwise volume jumps back to 100% on every track change.
-        await _controller.SetVolumeAsync(_isMuted ? 0 : _volume).ConfigureAwait(false);
-        await _controller.PlayAsync().ConfigureAwait(false);
-        IsPlaying = true;
+        try
+        {
+            await _controller.LoadVideoAsync(track.VideoId).ConfigureAwait(false);
+            await _controller.SetAudioQualityAsync(_audioQuality).ConfigureAwait(false);
+            // A freshly loaded <video> defaults to full volume, so re-apply the user's volume/mute
+            // state - otherwise volume jumps back to 100% on every track change.
+            await _controller.SetVolumeAsync(_isMuted ? 0 : _volume).ConfigureAwait(false);
+            await _controller.PlayAsync().ConfigureAwait(false);
+            IsPlaying = true;
+        }
+        finally
+        {
+            _expectedVideoId = null;
+        }
+
+        // Background: pull the album (and any missing metadata) so the now-playing UI is complete even
+        // when playback started from a surface whose song lacked it (e.g. a Home card).
+        if (_metadataFetcher is not null && track.Album is null && !string.IsNullOrEmpty(track.VideoId))
+        {
+            _ = EnrichTrackMetadataAsync(track.VideoId);
+        }
+    }
+
+    /// <summary>
+    /// Fetches full metadata for <paramref name="videoId"/> and merges the album/artists/etc. into the
+    /// queued track, refreshing <see cref="CurrentTrack"/> when it is still the active one. Best-effort.
+    /// </summary>
+    private async Task EnrichTrackMetadataAsync(string videoId)
+    {
+        try
+        {
+            Song? enriched = await _metadataFetcher!(videoId, CancellationToken.None).ConfigureAwait(false);
+            if (enriched is null)
+            {
+                return;
+            }
+
+            if (_queue.TryEnrichTrack(videoId, enriched)
+                && string.Equals(CurrentTrack?.VideoId, videoId, StringComparison.Ordinal)
+                && _queue.CurrentTrack is { } merged
+                && string.Equals(merged.VideoId, videoId, StringComparison.Ordinal))
+            {
+                CurrentTrack = merged;
+            }
+        }
+        catch
+        {
+            // Enrichment is a nicety; never let a metadata failure disturb playback.
+        }
     }
 
     /// <summary>

@@ -97,6 +97,10 @@ public sealed partial class MainWindow : Window
 
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _toastTimer;
     private TaskbarMediaControls? _taskbarControls;
+    private TrayIcon? _tray;
+
+    /// <summary>Settings key: when true (default), closing hides to the tray; when false, ✕ quits.</summary>
+    private const string CloseToTrayKey = "window.closeToTray";
 
     public MainWindow()
     {
@@ -134,15 +138,27 @@ public sealed partial class MainWindow : Window
 
         // Mount the app-owned hidden playback WebView2 (Task 8.3). Resolving on this UI thread is
         // required because the host constructs a XAML WebView2 element. MUST be preserved. It is
-        // placed in the content row (row 1) so it never affects the offline indicator's Auto row.
+        // placed in the content row (row 2, below the title bar + offline indicator Auto rows).
         _playbackHost = App.Current.Services.GetRequiredService<PlaybackWebViewHost>();
         RootGrid.Children.Insert(0, _playbackHost.Element);
-        Grid.SetRow(_playbackHost.Element, 1);
+        Grid.SetRow(_playbackHost.Element, 2);
 
         // Register the hidden mount with the floating-video controller (Task 19.1, Req 26.2) so it can
         // reparent the element into a VideoWindow on pop-out and return it here on pop-in. The element
-        // is inserted at child index 0 / row 1 (mirrored in the call below).
-        App.Current.Services.GetService<VideoWindowController>()?.AttachHomeMount(RootGrid, childIndex: 0, gridRow: 1);
+        // is inserted at child index 0 / row 2 (mirrored in the call below).
+        App.Current.Services.GetService<VideoWindowController>()?.AttachHomeMount(RootGrid, childIndex: 0, gridRow: 2);
+
+        // Custom title bar: extend content into the caption band and designate the drag region so the
+        // Kaset icon + name sit inline with the (history-gated) back button, like the Windows shell apps.
+        try
+        {
+            ExtendsContentIntoTitleBar = true;
+            SetTitleBar(TitleBarDragRegion);
+        }
+        catch
+        {
+            // A platform without custom-title-bar support falls back to the default caption.
+        }
 
         // Create the CoreWebView2 and attach it to the controller once the element is live.
         _ = _playbackHost.InitializeAsync();
@@ -232,10 +248,66 @@ public sealed partial class MainWindow : Window
             return; // genuine quit â€” let the window close.
         }
 
-        // Keep the app + hidden WebView2 alive so audio continues in the background (Req 1.4).
+        // The user can opt out of the background-audio model (Settings): when close-to-tray is off,
+        // ✕ tears playback down and exits. Cancel this close first; QuitAsync performs the real
+        // teardown and re-closes with _isQuitting set.
+        if (!CloseToTrayEnabled())
+        {
+            args.Cancel = true;
+            _ = QuitAsync();
+            return;
+        }
+
+        // Keep the app + hidden WebView2 alive so audio continues in the background (Req 1.4), and
+        // surface a tray icon so the hidden window can be brought back.
         args.Cancel = true;
         AppWindow.Hide();
+        _tray?.Show();
     }
+
+    /// <summary>Whether closing hides the window to the tray (default) rather than quitting.</summary>
+    private static bool CloseToTrayEnabled()
+    {
+        try
+        {
+            return KasetWin.Platform.Storage.AppData.Settings[CloseToTrayKey] is not bool enabled || enabled;
+        }
+        catch
+        {
+            return true; // default to the background-audio model if settings are unavailable.
+        }
+    }
+
+    /// <summary>
+    /// Restores the shell window from the tray (or a minimized/background state) and brings it to the
+    /// foreground. Safe to call from any thread — it marshals onto the UI thread — so the app-instance
+    /// activation handler (a second launch redirected here) can call it directly.
+    /// </summary>
+    internal void BringToForeground()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
+                AppWindow.Show();
+                if (AppWindow.Presenter is OverlappedPresenter presenter)
+                {
+                    presenter.Restore();
+                }
+
+                _tray?.Hide();
+                Activate();
+                SetForegroundWindow(WinRT.Interop.WindowNative.GetWindowHandle(this));
+            }
+            catch
+            {
+                // Best effort: never let a restore failure crash the activation path.
+            }
+        });
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     /// <summary>
     /// Explicit Quit (Req 1.5): releases the playback controller (stops audio + disposes the hidden
@@ -259,6 +331,15 @@ public sealed partial class MainWindow : Window
         if (_networkMonitor is not null)
         {
             _networkMonitor.ConnectivityChanged -= OnConnectivityChanged;
+        }
+
+        try
+        {
+            _tray?.Dispose();
+        }
+        catch
+        {
+            // Never block shutdown on tray-icon teardown.
         }
 
         try
@@ -319,6 +400,17 @@ public sealed partial class MainWindow : Window
         catch
         {
             // Taskbar thumb-bar buttons are a nicety; never block startup on their failure.
+        }
+
+        try
+        {
+            // Tray icon for the hide-to-tray close model: shown only while the window is hidden.
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            _tray = new TrayIcon(hwnd, DispatcherQueue, onOpen: BringToForeground, onQuit: () => _ = QuitAsync());
+        }
+        catch
+        {
+            // The tray icon is a convenience; never block startup on its failure.
         }
 
         try

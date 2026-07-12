@@ -62,6 +62,7 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
     private string? _pendingAudioQualityValue;
     private bool _eqEnabled;
     private int[] _eqGains = new int[9];
+    private bool _repeatOne;
     private PlaybackDisplayMode _displayMode = PlaybackDisplayMode.Hidden;
     private bool _disposed;
 
@@ -306,6 +307,25 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
             $"(function(){{if(typeof window.__kasetSetEq==='function'){{window.__kasetSetEq({enabledLiteral},{gainsLiteral});}}}})()");
     }
 
+    /// <inheritdoc />
+    public Task SetRepeatOneAsync(bool enabled)
+    {
+        _repeatOne = enabled;
+        return ApplyRepeatOneAsync();
+    }
+
+    private Task ApplyRepeatOneAsync()
+    {
+        if (_core is null)
+        {
+            return Task.CompletedTask; // Applied on next navigation instead.
+        }
+
+        var enabledLiteral = _repeatOne ? "true" : "false";
+        return ExecuteVideoScriptAsync(
+            $"(function(){{if(typeof window.__kasetSetLoop==='function'){{window.__kasetSetLoop({enabledLiteral});}}}})()");
+    }
+
     /// <summary>The user's chosen playback rate; re-applied after navigations (1 = normal).</summary>
     private double _playbackRate = 1.0;
 
@@ -430,6 +450,12 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
             if (Math.Abs(_playbackRate - 1.0) > 0.001)
             {
                 await ApplyPlaybackRateAsync().ConfigureAwait(true);
+            }
+
+            // A fresh <video> defaults to loop=false; restore Repeat One so it keeps looping.
+            if (_repeatOne)
+            {
+                await ApplyRepeatOneAsync().ConfigureAwait(true);
             }
         }
         catch (Exception ex) when (ex is COMException or InvalidOperationException)

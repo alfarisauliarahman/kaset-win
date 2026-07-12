@@ -137,11 +137,27 @@
     // Apply native-requested target volume / mute the moment a <video> appears. YouTube Music
     // keeps a separate internal player volume, so video.volume alone is not enough; enforce the
     // target through every available player API and immediately undo YouTube's own resets.
+    // Repeat One is implemented as native media looping so the same track repeats seamlessly on the
+    // web player, instead of relying on the 'ended' → native re-seek round-trip that YouTube Music's
+    // own autoplay can beat. Native re-applies the flag after every navigation via __kasetSetLoop.
+    window.__kasetSetLoop = function (enabled) {
+        try {
+            window.__kasetLoop = !!enabled;
+            var v = document.querySelector('video');
+            if (v) { v.loop = !!enabled; }
+        } catch (e) {
+            // best-effort
+        }
+    };
+
     function applyPlaybackPreferences(video) {
         if (!video) {
             return;
         }
         try {
+            if (typeof window.__kasetLoop === 'boolean' && video.loop !== window.__kasetLoop) {
+                video.loop = window.__kasetLoop;
+            }
             if (typeof window.__kasetTargetVolume === 'number') {
                 var target = Math.max(0, Math.min(1, window.__kasetTargetVolume));
                 var ytVolume = Math.round(target * 100);

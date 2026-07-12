@@ -104,7 +104,14 @@ public partial class App : Application
     }
 
     private void OnAppInstanceActivated(object? sender, AppActivationArguments args)
-        => DispatchActivation(args);
+    {
+        // A second launch was redirected to us (see Program.RedirectToPrimaryInstance). Surface the
+        // shell first — it may be hidden in the tray for background audio — then handle any kaset://
+        // command the launch carried. This event arrives on a background thread; BringToForeground
+        // marshals itself onto the UI thread.
+        (_window as MainWindow)?.BringToForeground();
+        DispatchActivation(args);
+    }
 
     /// <summary>
     /// Parses a protocol activation and forwards the resulting command to the shell. Non-protocol

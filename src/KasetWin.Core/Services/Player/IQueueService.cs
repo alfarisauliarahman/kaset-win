@@ -32,6 +32,14 @@ public interface IQueueService : INotifyPropertyChanged
     void SetQueue(IReadOnlyList<Song> songs, int startIndex = 0);
 
     /// <summary>
+    /// Fills in missing display metadata (album, artists, video type, thumbnail) on the queued track
+    /// with the matching <paramref name="videoId"/> from <paramref name="metadata"/>, keeping the
+    /// track's position. Used to enrich a now-playing track that was started from a surface (e.g. a
+    /// Home card) whose song lacked its album. Returns <c>true</c> when a track was found and changed.
+    /// </summary>
+    bool TryEnrichTrack(string videoId, Song metadata);
+
+    /// <summary>
     /// Moves the track at <paramref name="fromIndex"/> to <paramref name="toIndex"/>
     /// (Req 6.2). The multiset of tracks is preserved and the active track stays the
     /// same track (its index follows the move).

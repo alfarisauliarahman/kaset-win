@@ -88,6 +88,13 @@ internal static class UiStrings
     internal static string SettingsGeneral => IsIndonesian ? "Umum" : "General";
     internal static string SettingsLaunchPageLabel => IsIndonesian ? "Halaman awal" : "Default launch page";
     internal static string SettingsLaunchPageCaption => IsIndonesian ? "Halaman yang dibuka Kaset saat dijalankan." : "The page Kaset opens to on launch.";
+    internal static string SettingsCloseBehaviorLabel => IsIndonesian ? "Saat menutup jendela" : "When closing the window";
+    internal static string SettingsCloseBehaviorCaption => IsIndonesian
+        ? "Kecilkan ke tray membuat musik tetap berjalan di latar; Keluar menutup Kaset sepenuhnya."
+        : "Minimize to tray keeps music playing in the background; Quit closes Kaset entirely.";
+    internal static string[] CloseBehaviorOptions => IsIndonesian
+        ? ["Kecilkan ke tray", "Keluar"]
+        : ["Minimize to tray", "Quit"];
     internal static string SettingsThemeLabel => IsIndonesian ? "Tema" : "Theme";
     internal static string SettingsThemeCaption => IsIndonesian ? "Terang, gelap, atau ikuti tema Windows." : "Light, dark, or follow the Windows theme.";
     internal static string SettingsLanguageLabel => IsIndonesian ? "Bahasa" : "Language";
@@ -114,6 +121,16 @@ internal static class UiStrings
         : "Kaset automatically downloads and updates uBlock Origin for the shared playback WebView profile. The folder below is still available for additional unpacked extensions; restart Kaset after changing custom extensions.";
     internal static string SettingsOpenExtensionsFolder => IsIndonesian ? "Buka folder ekstensi" : "Open extensions folder";
     internal static string SettingsRestartKaset => IsIndonesian ? "Mulai ulang Kaset" : "Restart Kaset";
+
+    // About / version.
+    internal static string SettingsAboutHeader => IsIndonesian ? "Tentang" : "About";
+    internal static string SettingsVersionLabel => IsIndonesian ? "Versi aplikasi" : "App version";
+    internal static string SettingsVersionCaption => IsIndonesian ? "Versi Kaset yang sedang berjalan." : "The running version of Kaset.";
+
+    // Repeat button tooltip — reflects the current repeat mode (Off / All / One).
+    internal static string RepeatTooltipOff => IsIndonesian ? "Ulangi: nonaktif" : "Repeat: off";
+    internal static string RepeatTooltipAll => IsIndonesian ? "Ulangi semua" : "Repeat all";
+    internal static string RepeatTooltipOne => IsIndonesian ? "Ulangi satu" : "Repeat one";
 
     internal static string SettingsPresetLabel => "Preset";
     internal static string SettingsExtensionsCaption2 => IsIndonesian

@@ -74,6 +74,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
         SelectedLanguageIndex = LoadLanguageSetting() == "en" ? 1 : 0;
 
+        // Close behaviour: default to hide-to-tray (background audio) unless the user turned it off.
+        CloseToTray = AppData.Settings[CloseToTrayKey] is not bool closeToTray || closeToTray;
+
         Bands = new ObservableCollection<EqBand>(
             EqBandLabels.Select(l => new EqBand { Label = l }));
         LoadEqualizer();
@@ -223,6 +226,42 @@ public sealed partial class SettingsViewModel : ViewModelBase
     {
         var saved = AppData.Settings[LanguageKey] as string;
         return saved == "en" ? "en" : "id";
+    }
+
+    // ── Close behaviour (hide-to-tray vs quit) ────────────────────────────────────────────────────
+
+    private const string CloseToTrayKey = "window.closeToTray";
+
+    /// <summary>Close-behaviour choices (0 = minimize to tray, 1 = quit), index-aligned with the combo.</summary>
+    public IReadOnlyList<string> CloseBehaviorOptions { get; } = Localization.UiStrings.CloseBehaviorOptions;
+
+    /// <summary>Whether ✕ hides Kaset to the tray (audio keeps playing) rather than quitting.</summary>
+    [ObservableProperty]
+    private bool _closeToTray;
+
+    /// <summary>Close behaviour as a ComboBox index: 0 = minimize to tray, 1 = quit.</summary>
+    public int CloseBehaviorIndex
+    {
+        get => CloseToTray ? 0 : 1;
+        set
+        {
+            if (value >= 0)
+            {
+                CloseToTray = value == 0;
+            }
+        }
+    }
+
+    partial void OnCloseToTrayChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CloseBehaviorIndex));
+
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        AppData.Settings[CloseToTrayKey] = value;
     }
 
     partial void OnSelectedLaunchPageChanged(LaunchPage value)

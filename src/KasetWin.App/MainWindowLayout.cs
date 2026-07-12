@@ -73,6 +73,20 @@ internal static class MainWindowLayout
             return;
         }
 
+        // Brand the title bar / taskbar with the Kaset icon (matches the exe-embedded icon).
+        try
+        {
+            var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "kaset.ico");
+            if (window.AppWindow is { } iconWindow && System.IO.File.Exists(iconPath))
+            {
+                iconWindow.SetIcon(iconPath);
+            }
+        }
+        catch
+        {
+            // A missing/locked icon must never block the window from coming up.
+        }
+
         // Enforce the minimum size for all live resizes (DPI is read per-message inside the proc).
         SetWindowSubclass(hwnd, s_subclassProc, SubclassId, IntPtr.Zero);
 

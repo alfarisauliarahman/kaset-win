@@ -21,8 +21,58 @@
     <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
+
+        <!--
+            Custom title bar (Req: back button inline with the app icon + name, like Media Player).
+            The window extends content into the title bar (code-behind) and SetTitleBar() designates
+            TitleBarDragRegion as the drag area; the back button sits outside it so it stays clickable
+            and only appears when the content frame has back history.
+        -->
+        <Grid
+            x:Name="AppTitleBar"
+            Grid.Row="0"
+            Height="40">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button
+                x:Name="TitleBarBackButton"
+                Grid.Column="0"
+                Width="40"
+                Height="32"
+                Margin="6,0,0,0"
+                Padding="0"
+                Background="Transparent"
+                BorderThickness="0"
+                Click="OnTitleBarBackClick"
+                ToolTipService.ToolTip="Kembali"
+                Visibility="Collapsed">
+                <FontIcon FontSize="14" Glyph="&#xE72B;" />
+            </Button>
+            <Grid
+                x:Name="TitleBarDragRegion"
+                Grid.Column="1"
+                HorizontalAlignment="Stretch">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image
+                        Width="18"
+                        Height="18"
+                        Margin="10,0,0,0"
+                        VerticalAlignment="Center"
+                        Source="ms-appx:///Assets/Square44x44Logo.png" />
+                    <TextBlock
+                        x:Name="AppTitleText"
+                        Margin="10,0,0,0"
+                        VerticalAlignment="Center"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Text="Kaset" />
+                </StackPanel>
+            </Grid>
+        </Grid>
 
         <!--
             Offline indicator (Req 35.3): shown while the device has no connectivity and hidden when
@@ -31,21 +81,22 @@
         -->
         <InfoBar
             x:Name="OfflineInfoBar"
-            Grid.Row="0"
+            Grid.Row="1"
             Title="Offline"
             IsClosable="False"
             IsOpen="False"
             Message="Connectivity is unavailable. Some features may not work until you're back online."
             Severity="Warning" />
 
-        <!-- Row 1: main content (NavigationView) + the docked right-hand now-playing side panel. -->
-        <Grid Grid.Row="1">
+        <!-- Row 2: main content (NavigationView) + the docked right-hand now-playing side panel. -->
+        <Grid Grid.Row="2">
 
         <NavigationView
             x:Name="NavView"
             Grid.Column="0"
-            IsBackButtonVisible="Auto"
+            IsBackButtonVisible="Collapsed"
             IsBackEnabled="False"
+            IsPaneToggleButtonVisible="False"
             IsSettingsVisible="False"
             PaneDisplayMode="Auto"
             BackRequested="OnNavigationBackRequested"
@@ -122,8 +173,35 @@
             <!-- Source toggle lives at the BOTTOM of the pane (above the account footer), native
                  SelectorBar styling. -->
             <NavigationView.PaneFooter>
+              <Grid>
+                <!-- Compact source toggle: shown only when the pane is collapsed to icons (a panel is
+                     open). A round icon-only button, like the account avatar; a click flips the source. -->
+                <Button
+                    x:Name="SourceToggleCompact"
+                    Width="36"
+                    Height="36"
+                    Margin="0,0,0,8"
+                    Padding="0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    Click="OnSourceToggleCompactClick"
+                    CornerRadius="18"
+                    Style="{StaticResource SubtleButtonStyle}"
+                    Visibility="Collapsed">
+                    <FontIcon
+                        x:Name="SourceCompactIcon"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontSize="16"
+                        Glyph="&#xE8D6;" />
+                </Button>
+
                 <!-- Segmented pill (per the reference shot), native SelectorBar inside. -->
                 <Border
+                    x:Name="SourceTogglePill"
                     Margin="8,0,8,8"
                     Padding="3"
                     HorizontalAlignment="Center"
@@ -195,6 +273,7 @@
                         </StackPanel>
                     </Grid>
                 </Border>
+              </Grid>
             </NavigationView.PaneFooter>
             <NavigationView.MenuItems>
                 <NavigationViewItem Content="Home" Tag="Home">
@@ -359,7 +438,7 @@
         -->
         <TeachingTip
             x:Name="LoginTip"
-            Grid.Row="1"
+            Grid.Row="2"
             IsLightDismissEnabled="True"
             PreferredPlacement="Top" />
 

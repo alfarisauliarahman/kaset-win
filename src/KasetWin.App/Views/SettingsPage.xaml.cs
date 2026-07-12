@@ -83,6 +83,8 @@ public sealed partial class SettingsPage : Page
         GeneralHeader.Text = Localization.UiStrings.SettingsGeneral;
         LaunchPageLabel.Text = Localization.UiStrings.SettingsLaunchPageLabel;
         LaunchPageCaption.Text = Localization.UiStrings.SettingsLaunchPageCaption;
+        CloseBehaviorLabel.Text = Localization.UiStrings.SettingsCloseBehaviorLabel;
+        CloseBehaviorCaption.Text = Localization.UiStrings.SettingsCloseBehaviorCaption;
         ThemeLabel.Text = Localization.UiStrings.SettingsThemeLabel;
         ThemeCaption.Text = Localization.UiStrings.SettingsThemeCaption;
         LanguageLabel.Text = Localization.UiStrings.SettingsLanguageLabel;
@@ -103,6 +105,27 @@ public sealed partial class SettingsPage : Page
         ExtensionsCaption.Text = Localization.UiStrings.SettingsExtensionsCaption;
         OpenExtFolderButton.Content = Localization.UiStrings.SettingsOpenExtensionsFolder;
         RestartAppButton.Content = Localization.UiStrings.SettingsRestartKaset;
+        AboutHeader.Text = Localization.UiStrings.SettingsAboutHeader;
+        VersionLabel.Text = Localization.UiStrings.SettingsVersionLabel;
+        VersionCaption.Text = Localization.UiStrings.SettingsVersionCaption;
+        VersionText.Text = GetAppVersionString();
+    }
+
+    /// <summary>
+    /// Returns the running app version as "Major.Minor.Build.Revision". Reads the packaged
+    /// identity first, falling back to the executing assembly version when unpackaged.
+    /// </summary>
+    private static string GetAppVersionString()
+    {
+        try
+        {
+            var v = Windows.ApplicationModel.Package.Current.Id.Version;
+            return $"{v.Major}.{v.Minor}.{v.Build}.{v.Revision}";
+        }
+        catch
+        {
+            return typeof(SettingsPage).Assembly.GetName().Version?.ToString() ?? "";
+        }
     }
 
     private bool _languageComboSeeded;

@@ -173,7 +173,21 @@ internal static class AppHost
             sp.GetRequiredService<IQueueService>(),
             sp.GetRequiredService<IPlaybackController>(),
             sp.GetRequiredService<IJsBridge>(),
-            sp.GetRequiredService<InfiniteMixCoordinator>()));
+            sp.GetRequiredService<InfiniteMixCoordinator>(),
+            async (videoId, ct) =>
+            {
+                // Enrich the now-playing track with its album/metadata so it is complete no matter
+                // which surface playback started from (e.g. a Home card without album data).
+                try
+                {
+                    var meta = await sp.GetRequiredService<IYTMusicClient>().GetSongMetadataAsync(videoId, ct);
+                    return meta.Song;
+                }
+                catch
+                {
+                    return null;
+                }
+            }));
 
         // ── Core: full YouTube mode — parallel client + parsers (task 25.1, Req 32) ──────
         // Parallel to IYTMusicClient (ADR-0020): own browser-shaped HttpClient, the YouTube origin

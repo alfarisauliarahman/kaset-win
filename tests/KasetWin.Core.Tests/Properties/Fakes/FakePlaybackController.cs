@@ -118,6 +118,16 @@ internal sealed class FakePlaybackController : IPlaybackController
     /// <inheritdoc />
     public Task SetPlaybackRateAsync(double rate) => Task.CompletedTask;
 
+    /// <summary>Records the last Repeat One (native loop) request so tests can assert it.</summary>
+    public bool RepeatOne { get; private set; }
+
+    /// <inheritdoc />
+    public Task SetRepeatOneAsync(bool enabled)
+    {
+        RepeatOne = enabled;
+        return Task.CompletedTask;
+    }
+
     /// <inheritdoc />
     public Task SetDisplayModeAsync(PlaybackDisplayMode mode) => Task.CompletedTask;
 

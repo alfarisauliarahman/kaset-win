@@ -112,6 +112,31 @@
                 </Grid>
             </Border>
 
+            <!-- Close behaviour: hide to tray (background audio) vs quit -->
+            <Border Style="{StaticResource SettingsCardStyle}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock x:Name="CloseBehaviorLabel" Text="Saat menutup jendela" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock
+                            x:Name="CloseBehaviorCaption"
+                            Opacity="0.7"
+                            TextWrapping="Wrap"
+                            Text="Kecilkan ke tray membuat musik tetap berjalan di latar; Keluar menutup Kaset sepenuhnya."
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                    <ComboBox
+                        Grid.Column="1"
+                        MinWidth="180"
+                        VerticalAlignment="Center"
+                        ItemsSource="{x:Bind ViewModel.CloseBehaviorOptions}"
+                        SelectedIndex="{x:Bind ViewModel.CloseBehaviorIndex, Mode=TwoWay}" />
+                </Grid>
+            </Border>
+
             <!-- ── Playback ──────────────────────────────────────────── -->
             <TextBlock
                 x:Name="PlaybackHeader"
@@ -161,7 +186,10 @@
                     </StackPanel>
                     <ToggleSwitch
                         Grid.Column="1"
+                        MinWidth="0"
                         VerticalAlignment="Center"
+                        OnContent=""
+                        OffContent=""
                         IsOn="{x:Bind ViewModel.RememberPlaybackSettings, Mode=TwoWay}" />
                 </Grid>
             </Border>
@@ -214,7 +242,10 @@
                     </StackPanel>
                     <ToggleSwitch
                         Grid.Column="1"
+                        MinWidth="0"
                         VerticalAlignment="Center"
+                        OnContent=""
+                        OffContent=""
                         IsOn="{x:Bind ViewModel.SyncedLyricsEnabled, Mode=TwoWay}" />
                 </Grid>
             </Border>
@@ -246,7 +277,10 @@
                         </StackPanel>
                         <ToggleSwitch
                             Grid.Column="2"
+                            MinWidth="0"
                             VerticalAlignment="Center"
+                            OnContent=""
+                            OffContent=""
                             IsOn="{x:Bind ViewModel.IsEqualizerEnabled, Mode=TwoWay}" />
                     </Grid>
 
@@ -256,13 +290,24 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel VerticalAlignment="Top" Opacity="0.55">
-                            <TextBlock Height="30" FontSize="11" Text="+12 dB" />
-                            <TextBlock Height="30" FontSize="11" Text="+6 dB" />
-                            <TextBlock Height="30" FontSize="11" Text="0 dB" />
-                            <TextBlock Height="30" FontSize="11" Text="-6 dB" />
-                            <TextBlock FontSize="11" Text="-12 dB" />
-                        </StackPanel>
+                        <!-- dB axis: labels centred on the same gridlines the 150px sliders span
+                             (+12 top, 0 middle, -12 bottom) so the scale lines up with the thumbs. -->
+                        <Grid
+                            Height="150"
+                            VerticalAlignment="Top"
+                            Opacity="0.55">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top" FontSize="11" Text="+12 dB" />
+                            <TextBlock Grid.Row="0" Grid.RowSpan="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="11" Text="+6 dB" />
+                            <TextBlock Grid.Row="1" Grid.RowSpan="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="11" Text="0 dB" />
+                            <TextBlock Grid.Row="2" Grid.RowSpan="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="11" Text="-6 dB" />
+                            <TextBlock Grid.Row="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" FontSize="11" Text="-12 dB" />
+                        </Grid>
 
                         <ItemsControl Grid.Column="1" ItemsSource="{x:Bind ViewModel.Bands}">
                             <ItemsControl.ItemsPanel>
@@ -332,6 +377,27 @@
                         <Button x:Name="RestartAppButton" Click="OnRestartApp" Content="Restart Kaset" />
                     </StackPanel>
                 </StackPanel>
+            </Border>
+
+            <!-- ── About ─────────────────────────────────────────────── -->
+            <TextBlock
+                x:Name="AboutHeader"
+                Margin="0,8,0,0"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="About" />
+
+            <Border Style="{StaticResource SettingsCardStyle}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock x:Name="VersionLabel" Text="App version" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Name="VersionCaption" Opacity="0.7" Text="The running version of Kaset." Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                    <TextBlock x:Name="VersionText" Grid.Column="1" VerticalAlignment="Center" Opacity="0.8" Text="" />
+                </Grid>
             </Border>
         </StackPanel>
     </ScrollViewer>

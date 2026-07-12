@@ -185,6 +185,24 @@ public sealed partial class PlayerBar : UserControl
             // Re-sync the like affordance to the newly loaded track (Req 37.3).
             DispatcherQueue.TryEnqueue(UpdateLikeAvailability);
         }
+
+        if (e.PropertyName is nameof(IPlayerService.RepeatMode) or null)
+        {
+            // Reflect the active repeat mode in the button tooltip (off / all / one).
+            DispatcherQueue.TryEnqueue(UpdateRepeatTooltip);
+        }
+    }
+
+    /// <summary>Shows the current repeat mode in the Repeat button's tooltip (localized).</summary>
+    private void UpdateRepeatTooltip()
+    {
+        var tip = (_player?.RepeatMode ?? Core.Models.RepeatMode.Off) switch
+        {
+            Core.Models.RepeatMode.All => Localization.UiStrings.RepeatTooltipAll,
+            Core.Models.RepeatMode.One => Localization.UiStrings.RepeatTooltipOne,
+            _ => Localization.UiStrings.RepeatTooltipOff,
+        };
+        ToolTipService.SetToolTip(RepeatButton, tip);
     }
 
     /// <summary>
@@ -244,7 +262,7 @@ public sealed partial class PlayerBar : UserControl
         ToolTipService.SetToolTip(PlayPauseButton, Localization.UiStrings.TipPlayPause);
         ToolTipService.SetToolTip(Forward30Button, Localization.UiStrings.TipForward30);
         ToolTipService.SetToolTip(NextButton, Localization.UiStrings.TipNext);
-        ToolTipService.SetToolTip(RepeatButton, Localization.UiStrings.TipRepeat);
+        UpdateRepeatTooltip();
         ToolTipService.SetToolTip(DislikeButton, Localization.UiStrings.TipDislike);
         ToolTipService.SetToolTip(SpeedButton, Localization.UiStrings.TipSpeed);
         ToolTipService.SetToolTip(LyricsButton, Localization.UiStrings.TipLyrics);

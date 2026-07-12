@@ -164,7 +164,11 @@ public sealed partial class CoverDimensionConverter : IValueConverter
     /// <inheritdoc />
     public object Convert(object value, Type targetType, object parameter, string language)
     {
-        var isVideo = value is Song { VideoType: MusicVideoType.Omv };
+        // 16:9 when the track is a music video by metadata (Omv/Ugc) OR the player reported real
+        // video frames for it (HasVideo) — the latter catches videos the queue metadata mislabels as
+        // plain songs, so their cover no longer renders as a 1:1 square.
+        var isVideo = value is Song song
+            && (song.VideoType is MusicVideoType.Omv or MusicVideoType.Ugc || song.HasVideo == true);
         var wantWidth = string.Equals(parameter as string, "w", StringComparison.OrdinalIgnoreCase);
         if (!wantWidth)
         {

@@ -35,6 +35,7 @@ public sealed class TaskbarMediaControls : IDisposable
     private readonly SUBCLASSPROC _subclassProc; // kept alive for the subclass lifetime
     private ITaskbarList3? _taskbar;
     private IntPtr _iconPrev, _iconPlay, _iconPause, _iconNext;
+    private uint _taskbarButtonCreatedMessage;
     private bool _added;
     private bool _disposed;
 
@@ -59,6 +60,39 @@ public sealed class TaskbarMediaControls : IDisposable
             _iconPause = CreateGlyphIcon("");
             _iconNext = CreateGlyphIcon("");
 
+            // The shell only accepts thumb-bar buttons AFTER it has created the taskbar button for
+            // the window, which it announces by broadcasting the "TaskbarButtonCreated" message.
+            // Adding the buttons before then silently fails, so we defer to that message.
+            _taskbarButtonCreatedMessage = RegisterWindowMessage("TaskbarButtonCreated");
+
+            SetWindowSubclass(_hwnd, _subclassProc, IntPtr.Zero, IntPtr.Zero);
+            _player.PropertyChanged += OnPlayerPropertyChanged;
+
+            // If the taskbar button was already created (e.g. the window has been visible for a
+            // while), the message may have already fired and won't fire again. Try once now;
+            // AddThumbButtons is idempotent, and the message handler retries if it's not ready yet.
+            AddThumbButtons();
+        }
+        catch
+        {
+            // Thumb-bar is a nicety; never let its failure affect the app.
+        }
+    }
+
+    /// <summary>
+    /// Registers the Previous / Play-Pause / Next buttons against the taskbar thumbnail. Only ever
+    /// adds the button set once (the shell forbids adding twice); later calls are no-ops. Must run
+    /// after the shell has created the window's taskbar button. Best-effort.
+    /// </summary>
+    private void AddThumbButtons()
+    {
+        if (_disposed || _added || _taskbar is null)
+        {
+            return;
+        }
+
+        try
+        {
             var buttons = new[]
             {
                 MakeButton(BtnPrev, _iconPrev, "Sebelumnya"),
@@ -68,13 +102,9 @@ public sealed class TaskbarMediaControls : IDisposable
 
             var hr = _taskbar.ThumbBarAddButtons(_hwnd, (uint)buttons.Length, buttons);
             _added = hr == 0;
-
-            SetWindowSubclass(_hwnd, _subclassProc, IntPtr.Zero, IntPtr.Zero);
-            _player.PropertyChanged += OnPlayerPropertyChanged;
         }
         catch
         {
-            // Thumb-bar is a nicety; never let its failure affect the app.
         }
     }
 
@@ -115,6 +145,14 @@ public sealed class TaskbarMediaControls : IDisposable
 
     private IntPtr SubclassWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, IntPtr dwRefData)
     {
+        // The shell broadcasts this once the window's taskbar button exists; only now can the
+        // thumb-bar buttons be registered. AddThumbButtons is idempotent, so a repeat is harmless.
+        if (_taskbarButtonCreatedMessage != 0 && msg == _taskbarButtonCreatedMessage)
+        {
+            AddThumbButtons();
+            return DefSubclassProc(hWnd, msg, wParam, lParam);
+        }
+
         if (msg == WM_COMMAND && ((int)((long)wParam >> 16) & 0xFFFF) == THBN_CLICKED)
         {
             var id = (int)((long)wParam & 0xFFFF);
@@ -233,4 +271,7 @@ public sealed class TaskbarMediaControls : IDisposable
 
     [DllImport("user32.dll")]
     private static extern bool DestroyIcon(IntPtr hIcon);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint RegisterWindowMessage(string lpString);
 }

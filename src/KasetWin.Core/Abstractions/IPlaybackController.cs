@@ -97,6 +97,14 @@ public interface IPlaybackController
     /// <summary>Sets the playback speed of the underlying media element (0.25–3.0, 1 = normal).</summary>
     Task SetPlaybackRateAsync(double rate);
 
+    /// <summary>
+    /// Enables/disables native looping of the current media element (<c>video.loop</c>). Used for
+    /// Repeat One so the same track loops seamlessly on the web player itself instead of relying on
+    /// the <c>ended</c> → re-seek round-trip, which YouTube Music's own autoplay can beat to the punch
+    /// (the "repeat doesn't stick / jumps to another song" bug). Re-applied after each navigation.
+    /// </summary>
+    Task SetRepeatOneAsync(bool enabled);
+
     /// <summary>Switches the WebView2 surface between Hidden / MiniPlayer / Video (Req 26).</summary>
     Task SetDisplayModeAsync(PlaybackDisplayMode mode);
 

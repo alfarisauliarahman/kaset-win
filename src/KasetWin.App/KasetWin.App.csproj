@@ -16,11 +16,14 @@
     <RootNamespace>KasetWin.App</RootNamespace>
     <AssemblyName>KasetWin.App</AssemblyName>
     <!-- App version (SemVer). Keep in sync with the git tag and the Velopack pack version. -->
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
     <WindowsPackageType>MSIX</WindowsPackageType>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Embed the Kaset icon in the exe so the title bar, taskbar (unpackaged) and the tray icon
+         (ExtractIconEx over the running exe) all show the app brand instead of the generic default. -->
+    <ApplicationIcon>Assets\kaset.ico</ApplicationIcon>
     <Platforms>x86;x64;ARM64</Platforms>
     <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
     <Nullable>enable</Nullable>
@@ -101,6 +104,10 @@
   -->
   <ItemGroup>
     <Content Include="Assets\**\*.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- Ship the .ico on disk too so AppWindow.SetIcon can load it for the title bar at runtime. -->
+    <Content Include="Assets\kaset.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

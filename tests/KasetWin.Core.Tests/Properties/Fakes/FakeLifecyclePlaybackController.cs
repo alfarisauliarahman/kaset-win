@@ -105,6 +105,9 @@ internal sealed class FakeLifecyclePlaybackController : IPlaybackController
     public Task SetPlaybackRateAsync(double rate) => Task.CompletedTask;
 
     /// <inheritdoc />
+    public Task SetRepeatOneAsync(bool enabled) => Task.CompletedTask;
+
+    /// <inheritdoc />
     public Task SetDisplayModeAsync(PlaybackDisplayMode mode) => Task.CompletedTask;
 
     /// <inheritdoc />

@@ -90,13 +90,57 @@ public sealed partial class MainWindow
         var open = _sidePanel?.Mode is not (null or Controls.SidePanelMode.None);
         if (open)
         {
+            // Shrink the sidebar to icons-only while the panel is open so the content + panel share
+            // the width (the whole shell reflows), mirroring Apple Music / the reference behaviour.
+            ShrinkSidebarForPanel(true);
             SidePanelColumn.Width = new GridLength(380);
             SidePanel.Visibility = Visibility.Visible;
             AnimateSidePanel(fromX: 380, toX: 0, fromOpacity: 0, toOpacity: 1, collapseOnFinish: false);
         }
         else if (SidePanel.Visibility == Visibility.Visible)
         {
+            ShrinkSidebarForPanel(false);
             AnimateSidePanel(fromX: 0, toX: 380, fromOpacity: 1, toOpacity: 0, collapseOnFinish: true);
+        }
+    }
+
+    /// <summary>Remembers the pane mode chosen before a panel opened so it can be restored on close.</summary>
+    private NavigationViewPaneDisplayMode _paneModeBeforePanel = NavigationViewPaneDisplayMode.Auto;
+    private bool _sidebarShrunkForPanel;
+
+    /// <summary>
+    /// Collapses the NavigationView pane to compact (icons only) while a now-playing panel is open,
+    /// then restores the previous pane mode when it closes. The NavView animates the pane width, so
+    /// the content region reflows smoothly around both the shrunken sidebar and the docked panel.
+    /// </summary>
+    private void ShrinkSidebarForPanel(bool shrink)
+    {
+        if (shrink)
+        {
+            if (_sidebarShrunkForPanel)
+            {
+                return;
+            }
+
+            _paneModeBeforePanel = NavView.PaneDisplayMode;
+            _sidebarShrunkForPanel = true;
+            NavView.PaneDisplayMode = NavigationViewPaneDisplayMode.LeftCompact;
+
+            // Compact pane: reveal the hamburger (so the pane can still be expanded) and swap the wide
+            // source pill for the round icon-only toggle so it fits the narrow rail.
+            NavView.IsPaneToggleButtonVisible = true;
+            SourceTogglePill.Visibility = Visibility.Collapsed;
+            SourceToggleCompact.Visibility = Visibility.Visible;
+            UpdateSourceCompactIcon();
+        }
+        else if (_sidebarShrunkForPanel)
+        {
+            _sidebarShrunkForPanel = false;
+            NavView.PaneDisplayMode = _paneModeBeforePanel;
+
+            NavView.IsPaneToggleButtonVisible = false;
+            SourceTogglePill.Visibility = Visibility.Visible;
+            SourceToggleCompact.Visibility = Visibility.Collapsed;
         }
     }
 

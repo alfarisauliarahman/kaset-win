@@ -41,6 +41,7 @@ public sealed partial class MainWindow
         YouTubeSourceItem.IsChecked = youtube;
         AnimateSourceIndicator(youtube, animate: true);
         ApplySourceVisibility(youtube);
+        UpdateSourceCompactIcon();
 
         // Only a real user toggle navigates; the startup selection just sets visibility so it does
         // not override the default launch page.
@@ -48,6 +49,33 @@ public sealed partial class MainWindow
         {
             NavigateToTag(youtube ? "YouTube.Home" : "Home");
         }
+    }
+
+    /// <summary>
+    /// Compact (pane-collapsed) source toggle: flips to the other source. Mirrors
+    /// <see cref="OnSourceToggleClick"/> but is icon-only, shown when the sidebar is shrunk for a panel.
+    /// </summary>
+    private void OnSourceToggleCompactClick(object sender, RoutedEventArgs e)
+    {
+        var youtube = YouTubeSourceItem.IsChecked != true; // toggle to the opposite source.
+        MusicSourceItem.IsChecked = !youtube;
+        YouTubeSourceItem.IsChecked = youtube;
+        AnimateSourceIndicator(youtube, animate: false);
+        ApplySourceVisibility(youtube);
+        UpdateSourceCompactIcon();
+
+        if (_sourceReady)
+        {
+            NavigateToTag(youtube ? "YouTube.Home" : "Home");
+        }
+    }
+
+    /// <summary>Keeps the compact source button's icon/tooltip in sync with the active source.</summary>
+    private void UpdateSourceCompactIcon()
+    {
+        var youtube = YouTubeSourceItem.IsChecked == true;
+        SourceCompactIcon.Glyph = youtube ? "" : "";
+        ToolTipService.SetToolTip(SourceToggleCompact, youtube ? "YouTube" : "Music");
     }
 
     /// <summary>Glides the segmented source indicator to the active segment (Music = 0, YouTube = 96).</summary>
@@ -138,6 +166,15 @@ public sealed partial class MainWindow
         }
     }
 
+    /// <summary>Title-bar back button (Media Player-style): pops the content frame's back stack.</summary>
+    private void OnTitleBarBackClick(object sender, RoutedEventArgs e)
+    {
+        if (ContentFrame.CanGoBack)
+        {
+            ContentFrame.GoBack();
+        }
+    }
+
     /// <summary>
     /// Keeps the back button enabled state in sync with the content frame's back stack after every
     /// navigation (forward navigations push detail pages onto the stack; GoBack pops them).
@@ -145,6 +182,9 @@ public sealed partial class MainWindow
     private void OnContentFrameNavigated(object sender, Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
     {
         NavView.IsBackEnabled = ContentFrame.CanGoBack;
+        // The title-bar back button only shows once there is somewhere to go back to (starts hidden,
+        // like Media Player: no back on the landing page, appears after navigating into a detail).
+        TitleBarBackButton.Visibility = ContentFrame.CanGoBack ? Visibility.Visible : Visibility.Collapsed;
         HookPageScrolling();
     }
 
