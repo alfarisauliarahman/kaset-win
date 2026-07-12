@@ -148,10 +148,21 @@ public static class HomeResponseParser
             {
                 // 2025: the server frequently answers a continuation request with a FULL page shape
                 // (root "contents" + sectionListRenderer), not a continuation envelope. Parse it as
-                // an initial page — sections plus the next token come out the same way.
+                // an initial page — sections plus the next token come out the same way. But a
+                // full-page-shaped continuation without a sectionListRenderer (common under hl=id)
+                // makes Parse throw "no sectionListRenderer" — which surfaced as a scary toast on
+                // "load more". Treat that as end-of-feed instead of letting it propagate.
                 if (((JsonObject)root).ContainsKey("contents"))
                 {
-                    return Parse(root);
+                    try
+                    {
+                        return Parse(root);
+                    }
+                    catch (KasetError ex) when (ex.Kind == KasetErrorKind.ParseError)
+                    {
+                        Diag.Write($"home continuation full-page parse degraded to empty: {ex.Message}");
+                        return new HomeResponse();
+                    }
                 }
 
                 // Genuinely unrecognisable envelope: treated as end-of-feed (no error toast), but

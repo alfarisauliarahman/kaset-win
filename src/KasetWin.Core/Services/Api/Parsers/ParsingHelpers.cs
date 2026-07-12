@@ -540,7 +540,9 @@ public static class ParsingHelpers
     private static bool IsNaturalLanguageDuration(string text)
     {
         var lowercased = text.ToLowerInvariant();
-        string[] units = { "second", "seconds", "minute", "minutes", "hour", "hours" };
+        // English + Indonesian (hl=id) duration units, so a server-localised album duration
+        // ("3 menit, 33 detik") is recognised as metadata and never treated as an artist.
+        string[] units = { "second", "seconds", "minute", "minutes", "hour", "hours", "detik", "menit", "jam" };
         if (!units.Any(u => lowercased.Contains(u, StringComparison.Ordinal)))
         {
             return false;

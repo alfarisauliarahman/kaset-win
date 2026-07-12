@@ -545,19 +545,19 @@ public static class PlaylistParser
             || lower.Contains(" plays", StringComparison.Ordinal)
             || lower.Contains(" subscribers", StringComparison.Ordinal)
             || lower.Contains("monthly audience", StringComparison.Ordinal)
-            || lower.Contains("episodes", StringComparison.Ordinal)
-            // Word-form durations ("17 minutes", "1 hour 5 minutes") are album metadata, not an
-            // artist. ParseDuration only understands "M:SS", so these must be rejected explicitly —
-            // otherwise the album duration was picked up as the author and shown on every track.
-            || lower.Contains(" minute", StringComparison.Ordinal)
-            || lower.Contains(" hour", StringComparison.Ordinal)
-            || lower.Contains(" second", StringComparison.Ordinal))
+            || lower.Contains("episodes", StringComparison.Ordinal))
         {
             return false;
         }
 
-        // A bare four-digit year is metadata, not an author.
-        return !(text.Length == 4 && text.All(char.IsDigit));
+        // Catch-all: every metadata form the header carries — durations ("3 menit, 33 detik" /
+        // "17 minutes"), counts ("6 lagu" / "6 songs"), view/listener/subscriber counts, and years —
+        // contains a digit, while a real author name does not. Rejecting any digit-bearing fallback
+        // text handles every UI language at once (the app pins hl=id, so the server returns Indonesian
+        // metadata that English-only checks missed, leaking the duration/count onto every track).
+        // Linked artists (with a browseId) are picked by the first loop above, so a rare digit-bearing
+        // artist name is unaffected unless it is completely unlinked.
+        return !text.Any(char.IsDigit);
     }
 
     private static bool IsHeaderContentKind(string text) =>
