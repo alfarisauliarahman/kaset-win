@@ -144,6 +144,58 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _isLoadingLyrics;
 
+    private const string KaraokeSettingKey = "lyrics.karaokeWords";
+
+    private bool _karaokeEnabled = LoadKaraokeSetting();
+
+    /// <summary>
+    /// Whether word-level (karaoke) highlighting is enabled for lines that carry word timing
+    /// (podcast auto-subtitles). Opt-in — the per-word advance depends on the player's progress
+    /// tick granularity and can trail speech, so it is a user choice, persisted across sessions.
+    /// </summary>
+    public bool KaraokeEnabled
+    {
+        get => _karaokeEnabled;
+        set
+        {
+            if (SetProperty(ref _karaokeEnabled, value))
+            {
+                SaveKaraokeSetting(value);
+                if (!value && _activeLineIndex >= 0 && _activeLineIndex < Lines.Count)
+                {
+                    Lines[_activeLineIndex].ShowKaraoke = false;
+                }
+            }
+        }
+    }
+
+    private static bool LoadKaraokeSetting()
+    {
+        try
+        {
+            return Windows.Storage.ApplicationData.Current.LocalSettings.Values[KaraokeSettingKey] is bool b && b;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static void SaveKaraokeSetting(bool value)
+    {
+        try
+        {
+            Windows.Storage.ApplicationData.Current.LocalSettings.Values[KaraokeSettingKey] = value;
+        }
+        catch (Exception)
+        {
+            // Non-fatal: the option just won't persist.
+        }
+    }
+
+    /// <summary>Seeks playback to the start of <paramref name="line"/> (click-to-seek, à la Apple Music).</summary>
+    public Task SeekToLineAsync(LyricLineItem line) => _player.SeekAsync(line.TimeInMs / 1000.0);
+
     /// <summary>
     /// Raised on the UI thread when the active synced line changes so the hosting page can scroll
     /// the current line into view (Req 17.2). The argument is the newly active line, or <c>null</c>
@@ -331,7 +383,7 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
         if (index == _activeLineIndex)
         {
             // Same line — still advance the word-level (karaoke) highlight within it.
-            if (index >= 0 && index < Lines.Count)
+            if (KaraokeEnabled && index >= 0 && index < Lines.Count)
             {
                 Lines[index].UpdateKaraoke(positionMs);
             }
@@ -353,7 +405,10 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
         {
             active = Lines[index];
             active.IsActive = true;
-            active.UpdateKaraoke(positionMs);
+            if (KaraokeEnabled)
+            {
+                active.UpdateKaraoke(positionMs);
+            }
         }
 
         ActiveLineChanged?.Invoke(this, active);

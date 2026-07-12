@@ -23,6 +23,7 @@
         </Grid.RowDefinitions>
 
         <TextBlock
+            x:Name="PageTitleText"
             Grid.Row="0"
             Margin="24,24,24,12"
             Style="{StaticResource TitleTextBlockStyle}"

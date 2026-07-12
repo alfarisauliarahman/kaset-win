@@ -355,7 +355,19 @@ public sealed partial class YTMusicClient
             .ConfigureAwait(false);
 
         // History uses the section-based Home shape; flatten the song items out of the sections.
-        var home = HomeResponseParser.Parse(node);
+        // A transient "no sectionListRenderer" envelope (cookie race / empty history) degrades to an
+        // empty list instead of throwing — otherwise it surfaced the scary red parse-error toast.
+        HomeResponse home;
+        try
+        {
+            home = HomeResponseParser.Parse(node);
+        }
+        catch (KasetError ex) when (ex.Kind == KasetErrorKind.ParseError)
+        {
+            Diag.Write($"history parse degraded to empty: {ex.Message}");
+            return [];
+        }
+
         var songs = new List<Song>();
         foreach (var section in home.Sections)
         {
@@ -426,6 +438,35 @@ public sealed partial class YTMusicClient
             && toggledValue.TryGetValue<bool>(out var toggled))
         {
             isSaved = toggled;
+        }
+
+        // Creator avatar: the strapline thumbnail next to the author line (2024+ responsive
+        // header); falls back to an avatarViewModel (image.sources[].url) inside the header.
+        Uri? authorAvatar = null;
+        if (headerNode is JsonObject headerObj && headerObj["straplineThumbnail"] is JsonObject strapline)
+        {
+            // The strapline nests {musicThumbnailRenderer:{thumbnail:{thumbnails}}} (dump-verified);
+            // BestThumbnailUrl expects to start one level up from the renderer, so unwrap first.
+            authorAvatar = ParsingHelpers.BestThumbnailUrl(strapline["musicThumbnailRenderer"])
+                ?? ParsingHelpers.BestThumbnailUrl(strapline);
+        }
+
+        if (authorAvatar is null
+            && ResponseTreeSearch.FindFirst(headerNode, "avatarViewModel") is JsonObject avatar
+            && avatar["image"] is JsonObject avatarImage
+            && avatarImage["sources"] is JsonArray avatarSources)
+        {
+            foreach (var source in avatarSources)
+            {
+                if (source is JsonObject so
+                    && so["url"] is JsonValue uv
+                    && uv.TryGetValue<string>(out var url)
+                    && Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                {
+                    authorAvatar = uri;
+                    break;
+                }
+            }
         }
 
         // Episodes: reuse the discovery/section parser, then flatten every episode row across the
@@ -506,6 +547,7 @@ public sealed partial class YTMusicClient
             Title = string.IsNullOrEmpty(title) ? "Podcast" : title,
             Author = author,
             AuthorChannelId = authorChannelId,
+            AuthorThumbnailUrl = authorAvatar,
             Description = description,
             IsSaved = isSaved,
             ThumbnailUrl = thumbnail,

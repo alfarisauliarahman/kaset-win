@@ -8,6 +8,7 @@
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:loc="using:KasetWin.App.Localization"
     xmlns:views="using:KasetWin.App.Views"
     xmlns:vm="using:KasetWin.App.ViewModels"
     mc:Ignorable="d">
@@ -29,8 +30,8 @@
                 DataContext="{x:Bind}">
                 <Button.ContextFlyout>
                     <MenuFlyout>
-                        <MenuFlyoutItem Click="OnShareFavorite" IsEnabled="{x:Bind CanShare}" Text="Share" />
-                        <MenuFlyoutItem Click="OnRemoveFromFavorites" Text="Remove from Favorites" />
+                        <MenuFlyoutItem Click="OnShareFavorite" IsEnabled="{x:Bind CanShare}" Text="{x:Bind ShareMenuText}" />
+                        <MenuFlyoutItem Click="OnRemoveFromFavorites" Text="{x:Bind RemoveFromFavoritesMenuText}" />
                     </MenuFlyout>
                 </Button.ContextFlyout>
                 <StackPanel Spacing="8">
@@ -84,8 +85,8 @@
                                     UseSystemFocusVisuals="True">
                                     <Grid.ContextFlyout>
                                         <MenuFlyout>
-                                            <MenuFlyoutItem Click="OnShareItem" IsEnabled="{x:Bind CanShare}" Text="Share" />
-                                            <MenuFlyoutItem Click="OnAddToFavorites" Text="Add to Favorites" />
+                                            <MenuFlyoutItem Click="OnShareItem" IsEnabled="{x:Bind CanShare}" Text="{x:Bind ShareMenuText}" />
+                                            <MenuFlyoutItem Click="OnAddToFavorites" Text="{x:Bind AddToFavoritesMenuText}" />
                                         </MenuFlyout>
                                     </Grid.ContextFlyout>
                                     <Border
@@ -119,7 +120,7 @@
                                                 LostFocus="OnPlayOverlayLostFocus"
                                                 Opacity="0"
                                                 Style="{StaticResource AccentButtonStyle}"
-                                                ToolTipService.ToolTip="Play"
+                                                ToolTipService.ToolTip="{x:Bind loc:UiStrings.PlayLabel}"
                                                 Visibility="{x:Bind CanPlay, Converter={StaticResource BoolToVisibility}}">
                                                 <FontIcon FontSize="16" Glyph="&#xE768;" />
                                             </Button>
@@ -290,14 +291,14 @@
     <Grid>
         <ScrollViewer>
             <StackPanel Margin="24" Spacing="24">
-                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Home" />
+                <TextBlock x:Name="PageTitleText" Style="{StaticResource TitleTextBlockStyle}" Text="Home" />
 
                 <!-- Favorites shelf (Req 29.4): shown only when there are pinned items. -->
                 <StackPanel
                     Margin="0,0,0,8"
                     Spacing="12"
                     Visibility="{x:Bind ViewModel.HasFavorites, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Favorites" />
+                    <TextBlock x:Name="FavoritesHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Favorites" />
                     <ScrollViewer
                         behaviors:VerticalWheelForwarder.IsEnabled="True"
                         HorizontalScrollBarVisibility="Auto"

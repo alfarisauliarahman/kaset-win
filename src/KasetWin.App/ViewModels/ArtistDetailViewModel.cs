@@ -129,7 +129,7 @@ public sealed partial class ArtistDetailViewModel : ViewModelBase
     private bool _isSubscribed;
 
     /// <summary>Subscribe/Subscribed label that reflects <see cref="IsSubscribed"/> (YouTube Music wording).</summary>
-    public string SubscribeLabel => IsSubscribed ? "Diikuti" : "Ikuti";
+    public string SubscribeLabel => IsSubscribed ? Localization.UiStrings.FollowingLabel : Localization.UiStrings.FollowLabel;
 
     /// <summary>Segoe Fluent glyph: checkmark when following, add otherwise.</summary>
     public string SubscribeGlyph => IsSubscribed ? "\uE73E" : "\uE710";

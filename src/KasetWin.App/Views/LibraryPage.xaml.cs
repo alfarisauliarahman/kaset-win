@@ -29,6 +29,12 @@ public sealed partial class LibraryPage : Page
     public LibraryPage()
     {
         this.InitializeComponent();
+        PageTitleText.Text = Localization.UiStrings.LibraryTitle;
+        LibPlaylistsHeader.Text = Localization.UiStrings.LibraryPlaylists;
+        LibSongsHeader.Text = Localization.UiStrings.LibrarySongs;
+        LibUploadsHeader.Text = Localization.UiStrings.LibraryUploads;
+        LibArtistsHeader.Text = Localization.UiStrings.LibraryArtists;
+        LibAlbumsHeader.Text = Localization.UiStrings.LibraryAlbums;
 
         var services = App.Current.Services;
         _viewModel = new LibraryViewModel(
@@ -119,10 +125,10 @@ public sealed partial class LibraryPage : Page
 
         var dialog = new ContentDialog
         {
-            Title = "Simpan ke playlist",
+            Title = Localization.UiStrings.MenuSaveToPlaylist,
             Content = list,
-            PrimaryButtonText = "Simpan",
-            CloseButtonText = "Batal",
+            PrimaryButtonText = Localization.UiStrings.DialogSave,
+            CloseButtonText = Localization.UiStrings.DialogCancel,
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = this.XamlRoot,
         };

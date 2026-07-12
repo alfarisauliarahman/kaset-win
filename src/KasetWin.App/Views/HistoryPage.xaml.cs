@@ -33,6 +33,7 @@ public sealed partial class HistoryPage : Page
             services.GetService<ISingleFlight>());
 
         this.InitializeComponent();
+        PageTitleText.Text = Localization.UiStrings.HistoryTitle;
         Loaded += OnLoaded;
     }
 

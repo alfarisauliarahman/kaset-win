@@ -49,6 +49,7 @@
             IsSettingsVisible="False"
             PaneDisplayMode="Auto"
             BackRequested="OnNavigationBackRequested"
+            Expanding="OnNavItemExpanding"
             ItemInvoked="OnNavigationItemInvoked"
             SelectionChanged="OnNavigationSelectionChanged">
             <!--
@@ -246,8 +247,9 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock VerticalAlignment="Center" Text="Playlists" />
+                            <TextBlock x:Name="PlaylistsRootLabel" VerticalAlignment="Center" Text="Playlists" />
                             <Button
+                                x:Name="NewPlaylistButton"
                                 Grid.Column="1"
                                 Padding="4"
                                 VerticalAlignment="Center"

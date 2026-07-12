@@ -24,9 +24,56 @@ public sealed partial class YTMusicClient
     /// <inheritdoc />
     public async Task<HomeResponse> GetHomeAsync(CancellationToken ct = default)
     {
-        var node = await RequestAsync("browse", BrowseBody("FEmusic_home"), ApiCacheTtl.Home, ct)
-            .ConfigureAwait(false);
-        return HomeResponseParser.Parse(node);
+        // The server occasionally answers with an envelope that has no sectionListRenderer at all
+        // (cookie race at startup / transient hiccup). Only a parseable page may enter the cache, and
+        // a raced answer is retried once; if it is still empty we degrade to an EMPTY home rather than
+        // throw — a scary red "no sectionListRenderer" toast for a transient hiccup is worse UX than a
+        // momentarily blank Home that fills in on the next load (the bad envelope is never cached).
+        for (var attempt = 0; ; attempt++)
+        {
+            var node = await RequestAsync(
+                    "browse",
+                    BrowseBody("FEmusic_home"),
+                    ApiCacheTtl.Home,
+                    ct,
+                    shouldCache: static n => ResponseTreeSearch.FindFirst(n, "sectionListRenderer") is not null)
+                .ConfigureAwait(false);
+
+            try
+            {
+                return HomeResponseParser.Parse(node);
+            }
+            catch (KasetError ex) when (ex.Kind == KasetErrorKind.ParseError)
+            {
+                Diag.Write($"home parse FAILED (attempt {attempt}): {ex.Message}");
+                if (attempt >= 1)
+                {
+                    // Record the alien envelope so its exact shape can be diagnosed offline.
+                    Diag.Dump("home-parse-fail.json", node?.ToJsonString() ?? "null");
+                    return new HomeResponse();
+                }
+
+                await Task.Delay(400, ct).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Parses a Home-shaped section response, degrading a transient "no sectionListRenderer"
+    /// envelope (cookie race / region hiccup) to an EMPTY result instead of throwing — so the shell
+    /// never shows a scary red parse-error toast for a surface that simply came back empty.
+    /// </summary>
+    private static HomeResponse ParseHomeOrEmpty(JsonNode? node, string label)
+    {
+        try
+        {
+            return HomeResponseParser.Parse(node);
+        }
+        catch (KasetError ex) when (ex.Kind == KasetErrorKind.ParseError)
+        {
+            Diag.Write($"{label} parse degraded to empty: {ex.Message}");
+            return new HomeResponse();
+        }
     }
 
     /// <inheritdoc />
@@ -90,7 +137,7 @@ public sealed partial class YTMusicClient
     {
         var node = await RequestAsync("browse", BrowseBody("FEmusic_explore"), ApiCacheTtl.Explore, ct)
             .ConfigureAwait(false);
-        return HomeResponseParser.Parse(node);
+        return ParseHomeOrEmpty(node, "explore");
     }
 
     /// <inheritdoc />
@@ -98,7 +145,7 @@ public sealed partial class YTMusicClient
     {
         var node = await RequestAsync("browse", BrowseBody("FEmusic_charts"), ApiCacheTtl.Explore, ct)
             .ConfigureAwait(false);
-        return HomeResponseParser.Parse(node);
+        return ParseHomeOrEmpty(node, "charts");
     }
 
     /// <inheritdoc />
@@ -106,7 +153,7 @@ public sealed partial class YTMusicClient
     {
         var node = await RequestAsync("browse", BrowseBody("FEmusic_moods_and_genres"), ApiCacheTtl.Explore, ct)
             .ConfigureAwait(false);
-        return HomeResponseParser.Parse(node);
+        return ParseHomeOrEmpty(node, "moods");
     }
 
     /// <inheritdoc />
@@ -114,7 +161,7 @@ public sealed partial class YTMusicClient
     {
         var node = await RequestAsync("browse", BrowseBody("FEmusic_new_releases"), ApiCacheTtl.Explore, ct)
             .ConfigureAwait(false);
-        return HomeResponseParser.Parse(node);
+        return ParseHomeOrEmpty(node, "new-releases");
     }
 
     /// <inheritdoc />
@@ -132,7 +179,7 @@ public sealed partial class YTMusicClient
         }
 
         var node = await RequestAsync("browse", body, ApiCacheTtl.Explore, ct).ConfigureAwait(false);
-        return HomeResponseParser.Parse(node);
+        return ParseHomeOrEmpty(node, "mood-category");
     }
 
     // ── Library ─────────────────────────────────────────────────────────────────────────

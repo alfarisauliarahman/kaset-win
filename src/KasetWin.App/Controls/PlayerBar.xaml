@@ -140,34 +140,34 @@
                             CornerRadius="6">
                     <Border.ContextFlyout>
                         <MenuFlyout>
-                            <MenuFlyoutItem Click="OnCtxPlayNext" Text="Putar setelah ini">
+                            <MenuFlyoutItem x:Name="CtxPlayNextItem" Click="OnCtxPlayNext" Text="Putar setelah ini">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE893;" />
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
-                            <MenuFlyoutItem Click="OnCtxAddToQueue" Text="Tambahkan ke antrean">
+                            <MenuFlyoutItem x:Name="CtxAddToQueueItem" Click="OnCtxAddToQueue" Text="Tambahkan ke antrean">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE710;" />
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
-                            <MenuFlyoutItem Click="OnCtxToggleLike" Text="Suka / batal suka">
+                            <MenuFlyoutItem x:Name="CtxToggleLikeItem" Click="OnCtxToggleLike" Text="Suka / batal suka">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xEB51;" />
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
                             <MenuFlyoutSeparator />
-                            <MenuFlyoutItem Click="OnCtxGoToArtist" Text="Buka halaman artis">
+                            <MenuFlyoutItem x:Name="CtxGoToArtistItem" Click="OnCtxGoToArtist" Text="Buka halaman artis">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE77B;" />
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
-                            <MenuFlyoutItem Click="OnCtxGoToAlbum" Text="Buka album">
+                            <MenuFlyoutItem x:Name="CtxGoToAlbumItem" Click="OnCtxGoToAlbum" Text="Buka album">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE93C;" />
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
                             <MenuFlyoutSeparator />
-                            <MenuFlyoutItem Click="OnCtxShare" Text="Bagikan">
+                            <MenuFlyoutItem x:Name="CtxShareItem" Click="OnCtxShare" Text="Bagikan">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE72D;" />
                                 </MenuFlyoutItem.Icon>
@@ -179,6 +179,7 @@
                                 Stretch="UniformToFill" />
                         </Border>
                         <controls:TrackInfo
+                            x:Name="BarTrackInfo"
                             MaxWidth="340"
                             VerticalAlignment="Center"
                             Large="True"

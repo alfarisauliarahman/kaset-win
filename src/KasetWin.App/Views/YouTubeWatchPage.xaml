@@ -79,14 +79,15 @@
                         Orientation="Horizontal"
                         Spacing="8">
                         <Button Command="{x:Bind ViewModel.ToggleSubscribeCommand}" Content="Subscribe" />
-                        <Button Command="{x:Bind ViewModel.LikeCommand}" Content="Like" />
-                        <Button Command="{x:Bind ViewModel.DislikeCommand}" Content="Dislike" />
-                        <Button Command="{x:Bind ViewModel.AddToWatchLaterCommand}" Content="Watch Later" />
+                        <Button x:Name="LikeButton" Command="{x:Bind ViewModel.LikeCommand}" Content="Like" />
+                        <Button x:Name="DislikeButton" Command="{x:Bind ViewModel.DislikeCommand}" Content="Dislike" />
+                        <Button x:Name="WatchLaterButton" Command="{x:Bind ViewModel.AddToWatchLaterCommand}" Content="Watch Later" />
                     </StackPanel>
                 </Grid>
 
                 <!-- Comments (Req 32.2) -->
                 <TextBlock
+                    x:Name="CommentsHeader"
                     Margin="0,12,0,0"
                     Text="Comments"
                     Style="{StaticResource SubtitleTextBlockStyle}" />
@@ -132,6 +133,7 @@
                 </ItemsControl>
 
                 <Button
+                    x:Name="LoadMoreCommentsButton"
                     Margin="0,8"
                     HorizontalAlignment="Center"
                     Command="{x:Bind ViewModel.LoadMoreCommentsCommand}"

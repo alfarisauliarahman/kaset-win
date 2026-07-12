@@ -25,6 +25,12 @@ namespace KasetWin.App.ViewModels;
 /// </remarks>
 public sealed class HomeCardItem
 {
+    /// <summary>Context-menu label, following the app language.</summary>
+    public string ShareMenuText => Localization.UiStrings.MenuShare;
+
+    /// <summary>Context-menu label, following the app language.</summary>
+    public string AddToFavoritesMenuText => Localization.UiStrings.MenuAddToFavorites;
+
     private const double SquareRadius = 6;
     private const double RoundRadius = 80; // artist avatars read as circular
 
@@ -33,7 +39,10 @@ public sealed class HomeCardItem
         Model = model;
         Title = title;
         Subtitle = subtitle;
-        ThumbnailUrl = thumbnailUrl;
+        // Video tiles are 16:9 but YT often serves their thumbs square-cropped (googleusercontent
+        // =wN-hN) or 4:3 (ytimg hqdefault) — displayed with UniformToFill that reads as "zoomed in".
+        // Rewrite the URL to a true 16:9 variant for video cards.
+        ThumbnailUrl = IsVideoModel(model) ? MakeWideThumbnail(thumbnailUrl) : thumbnailUrl;
         IsArtistCard = isArtist;
         ImageCornerRadius = new CornerRadius(isArtist ? RoundRadius : SquareRadius);
         CanShare = ShareUrlBuilder.TryCreate(model) is not null;
@@ -114,8 +123,47 @@ public sealed class HomeCardItem
     public Microsoft.UI.Xaml.Media.Brush? ChipBrush { get; }
 
     /// <summary>Whether this card is a video (OMV/UGC song) — rendered with a wide 16:9 thumbnail.</summary>
-    public bool IsVideo => Model is HomeSectionItem.SongItem si
+    public bool IsVideo => IsVideoModel(Model);
+
+    private static bool IsVideoModel(HomeSectionItem model) => model is HomeSectionItem.SongItem si
         && si.Song.VideoType is MusicVideoType.Omv or MusicVideoType.Ugc;
+
+    /// <summary>
+    /// Rewrites a video thumbnail URL to a true 16:9 variant so the wide tile doesn't crop-zoom:
+    /// googleusercontent size params (<c>=wN-hN…</c>) get a 16:9 height; ytimg's 4:3 stills
+    /// (<c>hqdefault</c>/<c>sddefault</c>/<c>default</c>/<c>0.jpg</c>) become <c>mqdefault</c>
+    /// (320×180, always available). Unknown hosts pass through untouched.
+    /// </summary>
+    private static Uri? MakeWideThumbnail(Uri? url)
+    {
+        if (url is null)
+        {
+            return null;
+        }
+
+        var s = url.AbsoluteUri;
+        if (url.Host.EndsWith("googleusercontent.com", StringComparison.OrdinalIgnoreCase))
+        {
+            var rewritten = System.Text.RegularExpressions.Regex.Replace(
+                s,
+                @"=w(\d+)-h(\d+)",
+                static m => $"=w{m.Groups[1].Value}-h{Math.Max(1, long.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) * 9 / 16)}");
+            return rewritten == s ? url : new Uri(rewritten);
+        }
+
+        if (url.Host.EndsWith("ytimg.com", StringComparison.OrdinalIgnoreCase))
+        {
+            // Two crop sources on ytimg: the 4:3 stills (hq/sd/default) AND the ?sqp= query,
+            // which instructs the CDN to serve a square crop even of a 16:9 still — so the
+            // query must be dropped along with the filename swap.
+            var path = System.Text.RegularExpressions.Regex.Replace(
+                url.AbsolutePath, @"/(hqdefault|sddefault|default|0)\.jpg$", "/mqdefault.jpg");
+            var rewritten = $"{url.Scheme}://{url.Host}{path}";
+            return rewritten == s ? url : new Uri(rewritten);
+        }
+
+        return url;
+    }
 
     /// <summary>Outer card width: videos are wide, moods slightly wide, the rest square.</summary>
     public double CardWidth => IsVideo ? 286 : IsMood ? 176 : 168;

@@ -37,6 +37,8 @@ public sealed partial class HomePage : Page
     public HomePage()
     {
         this.InitializeComponent();
+        PageTitleText.Text = Localization.UiStrings.HomeTitle;
+        FavoritesHeader.Text = Localization.UiStrings.HomeFavorites;
 
         var services = App.Current.Services;
         _player = services.GetService<IPlayerService>();

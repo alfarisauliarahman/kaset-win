@@ -27,10 +27,13 @@
             HorizontalAlignment="Stretch"
             Spacing="20">
 
-            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Settings" />
+            <!-- Every label below is relabelled from UiStrings in ApplyLabels() (code-behind),
+                 so the whole page follows the app language; the literals here are fallbacks. -->
+            <TextBlock x:Name="PageTitleText" Style="{StaticResource TitleTextBlockStyle}" Text="Settings" />
 
             <!-- ── General ───────────────────────────────────────────── -->
             <TextBlock
+                x:Name="GeneralHeader"
                 Margin="0,4,0,0"
                 Style="{StaticResource BodyStrongTextBlockStyle}"
                 Text="General" />
@@ -43,8 +46,9 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center" Spacing="2">
-                        <TextBlock Text="Default launch page" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Name="LaunchPageLabel" Text="Default launch page" Style="{StaticResource BodyStrongTextBlockStyle}" />
                         <TextBlock
+                            x:Name="LaunchPageCaption"
                             Opacity="0.7"
                             Text="The page Kaset opens to on launch."
                             Style="{StaticResource CaptionTextBlockStyle}" />
@@ -54,14 +58,8 @@
                         Grid.Column="1"
                         MinWidth="180"
                         VerticalAlignment="Center"
-                        ItemsSource="{x:Bind ViewModel.LaunchPages}"
-                        SelectedItem="{x:Bind ViewModel.SelectedLaunchPage, Mode=TwoWay}">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="models:LaunchPage">
-                                <TextBlock Text="{x:Bind}" />
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
+                        ItemsSource="{x:Bind ViewModel.LaunchPageOptions}"
+                        SelectedIndex="{x:Bind ViewModel.SelectedLaunchPageIndex, Mode=TwoWay}" />
                 </Grid>
             </Border>
 
@@ -73,8 +71,9 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center" Spacing="2">
-                        <TextBlock Text="Tema" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Name="ThemeLabel" Text="Tema" Style="{StaticResource BodyStrongTextBlockStyle}" />
                         <TextBlock
+                            x:Name="ThemeCaption"
                             Opacity="0.7"
                             Text="Terang, gelap, atau ikuti tema Windows."
                             Style="{StaticResource CaptionTextBlockStyle}" />
@@ -88,7 +87,7 @@
                 </Grid>
             </Border>
 
-            <!-- Language placeholder (Settings_Language / Req 19) -->
+            <!-- Content language (Settings_Language / Req 19): pins hl on every music request. -->
             <Border Style="{StaticResource SettingsCardStyle}">
                 <Grid ColumnSpacing="16">
                     <Grid.ColumnDefinitions>
@@ -96,23 +95,26 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center" Spacing="2">
-                        <TextBlock x:Uid="Settings_Language" Text="Language" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Name="LanguageLabel" Text="Bahasa" Style="{StaticResource BodyStrongTextBlockStyle}" />
                         <TextBlock
+                            x:Name="LanguageCaption"
                             Opacity="0.7"
-                            Text="Follows the system language. Per-language override is coming in a later task."
+                            Text="Bahasa aplikasi dan konten YT Music (judul section, tanggal, deskripsi)."
                             Style="{StaticResource CaptionTextBlockStyle}" />
                     </StackPanel>
                     <ComboBox
                         Grid.Column="1"
                         MinWidth="180"
                         VerticalAlignment="Center"
-                        IsEnabled="False"
-                        PlaceholderText="System default" />
+                        ItemsSource="{x:Bind ViewModel.LanguageOptions}"
+                        SelectedIndex="{x:Bind ViewModel.SelectedLanguageIndex, Mode=TwoWay}"
+                        SelectionChanged="OnLanguageSelectionChanged" />
                 </Grid>
             </Border>
 
             <!-- ── Playback ──────────────────────────────────────────── -->
             <TextBlock
+                x:Name="PlaybackHeader"
                 Margin="0,8,0,0"
                 Style="{StaticResource BodyStrongTextBlockStyle}"
                 Text="Playback" />
@@ -125,8 +127,9 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center" Spacing="2">
-                        <TextBlock Text="Preferred audio quality" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Name="AudioQualityLabel" Text="Preferred audio quality" Style="{StaticResource BodyStrongTextBlockStyle}" />
                         <TextBlock
+                            x:Name="AudioQualityCaption"
                             Opacity="0.7"
                             Text="Streaming quality Kaset requests when available."
                             Style="{StaticResource CaptionTextBlockStyle}" />
@@ -136,14 +139,8 @@
                         Grid.Column="1"
                         MinWidth="180"
                         VerticalAlignment="Center"
-                        ItemsSource="{x:Bind ViewModel.AudioQualities}"
-                        SelectedItem="{x:Bind ViewModel.SelectedAudioQuality, Mode=TwoWay}">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="models:AudioQuality">
-                                <TextBlock Text="{x:Bind}" />
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
+                        ItemsSource="{x:Bind ViewModel.AudioQualityOptions}"
+                        SelectedIndex="{x:Bind ViewModel.SelectedAudioQualityIndex, Mode=TwoWay}" />
                 </Grid>
             </Border>
 
@@ -155,8 +152,9 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center" Spacing="2">
-                        <TextBlock Text="Remember playback settings" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Name="RememberLabel" Text="Remember playback settings" Style="{StaticResource BodyStrongTextBlockStyle}" />
                         <TextBlock
+                            x:Name="RememberCaption"
                             Opacity="0.7"
                             Text="Restore shuffle and repeat on next launch."
                             Style="{StaticResource CaptionTextBlockStyle}" />
@@ -170,6 +168,7 @@
 
             <!-- ── Lyrics ────────────────────────────────────────────── -->
             <TextBlock
+                x:Name="LyricsHeader"
                 Margin="0,8,0,0"
                 Style="{StaticResource BodyStrongTextBlockStyle}"
                 Text="Lyrics" />
@@ -182,8 +181,9 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center" Spacing="2">
-                        <TextBlock Text="Sumber lirik" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Name="LyricsSourceLabel" Text="Sumber lirik" Style="{StaticResource BodyStrongTextBlockStyle}" />
                         <TextBlock
+                            x:Name="LyricsSourceCaption"
                             Opacity="0.7"
                             Text="Pilih penyedia lirik yang diutamakan. NetEase bagus untuk lagu Asia/K-pop."
                             Style="{StaticResource CaptionTextBlockStyle}" />
@@ -205,8 +205,9 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center" Spacing="2">
-                        <TextBlock Text="Synced lyrics" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock x:Name="SyncedLabel" Text="Synced lyrics" Style="{StaticResource BodyStrongTextBlockStyle}" />
                         <TextBlock
+                            x:Name="SyncedCaption"
                             Opacity="0.7"
                             Text="Prefer time-synced lyrics, falling back to plain lyrics."
                             Style="{StaticResource CaptionTextBlockStyle}" />
@@ -220,6 +221,7 @@
 
             <!-- ── Equalizer ─────────────────────────────────────────── -->
             <TextBlock
+                x:Name="EqualizerHeader"
                 Margin="0,8,0,0"
                 Style="{StaticResource BodyStrongTextBlockStyle}"
                 Text="Equalizer" />
@@ -294,6 +296,7 @@
                     </Grid>
 
                     <CheckBox
+                        x:Name="EqLinkCheck"
                         Content="Move nearby sliders together"
                         IsChecked="{x:Bind ViewModel.LinkNearbyBands, Mode=TwoWay}" />
                 </StackPanel>
@@ -301,6 +304,7 @@
 
             <!-- ── Extensions / Adblock ──────────────────────────────── -->
             <TextBlock
+                x:Name="ExtensionsHeader"
                 Margin="0,8,0,0"
                 Style="{StaticResource BodyStrongTextBlockStyle}"
                 Text="Extensions (Adblock)" />
@@ -308,6 +312,7 @@
             <Border Style="{StaticResource SettingsCardStyle}">
                 <StackPanel Spacing="10">
                     <TextBlock
+                        x:Name="ExtensionsCaption"
                         Opacity="0.8"
                         TextWrapping="Wrap"
                         Style="{StaticResource CaptionTextBlockStyle}"
@@ -323,8 +328,8 @@
                         Style="{StaticResource CaptionTextBlockStyle}"
                         Text="Kaset loads unpacked browser extensions (like uBlock Origin) into its playback WebView — the Windows equivalent of the macOS user-managed extensions. Nothing is bundled: put each unpacked extension (a folder containing manifest.json) into the Extensions folder below, then restart Kaset. Extensions are loaded onto the shared browser profile, so their ad/network rules apply to YouTube Music and YouTube playback." />
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Click="OnOpenExtensionsFolder" Content="Open extensions folder" />
-                        <Button Click="OnRestartApp" Content="Restart Kaset" />
+                        <Button x:Name="OpenExtFolderButton" Click="OnOpenExtensionsFolder" Content="Open extensions folder" />
+                        <Button x:Name="RestartAppButton" Click="OnRestartApp" Content="Restart Kaset" />
                     </StackPanel>
                 </StackPanel>
             </Border>

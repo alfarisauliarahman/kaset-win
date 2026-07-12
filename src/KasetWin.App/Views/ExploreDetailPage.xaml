@@ -8,6 +8,7 @@
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:loc="using:KasetWin.App.Localization"
     xmlns:views="using:KasetWin.App.Views"
     xmlns:vm="using:KasetWin.App.ViewModels"
     mc:Ignorable="d">
@@ -21,7 +22,7 @@
             <StackPanel Margin="0,0,0,8" Spacing="12">
                 <Grid>
                     <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" />
-                    <Button HorizontalAlignment="Right" Click="OnChartSeeAllClick" Content="Lihat semua" Tag="{x:Bind}" />
+                    <Button HorizontalAlignment="Right" Click="OnChartSeeAllClick" Content="{x:Bind loc:UiStrings.SeeAll}" Tag="{x:Bind}" />
                 </Grid>
                 <ScrollViewer
                     behaviors:VerticalWheelForwarder.IsEnabled="True"
@@ -122,7 +123,7 @@
                                                 LostFocus="OnPlayOverlayLostFocus"
                                                 Opacity="0"
                                                 Style="{StaticResource AccentButtonStyle}"
-                                                ToolTipService.ToolTip="Play"
+                                                ToolTipService.ToolTip="{x:Bind loc:UiStrings.PlayLabel}"
                                                 Visibility="{x:Bind CanPlay, Converter={StaticResource BoolToVisibility}}">
                                                 <FontIcon FontSize="16" Glyph="&#xE768;" />
                                             </Button>
@@ -310,6 +311,7 @@
                 </controls:ItemsRepeater>
 
                 <Button
+                    x:Name="LoadMoreButton"
                     HorizontalAlignment="Center"
                     Click="OnLoadMoreClick"
                     Content="Load more"

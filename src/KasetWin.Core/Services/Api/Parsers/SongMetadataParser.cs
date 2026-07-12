@@ -219,10 +219,12 @@ public static class SongMetadataParser
     }
 
     /// <summary>
-    /// Extracts artists from a panel renderer's <c>longBylineText.runs</c>. Linked runs keep
+    /// Extracts artists from a panel renderer's <c>longBylineText.runs</c>. The byline is
+    /// bullet-segmented (<c>Artist(s) • Album • Year</c>), so only the FIRST segment is artists —
+    /// keeping every non-separator run leaked the album and year into the artist list. Runs whose
+    /// browse id is an album (<c>MPRE…</c>) are skipped regardless of segment. Linked runs keep
     /// their <c>browseEndpoint.browseId</c>; plain-text runs get a deterministic
-    /// <see cref="ParsingHelpers.StableId"/> so the artist line is never blank. Separator runs
-    /// are skipped.
+    /// <see cref="ParsingHelpers.StableId"/> so the artist line is never blank.
     /// </summary>
     private static IReadOnlyList<Artist> ParseArtistsFromByline(JsonNode? renderer)
     {
@@ -236,12 +238,28 @@ public static class SongMetadataParser
         foreach (var run in runs)
         {
             var text = GetString(run, "text");
-            if (string.IsNullOrEmpty(text) || IsArtistSeparator(text))
+            if (string.IsNullOrEmpty(text))
+            {
+                continue;
+            }
+
+            if (text.Contains('•', StringComparison.Ordinal))
+            {
+                // First bullet ends the artist segment; the rest is album/year/views.
+                break;
+            }
+
+            if (IsArtistSeparator(text))
             {
                 continue;
             }
 
             var browseId = ParsingHelpers.ExtractBrowseId(run);
+            if (browseId is not null && browseId.StartsWith("MPRE", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             artists.Add(browseId is not null
                 ? new Artist { Id = browseId, Name = text }
                 : new Artist { Id = ParsingHelpers.StableId("artist", text), Name = text });

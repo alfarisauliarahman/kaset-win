@@ -83,9 +83,9 @@ public sealed partial class PodcastShowPage : Page
             };
             var dialog = new ContentDialog
             {
-                Title = "Simpan ke playlist",
+                Title = Localization.UiStrings.MenuSaveToPlaylist,
                 Content = new ScrollViewer { Content = list, MaxHeight = 420 },
-                CloseButtonText = "Batal",
+                CloseButtonText = Localization.UiStrings.DialogCancel,
                 XamlRoot = XamlRoot,
             };
             list.ItemClick += async (_, args) =>
@@ -96,11 +96,11 @@ public sealed partial class PodcastShowPage : Page
                     try
                     {
                         await client.AddSongToPlaylistAsync(episode.Id, playlistId);
-                        notifier?.Show("Disimpan ke playlist");
+                        notifier?.Show(Localization.UiStrings.ToastSavedToPlaylist);
                     }
                     catch (Exception)
                     {
-                        notifier?.Show("Gagal menyimpan ke playlist");
+                        notifier?.Show(Localization.UiStrings.ToastSaveToPlaylistFailed);
                     }
                 }
             };
@@ -108,7 +108,7 @@ public sealed partial class PodcastShowPage : Page
         }
         catch (Exception)
         {
-            notifier?.Show("Gagal memuat daftar playlist");
+            notifier?.Show(Localization.UiStrings.ToastLoadPlaylistsFailed);
         }
     }
 

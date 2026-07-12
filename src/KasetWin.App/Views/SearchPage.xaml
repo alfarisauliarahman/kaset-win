@@ -3,6 +3,7 @@
     x:Class="KasetWin.App.Views.SearchPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:behaviors="using:KasetWin.App.Behaviors"
     xmlns:controls="using:KasetWin.App.Controls"
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:core="using:KasetWin.Core.Models"
@@ -225,7 +226,7 @@
 
                 <!-- Top Results: a prominent Apple-Music-style card. -->
                 <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasTopResult, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Top Results" />
+                    <TextBlock x:Name="TopResultsHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Top Results" />
                     <Button
                         MaxWidth="620"
                         MinWidth="440"
@@ -271,8 +272,9 @@
 
                 <!-- Artists: circular rail. -->
                 <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasArtists, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Artists" />
+                    <TextBlock x:Name="ArtistsHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Artists" />
                     <ScrollViewer
+                        behaviors:VerticalWheelForwarder.IsEnabled="True"
                         HorizontalScrollBarVisibility="Auto"
                         HorizontalScrollMode="Enabled"
                         VerticalScrollBarVisibility="Disabled"
@@ -287,8 +289,9 @@
 
                 <!-- Albums: card rail. -->
                 <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasAlbums, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Albums" />
+                    <TextBlock x:Name="AlbumsHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Albums" />
                     <ScrollViewer
+                        behaviors:VerticalWheelForwarder.IsEnabled="True"
                         HorizontalScrollBarVisibility="Auto"
                         HorizontalScrollMode="Enabled"
                         VerticalScrollBarVisibility="Disabled"
@@ -366,7 +369,7 @@
 
                 <!-- Songs: multi-column wrap grid (Apple-Music style). -->
                 <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasSongs, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Songs" />
+                    <TextBlock x:Name="SongsHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Songs" />
                     <muxc:ItemsRepeater ItemTemplate="{StaticResource SongTemplate}" ItemsSource="{x:Bind ViewModel.Songs, Mode=OneWay}">
                         <muxc:ItemsRepeater.Layout>
                             <muxc:UniformGridLayout
@@ -381,8 +384,9 @@
 
                 <!-- Music Videos: wide 16:9 rail. -->
                 <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasMusicVideos, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Music Videos" />
+                    <TextBlock x:Name="MusicVideosHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Music Videos" />
                     <ScrollViewer
+                        behaviors:VerticalWheelForwarder.IsEnabled="True"
                         HorizontalScrollBarVisibility="Auto"
                         HorizontalScrollMode="Enabled"
                         VerticalScrollBarVisibility="Disabled"
@@ -431,8 +435,9 @@
 
                 <!-- Playlists: card rail. -->
                 <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasPlaylists, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Playlists" />
+                    <TextBlock x:Name="PlaylistsHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Playlists" />
                     <ScrollViewer
+                        behaviors:VerticalWheelForwarder.IsEnabled="True"
                         HorizontalScrollBarVisibility="Auto"
                         HorizontalScrollMode="Enabled"
                         VerticalScrollBarVisibility="Disabled"
@@ -447,8 +452,9 @@
 
                 <!-- Podcasts: card rail. -->
                 <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasPodcasts, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Podcasts" />
+                    <TextBlock x:Name="PodcastsHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Podcasts" />
                     <ScrollViewer
+                        behaviors:VerticalWheelForwarder.IsEnabled="True"
                         HorizontalScrollBarVisibility="Auto"
                         HorizontalScrollMode="Enabled"
                         VerticalScrollBarVisibility="Disabled"
@@ -463,7 +469,7 @@
 
                 <!-- Episodes: multi-column wrap grid (episode rows play on click). -->
                 <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasEpisodes, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Episodes" />
+                    <TextBlock x:Name="EpisodesHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Episodes" />
                     <muxc:ItemsRepeater ItemTemplate="{StaticResource SongTemplate}" ItemsSource="{x:Bind ViewModel.Episodes, Mode=OneWay}">
                         <muxc:ItemsRepeater.Layout>
                             <muxc:UniformGridLayout
@@ -478,6 +484,7 @@
 
                 <!-- Empty state. -->
                 <TextBlock
+                    x:Name="NoResultsText"
                     Margin="0,24"
                     HorizontalAlignment="Center"
                     Opacity="0.6"

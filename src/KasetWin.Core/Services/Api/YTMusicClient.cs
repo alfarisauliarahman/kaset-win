@@ -182,7 +182,8 @@ public sealed partial class YTMusicClient : IYTMusicClient
         TimeSpan? ttl,
         CancellationToken ct,
         string? glOverride = null,
-        string? clientVersionOverride = null)
+        string? clientVersionOverride = null,
+        Func<JsonNode, bool>? shouldCache = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(endpoint);
         ArgumentNullException.ThrowIfNull(body);
@@ -262,7 +263,10 @@ public sealed partial class YTMusicClient : IYTMusicClient
             throw new KasetError(KasetErrorKind.ApiError, "API returned an error payload.", statusCode: statusCode);
         }
 
-        if (ttl is { } setTtl)
+        // A caller-supplied gate keeps transient junk envelopes (e.g. a Home answered before the
+        // WebView2 cookies are ready) out of the cache — otherwise the bad response is replayed
+        // for the whole TTL and the resulting error toast repeats even after the server recovered.
+        if (ttl is { } setTtl && (shouldCache?.Invoke(node) ?? true))
         {
             _cache.Set(cacheKey, responseBody, setTtl);
         }

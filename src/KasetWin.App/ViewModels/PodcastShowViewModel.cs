@@ -70,13 +70,21 @@ public sealed partial class PodcastShowViewModel : ViewModelBase
     [ObservableProperty]
     private string? _authorChannelId;
 
+    /// <summary>Creator avatar shown next to the author name (header strapline thumbnail).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAuthorThumbnail))]
+    private Uri? _authorThumbnailUrl;
+
+    /// <summary>Whether the header carried a creator avatar.</summary>
+    public bool HasAuthorThumbnail => AuthorThumbnailUrl is not null;
+
     /// <summary>Whether the show is saved to the library (session-local; server state unknown on load).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SaveLabel))]
     private bool _isSaved;
 
     /// <summary>Save-button label reflecting the saved state.</summary>
-    public string SaveLabel => IsSaved ? "Tersimpan" : "Simpan";
+    public string SaveLabel => IsSaved ? Localization.UiStrings.PodcastSaved : Localization.UiStrings.PodcastSave;
 
     /// <summary>Toggles saving the show/playlist to the user's library (like/like on its playlist id).</summary>
     [RelayCommand]
@@ -97,11 +105,11 @@ public sealed partial class PodcastShowViewModel : ViewModelBase
             await _client.RatePlaylistAsync(likeId, saving ? LikeStatus.Like : LikeStatus.Indifferent)
                 .ConfigureAwait(true);
             IsSaved = saving;
-            _notifier?.Show(saving ? "Disimpan ke koleksi" : "Dihapus dari koleksi");
+            _notifier?.Show(saving ? Localization.UiStrings.ToastShowSaved : Localization.UiStrings.ToastShowRemoved);
         }
         catch (Exception)
         {
-            _notifier?.Show(saving ? "Gagal menyimpan ke koleksi" : "Gagal menghapus dari koleksi");
+            _notifier?.Show(saving ? Localization.UiStrings.ToastShowSaveFailed : Localization.UiStrings.ToastShowRemoveFailed);
         }
     }
 
@@ -118,6 +126,7 @@ public sealed partial class PodcastShowViewModel : ViewModelBase
             Author = show.Author;
             Description = show.Description;
             AuthorChannelId = show.AuthorChannelId;
+            AuthorThumbnailUrl = show.AuthorThumbnailUrl;
             IsSaved = show.IsSaved;
             ThumbnailUrl = show.ThumbnailUrl;
             EpisodeCountText = show.Episodes.Count > 0 ? $"{show.Episodes.Count} episode" : string.Empty;
@@ -199,11 +208,11 @@ public sealed partial class PodcastShowViewModel : ViewModelBase
         try
         {
             await _client.AddSongToPlaylistAsync(episode.Id, "SE").ConfigureAwait(true);
-            _notifier?.Show("Ditambahkan ke Episode untuk Nanti");
+            _notifier?.Show(Localization.UiStrings.ToastQueuedForLater);
         }
         catch (Exception)
         {
-            _notifier?.Show("Gagal menambahkan ke Episode untuk Nanti");
+            _notifier?.Show(Localization.UiStrings.ToastQueueForLaterFailed);
         }
     }
 
@@ -282,11 +291,11 @@ public sealed partial class PodcastShowViewModel : ViewModelBase
         try
         {
             await _client.SendFeedbackAsync([feedbackToken]).ConfigureAwait(true);
-            _notifier?.Show(nowPlayed ? "Ditandai telah diputar" : "Ditandai belum diputar");
+            _notifier?.Show(nowPlayed ? Localization.UiStrings.ToastMarkedPlayed : Localization.UiStrings.ToastMarkedUnplayed);
         }
         catch (Exception)
         {
-            _notifier?.Show("Gagal menyinkronkan status diputar");
+            _notifier?.Show(Localization.UiStrings.ToastPlayedSyncFailed);
         }
     }
 

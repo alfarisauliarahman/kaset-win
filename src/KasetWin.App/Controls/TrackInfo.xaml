@@ -21,6 +21,7 @@
             Orientation="Horizontal"
             Visibility="{x:Bind ShowStaticTitle, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
             <HyperlinkButton
+                x:Name="StaticTitleLink"
                 Click="OnTitleClick"
                 Style="{StaticResource InlineLinkButtonStyle}"
                 ToolTipService.ToolTip="Go to album"
@@ -66,6 +67,7 @@
                     <TranslateTransform x:Name="MarqueeShift" />
                 </StackPanel.RenderTransform>
                 <HyperlinkButton
+                    x:Name="MarqueeTitleLink"
                     Click="OnTitleClick"
                     Style="{StaticResource InlineLinkButtonStyle}"
                     ToolTipService.ToolTip="Buka album">
@@ -99,6 +101,7 @@
             Orientation="Horizontal"
             Visibility="{x:Bind ShowStaticTitle, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
             <HyperlinkButton
+                x:Name="StaticArtistLink"
                 Click="OnArtistClick"
                 Style="{StaticResource InlineLinkButtonStyle}"
                 ToolTipService.ToolTip="Go to artist"
@@ -128,6 +131,7 @@
                 Style="{StaticResource CaptionTextBlockStyle}" />
 
             <HyperlinkButton
+                x:Name="StaticAlbumLink"
                 Click="OnTitleClick"
                 Style="{StaticResource InlineLinkButtonStyle}"
                 ToolTipService.ToolTip="Go to album"
@@ -160,6 +164,7 @@
                     <TranslateTransform x:Name="SubShift" />
                 </StackPanel.RenderTransform>
                 <HyperlinkButton
+                    x:Name="MarqueeArtistLink"
                     Click="OnArtistClick"
                     Style="{StaticResource InlineLinkButtonStyle}"
                     ToolTipService.ToolTip="Buka halaman artis">
@@ -178,6 +183,7 @@
                     Visibility="{x:Bind ShowAlbumLine, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
                     Style="{StaticResource CaptionTextBlockStyle}" />
                 <HyperlinkButton
+                    x:Name="MarqueeAlbumLink"
                     Click="OnTitleClick"
                     Style="{StaticResource InlineLinkButtonStyle}"
                     ToolTipService.ToolTip="Buka album"

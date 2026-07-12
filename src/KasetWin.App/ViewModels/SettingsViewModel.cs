@@ -72,6 +72,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         SelectedLyricsProviderIndex = savedProvider switch { "LRCLib" => 1, "NetEase" => 2, _ => 0 };
         ApplyLyricsProvider(SelectedLyricsProviderIndex);
 
+        SelectedLanguageIndex = LoadLanguageSetting() == "en" ? 1 : 0;
+
         Bands = new ObservableCollection<EqBand>(
             EqBandLabels.Select(l => new EqBand { Label = l }));
         LoadEqualizer();
@@ -86,11 +88,37 @@ public sealed partial class SettingsViewModel : ViewModelBase
         ApplyEqualizer(persist: false);
     }
 
-    /// <summary>All launch-page choices, bound to the launch-page ComboBox (Req 18.1).</summary>
-    public IReadOnlyList<LaunchPage> LaunchPages { get; } = Enum.GetValues<LaunchPage>();
+    /// <summary>Localised launch-page labels, index-aligned with <see cref="LaunchPage"/> (Req 18.1).</summary>
+    public IReadOnlyList<string> LaunchPageOptions { get; } = Localization.UiStrings.LaunchPageOptions;
 
-    /// <summary>All audio-quality choices (Low/Medium/High), bound to the quality ComboBox (Req 7.3).</summary>
-    public IReadOnlyList<AudioQuality> AudioQualities { get; } = Enum.GetValues<AudioQuality>();
+    /// <summary>Localised audio-quality labels, index-aligned with <see cref="AudioQuality"/> (Req 7.3).</summary>
+    public IReadOnlyList<string> AudioQualityOptions { get; } = Localization.UiStrings.AudioQualityOptions;
+
+    /// <summary>Launch page as a ComboBox index over <see cref="LaunchPageOptions"/>.</summary>
+    public int SelectedLaunchPageIndex
+    {
+        get => (int)SelectedLaunchPage;
+        set
+        {
+            if (value >= 0)
+            {
+                SelectedLaunchPage = (LaunchPage)value;
+            }
+        }
+    }
+
+    /// <summary>Audio quality as a ComboBox index over <see cref="AudioQualityOptions"/>.</summary>
+    public int SelectedAudioQualityIndex
+    {
+        get => (int)SelectedAudioQuality;
+        set
+        {
+            if (value >= 0)
+            {
+                SelectedAudioQuality = (AudioQuality)value;
+            }
+        }
+    }
 
     /// <summary>Selected default launch page; persisted on change (Req 18.1, Req 18.4).</summary>
     [ObservableProperty]
@@ -109,14 +137,14 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private AudioQuality _selectedAudioQuality;
 
     /// <summary>Theme choices bound to the Appearance ComboBox (index 0=system, 1=light, 2=dark).</summary>
-    public IReadOnlyList<string> ThemeOptions { get; } = ["Ikuti sistem", "Terang", "Gelap"];
+    public IReadOnlyList<string> ThemeOptions { get; } = Localization.UiStrings.ThemeOptions;
 
     /// <summary>Selected theme index; applied + persisted live via <see cref="ThemeManager"/>.</summary>
     [ObservableProperty]
     private int _selectedThemeIndex;
 
     /// <summary>Lyrics provider choices (0=Auto, 1=LRCLib, 2=NetEase).</summary>
-    public IReadOnlyList<string> LyricsProviderOptions { get; } = ["Otomatis (semua sumber)", "LRCLib", "NetEase (cakupan Asia)"];
+    public IReadOnlyList<string> LyricsProviderOptions { get; } = Localization.UiStrings.LyricsProviderOptions;
 
     /// <summary>Selected lyrics provider; applied to the service + persisted.</summary>
     [ObservableProperty]
@@ -156,6 +184,45 @@ public sealed partial class SettingsViewModel : ViewModelBase
             2 => Microsoft.UI.Xaml.ElementTheme.Dark,
             _ => Microsoft.UI.Xaml.ElementTheme.Default,
         });
+    }
+
+    // ── Content language (hl pin on every music request; server-localised strings) ────────────────
+
+    private const string LanguageKey = "app.language";
+
+    /// <summary>Content-language choices (0 = Indonesian, 1 = English). Always pinned — an
+    /// unpinned request follows the account language and leaves the UI half-translated.</summary>
+    public IReadOnlyList<string> LanguageOptions { get; } = ["Indonesia", "English"];
+
+    /// <summary>
+    /// Selected content language. Applies immediately to new requests (section titles, dates and
+    /// descriptions come server-localised); already-open pages refresh as their caches expire.
+    /// </summary>
+    [ObservableProperty]
+    private int _selectedLanguageIndex;
+
+    partial void OnSelectedLanguageIndexChanged(int value)
+    {
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        ApplyLanguage(value);
+    }
+
+    private static void ApplyLanguage(int index)
+    {
+        var hl = index == 1 ? "en" : "id";
+        KasetWin.Core.Services.Api.InnerTubeSupport.LanguageOverride = hl;
+        ApplicationData.Current.LocalSettings.Values[LanguageKey] = hl;
+    }
+
+    /// <summary>The persisted content-language code: <c>"en"</c>, or <c>"id"</c> (the default).</summary>
+    public static string LoadLanguageSetting()
+    {
+        var saved = ApplicationData.Current.LocalSettings.Values[LanguageKey] as string;
+        return saved == "en" ? "en" : "id";
     }
 
     partial void OnSelectedLaunchPageChanged(LaunchPage value)

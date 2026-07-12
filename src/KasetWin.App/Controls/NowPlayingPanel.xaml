@@ -101,6 +101,7 @@
             </StackPanel>
 
             <Button
+                x:Name="CloseButton"
                 Grid.Column="1"
                 Click="OnCloseClick"
                 Style="{StaticResource SubtleButtonStyle}"
@@ -121,6 +122,7 @@
                 Visibility="{x:Bind ShowUpNext, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                 <StackPanel Spacing="4">
                     <TextBlock
+                        x:Name="NowPlayingHeaderText"
                         Margin="8,8,0,0"
                         Opacity="0.6"
                         Text="Sedang diputar"
@@ -141,10 +143,11 @@
                         <Border Grid.Column="1" Width="48" Height="48" CornerRadius="4">
                             <Image Source="{x:Bind Queue.NowPlaying.ThumbnailUrl, Converter={StaticResource UriToImageSource}, Mode=OneWay}" Stretch="UniformToFill" />
                         </Border>
-                        <controls:TrackInfo Grid.Column="2" VerticalAlignment="Center" Song="{x:Bind Queue.NowPlaying, Mode=OneWay}" />
+                        <controls:TrackInfo x:Name="NowPlayingTrackInfo" Grid.Column="2" VerticalAlignment="Center" Song="{x:Bind Queue.NowPlaying, Mode=OneWay}" />
                     </Grid>
 
                     <TextBlock
+                        x:Name="UpNextHeaderText"
                         Margin="8,8,0,0"
                         Opacity="0.6"
                         Text="Selanjutnya"
@@ -169,7 +172,7 @@
                         HorizontalAlignment="Center"
                         Spacing="6"
                         Visibility="{x:Bind Queue.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock HorizontalAlignment="Center" Opacity="0.6" Text="Tidak ada lagu berikutnya." Style="{StaticResource CaptionTextBlockStyle}" />
+                        <TextBlock x:Name="QueueEmptyText" HorizontalAlignment="Center" Opacity="0.6" Text="Tidak ada lagu berikutnya." Style="{StaticResource CaptionTextBlockStyle}" />
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>
@@ -328,6 +331,7 @@
                     Visibility="{x:Bind IsRelatedLoading, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
 
                 <TextBlock
+                    x:Name="RelatedEmptyText"
                     Margin="20"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
@@ -347,7 +351,8 @@
                 x:Name="LyricsList"
                 Padding="20,4,20,24"
                 HorizontalContentAlignment="Stretch"
-                IsItemClickEnabled="False"
+                IsItemClickEnabled="True"
+                ItemClick="OnLyricLineClick"
                 ItemsSource="{x:Bind Lyrics.Lines, Mode=OneWay}"
                 SelectionMode="None"
                 Visibility="{x:Bind Lyrics.ShowSynced, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
@@ -392,6 +397,7 @@
             </ScrollViewer>
 
             <TextBlock
+                x:Name="LyricsEmptyText"
                 Margin="20"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"

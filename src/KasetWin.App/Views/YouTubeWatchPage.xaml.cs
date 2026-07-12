@@ -52,6 +52,11 @@ public sealed partial class YouTubeWatchPage : Page
         }
 
         this.InitializeComponent();
+        LikeButton.Content = Localization.UiStrings.YtLike;
+        DislikeButton.Content = Localization.UiStrings.YtDislike;
+        WatchLaterButton.Content = Localization.UiStrings.YtWatchLater;
+        CommentsHeader.Text = Localization.UiStrings.YtComments;
+        LoadMoreCommentsButton.Content = Localization.UiStrings.YtLoadMoreComments;
 
         if (_watchHost is not null)
         {

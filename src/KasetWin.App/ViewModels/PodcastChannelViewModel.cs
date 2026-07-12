@@ -68,7 +68,7 @@ public sealed partial class PodcastChannelViewModel : ViewModelBase
 
     /// <summary>Title of the episode shelf as YT sent it ("Episode terbaru").</summary>
     [ObservableProperty]
-    private string _episodesTitle = "Episode terbaru";
+    private string _episodesTitle = Localization.UiStrings.PodcastLatestEpisodes;
 
     /// <summary>Whether the episode shelf has rows (section visibility).</summary>
     public bool HasEpisodes => LatestEpisodes.Count > 0;
@@ -121,7 +121,7 @@ public sealed partial class PodcastChannelViewModel : ViewModelBase
 
     private void UpdateSubscribeLabel() =>
         SubscribeLabel = IsSubscribed
-            ? "Disubscribe"
+            ? Localization.UiStrings.SubscribedLabel
             : string.IsNullOrEmpty(_subscriberText) ? "Subscribe" : $"Subscribe {_subscriberText}";
 
     /// <summary>Toggles the channel subscription (optimistic, reverts on failure).</summary>
@@ -147,13 +147,15 @@ public sealed partial class PodcastChannelViewModel : ViewModelBase
                 await _client.UnsubscribeArtistAsync(_channelId).ConfigureAwait(true);
             }
 
-            _notifier?.Show(subscribing ? "Disubscribe" : "Berhenti subscribe");
+            _notifier?.Show(subscribing
+                ? Localization.UiStrings.SubscribedLabel
+                : Localization.UiStrings.UnsubscribedToast);
         }
         catch (Exception)
         {
             IsSubscribed = !subscribing;
             UpdateSubscribeLabel();
-            _notifier?.Show("Gagal mengubah subscription");
+            _notifier?.Show(Localization.UiStrings.ToastSubscriptionFailed);
         }
     }
 

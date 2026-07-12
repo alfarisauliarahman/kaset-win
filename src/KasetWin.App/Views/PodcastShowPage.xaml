@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:loc="using:KasetWin.App.Localization"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:KasetWin.Core.Models"
     mc:Ignorable="d">
@@ -45,10 +46,23 @@
                     Text="{x:Bind ViewModel.Title, Mode=OneWay}"
                     TextWrapping="Wrap"
                     Style="{StaticResource TitleTextBlockStyle}" />
-                <HyperlinkButton
-                    Padding="0"
-                    Click="OnAuthorClick"
-                    Content="{x:Bind ViewModel.Author, Mode=OneWay}" />
+                <!-- Creator line: round avatar (when the header carries one) + clickable name. -->
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Border
+                        Width="28"
+                        Height="28"
+                        VerticalAlignment="Center"
+                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                        CornerRadius="14"
+                        Visibility="{x:Bind ViewModel.HasAuthorThumbnail, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <Image Source="{x:Bind ViewModel.AuthorThumbnailUrl, Mode=OneWay, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                    </Border>
+                    <HyperlinkButton
+                        Padding="0"
+                        VerticalAlignment="Center"
+                        Click="OnAuthorClick"
+                        Content="{x:Bind ViewModel.Author, Mode=OneWay}" />
+                </StackPanel>
                 <TextBlock
                     MaxLines="2"
                     Opacity="0.6"
@@ -71,7 +85,7 @@
                     <Button Click="OnShareShowClick">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon FontSize="14" Glyph="&#xE72D;" />
-                            <TextBlock Text="Bagikan" />
+                            <TextBlock Text="{x:Bind loc:UiStrings.MenuShare}" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
@@ -87,17 +101,17 @@
             <TextBox
                 x:Name="FindBox"
                 Width="280"
-                PlaceholderText="Temukan di acara"
+                PlaceholderText="{x:Bind loc:UiStrings.PodcastFindInShow}"
                 TextChanged="OnFindTextChanged" />
             <ComboBox MinWidth="130" SelectedIndex="{x:Bind ViewModel.SortIndex, Mode=TwoWay}">
-                <ComboBoxItem Content="Terbaru" />
-                <ComboBoxItem Content="Terlama" />
+                <ComboBoxItem Content="{x:Bind loc:UiStrings.PodcastSortNewest}" />
+                <ComboBoxItem Content="{x:Bind loc:UiStrings.PodcastSortOldest}" />
             </ComboBox>
             <ComboBox MinWidth="150" SelectedIndex="{x:Bind ViewModel.PlayedFilterIndex, Mode=TwoWay}">
-                <ComboBoxItem Content="Semua" />
-                <ComboBoxItem Content="Belum diputar" />
-                <ComboBoxItem Content="Telah diputar" />
-                <ComboBoxItem Content="Belum selesai" />
+                <ComboBoxItem Content="{x:Bind loc:UiStrings.FilterAll}" />
+                <ComboBoxItem Content="{x:Bind loc:UiStrings.PodcastFilterUnplayed}" />
+                <ComboBoxItem Content="{x:Bind loc:UiStrings.PodcastFilterPlayed}" />
+                <ComboBoxItem Content="{x:Bind loc:UiStrings.PodcastFilterUnfinished}" />
             </ComboBox>
         </StackPanel>
 
@@ -112,7 +126,12 @@
             SelectionMode="None">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="models:PodcastEpisode">
-                    <Grid Padding="8,10" ColumnSpacing="14">
+                    <!-- Background=Transparent: without it the row's empty space is not hit-testable,
+                         so right-click only worked directly over text/thumbnail. -->
+                    <Grid
+                        Padding="8,10"
+                        Background="Transparent"
+                        ColumnSpacing="14">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="28" />
                             <ColumnDefinition Width="100" />
@@ -121,33 +140,33 @@
                         </Grid.ColumnDefinitions>
                         <Grid.ContextFlyout>
                             <MenuFlyout>
-                                <MenuFlyoutItem Click="OnSaveForLaterClick" Text="Antrean ke Episode untuk Nanti">
+                                <MenuFlyoutItem Click="OnSaveForLaterClick" Text="{x:Bind loc:UiStrings.MenuQueueForLater}">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xECC8;" />
                                     </MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem Click="OnPlayNextClick" Text="Putar setelah ini">
+                                <MenuFlyoutItem Click="OnPlayNextClick" Text="{x:Bind loc:UiStrings.MenuPlayNext}">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE8B0;" />
                                     </MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem Click="OnEnqueueClick" Text="Tambahkan ke antrean">
+                                <MenuFlyoutItem Click="OnEnqueueClick" Text="{x:Bind loc:UiStrings.MenuAddToQueue}">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE710;" />
                                     </MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem Click="OnTogglePlayedClick" Text="Tandai telah/belum diputar">
+                                <MenuFlyoutItem Click="OnTogglePlayedClick" Text="{x:Bind loc:UiStrings.MenuMarkPlayedToggle}">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE73E;" />
                                     </MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem Click="OnSaveToPlaylistClick" Text="Simpan ke playlist">
+                                <MenuFlyoutItem Click="OnSaveToPlaylistClick" Text="{x:Bind loc:UiStrings.MenuSaveToPlaylist}">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE8FD;" />
                                     </MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutSeparator />
-                                <MenuFlyoutItem Click="OnShareEpisodeClick" Text="Bagikan">
+                                <MenuFlyoutItem Click="OnShareEpisodeClick" Text="{x:Bind loc:UiStrings.MenuShare}">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE72D;" />
                                     </MenuFlyoutItem.Icon>
@@ -191,7 +210,7 @@
                                     FontSize="13"
                                     FontWeight="SemiBold"
                                     Foreground="#E03E52"
-                                    Text="Telah diputar"
+                                    Text="{x:Bind loc:UiStrings.PodcastFilterPlayed}"
                                     Visibility="{x:Bind IsPlayed, Converter={StaticResource BoolToVisibility}}" />
                                 <TextBlock
                                     FontSize="13"
@@ -235,33 +254,33 @@
                             FontSize="16">
                             <Button.Flyout>
                                 <MenuFlyout>
-                                    <MenuFlyoutItem Click="OnSaveForLaterClick" Text="Antrean ke Episode untuk Nanti">
+                                    <MenuFlyoutItem Click="OnSaveForLaterClick" Text="{x:Bind loc:UiStrings.MenuQueueForLater}">
                                         <MenuFlyoutItem.Icon>
                                             <FontIcon Glyph="&#xECC8;" />
                                         </MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem Click="OnPlayNextClick" Text="Putar setelah ini">
+                                    <MenuFlyoutItem Click="OnPlayNextClick" Text="{x:Bind loc:UiStrings.MenuPlayNext}">
                                         <MenuFlyoutItem.Icon>
                                             <FontIcon Glyph="&#xE8B0;" />
                                         </MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem Click="OnEnqueueClick" Text="Tambahkan ke antrean">
+                                    <MenuFlyoutItem Click="OnEnqueueClick" Text="{x:Bind loc:UiStrings.MenuAddToQueue}">
                                         <MenuFlyoutItem.Icon>
                                             <FontIcon Glyph="&#xE710;" />
                                         </MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem Click="OnTogglePlayedClick" Text="Tandai telah/belum diputar">
+                                    <MenuFlyoutItem Click="OnTogglePlayedClick" Text="{x:Bind loc:UiStrings.MenuMarkPlayedToggle}">
                                         <MenuFlyoutItem.Icon>
                                             <FontIcon Glyph="&#xE73E;" />
                                         </MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
-                                    <MenuFlyoutItem Click="OnSaveToPlaylistClick" Text="Simpan ke playlist">
+                                    <MenuFlyoutItem Click="OnSaveToPlaylistClick" Text="{x:Bind loc:UiStrings.MenuSaveToPlaylist}">
                                         <MenuFlyoutItem.Icon>
                                             <FontIcon Glyph="&#xE8FD;" />
                                         </MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutSeparator />
-                                    <MenuFlyoutItem Click="OnShareEpisodeClick" Text="Bagikan">
+                                    <MenuFlyoutItem Click="OnShareEpisodeClick" Text="{x:Bind loc:UiStrings.MenuShare}">
                                         <MenuFlyoutItem.Icon>
                                             <FontIcon Glyph="&#xE72D;" />
                                         </MenuFlyoutItem.Icon>

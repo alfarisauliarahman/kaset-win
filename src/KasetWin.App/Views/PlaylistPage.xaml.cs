@@ -38,17 +38,25 @@ public sealed partial class PlaylistPage : Page
             _likeStore);
 
         this.InitializeComponent();
+        PlayButtonLabel.Text = Localization.UiStrings.PlayLabel;
+        DeleteButtonLabel.Text = Localization.UiStrings.DeleteLabel;
+        LoadMoreButton.Content = Localization.UiStrings.LoadMore;
         ViewModel.Deleted += OnDeleted;
 
         // Alternating row backgrounds (zebra striping) for the track list; containers are recycled,
         // so restripe on every content change.
         TracksList.ContainerContentChanging += (_, a) =>
         {
-            if (!a.InRecycleQueue)
+            if (a.InRecycleQueue)
             {
-                a.ItemContainer.Background = a.ItemIndex % 2 == 1
-                    ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"]
-                    : new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                return;
+            }
+
+            ZebraStriping.StripeRow(a.ItemContainer, a.ItemIndex);
+            // A brand-new container has no template root yet in phase 0 — restripe once it does.
+            if (a.ItemContainer.ContentTemplateRoot is null)
+            {
+                a.RegisterUpdateCallback(static (_, b) => ZebraStriping.StripeRow(b.ItemContainer, b.ItemIndex));
             }
         };
 
@@ -123,10 +131,10 @@ public sealed partial class PlaylistPage : Page
     {
         var confirm = new ContentDialog
         {
-            Title = "Hapus playlist",
-            Content = $"Hapus \"{ViewModel.Title}\" secara permanen?",
-            PrimaryButtonText = "Hapus",
-            CloseButtonText = "Batal",
+            Title = Localization.UiStrings.MenuDeletePlaylist,
+            Content = Localization.UiStrings.DeletePlaylistConfirm(ViewModel.Title ?? string.Empty),
+            PrimaryButtonText = Localization.UiStrings.DialogDelete,
+            CloseButtonText = Localization.UiStrings.DialogCancel,
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = this.XamlRoot,
         };

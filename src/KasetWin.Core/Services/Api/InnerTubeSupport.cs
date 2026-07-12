@@ -85,6 +85,14 @@ public static class InnerTubeSupport
     }
 
     /// <summary>
+    /// Optional content-language pin (<c>hl</c>, e.g. <c>"id"</c>/<c>"en"</c>) applied to every
+    /// music request. <c>null</c> (default) sends no <c>hl</c> so the account's language wins.
+    /// Set at startup from the app's language setting; a change takes effect on the next request
+    /// (cache keys include the payload, so stale-language entries are missed, never served).
+    /// </summary>
+    public static string? LanguageOverride { get; set; }
+
+    /// <summary>
     /// Builds the InnerTube request <c>context</c> object for music requests, pinned to the
     /// <see cref="ClientNameMusic"/>/<see cref="ClientVersionMusic"/> client (Req 3.2/3.4).
     /// </summary>
@@ -95,13 +103,22 @@ public static class InnerTubeSupport
     /// <returns>A fresh <see cref="JsonObject"/> describing the request context.</returns>
     public static JsonObject BuildContext(string? onBehalfOfUser = null)
     {
+        var client = new JsonObject
+        {
+            ["clientName"] = ClientNameMusic,
+            ["clientVersion"] = ClientVersionMusic,
+        };
+
+        // Optional UI-language pin: with hl set the server localises section titles, dates and
+        // descriptions to the chosen language; without it the account's language wins.
+        if (!string.IsNullOrEmpty(LanguageOverride))
+        {
+            client["hl"] = LanguageOverride;
+        }
+
         var context = new JsonObject
         {
-            ["client"] = new JsonObject
-            {
-                ["clientName"] = ClientNameMusic,
-                ["clientVersion"] = ClientVersionMusic,
-            },
+            ["client"] = client,
         };
 
         if (onBehalfOfUser is not null)

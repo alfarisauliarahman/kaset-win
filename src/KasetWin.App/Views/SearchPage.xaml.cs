@@ -29,6 +29,17 @@ public sealed partial class SearchPage : Page
     {
         this.InitializeComponent();
 
+        TopResultsHeader.Text = Localization.UiStrings.SearchTopResults;
+        ArtistsHeader.Text = Localization.UiStrings.SearchArtists;
+        AlbumsHeader.Text = Localization.UiStrings.SearchAlbums;
+        SongsHeader.Text = Localization.UiStrings.SearchSongs;
+        MusicVideosHeader.Text = Localization.UiStrings.SearchMusicVideos;
+        PlaylistsHeader.Text = Localization.UiStrings.SearchPlaylists;
+        PodcastsHeader.Text = Localization.UiStrings.SearchPodcasts;
+        EpisodesHeader.Text = Localization.UiStrings.SearchEpisodes;
+        SearchBox.PlaceholderText = Localization.UiStrings.SearchPlaceholder;
+        NoResultsText.Text = Localization.UiStrings.SearchNoResults;
+
         var services = ((App)Application.Current).Services;
         ViewModel = new SearchViewModel(
             services.GetRequiredService<IYTMusicClient>(),

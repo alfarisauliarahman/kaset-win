@@ -35,6 +35,7 @@ public sealed partial class SettingsPage : Page
     {
         UBlockStatusText = ExtensionsService.UBlockStatusText;
         this.InitializeComponent();
+        ApplyLabels();
 
         var services = App.Current.Services;
         var settings = services.GetService<ISettingsService>()
@@ -73,5 +74,74 @@ public sealed partial class SettingsPage : Page
     {
         // AppInstance.Restart re-launches the packaged app; extensions load during WebView2 init.
         Microsoft.Windows.AppLifecycle.AppInstance.Restart(string.Empty);
+    }
+
+    /// <summary>Applies the app language to every label on the page (the XAML texts are fallbacks).</summary>
+    private void ApplyLabels()
+    {
+        PageTitleText.Text = Localization.UiStrings.SettingsTitle;
+        GeneralHeader.Text = Localization.UiStrings.SettingsGeneral;
+        LaunchPageLabel.Text = Localization.UiStrings.SettingsLaunchPageLabel;
+        LaunchPageCaption.Text = Localization.UiStrings.SettingsLaunchPageCaption;
+        ThemeLabel.Text = Localization.UiStrings.SettingsThemeLabel;
+        ThemeCaption.Text = Localization.UiStrings.SettingsThemeCaption;
+        LanguageLabel.Text = Localization.UiStrings.SettingsLanguageLabel;
+        LanguageCaption.Text = Localization.UiStrings.SettingsLanguageCaption;
+        PlaybackHeader.Text = Localization.UiStrings.SettingsPlayback;
+        AudioQualityLabel.Text = Localization.UiStrings.SettingsAudioQualityLabel;
+        AudioQualityCaption.Text = Localization.UiStrings.SettingsAudioQualityCaption;
+        RememberLabel.Text = Localization.UiStrings.SettingsRememberLabel;
+        RememberCaption.Text = Localization.UiStrings.SettingsRememberCaption;
+        LyricsHeader.Text = Localization.UiStrings.SettingsLyricsHeader;
+        LyricsSourceLabel.Text = Localization.UiStrings.SettingsLyricsSourceLabel;
+        LyricsSourceCaption.Text = Localization.UiStrings.SettingsLyricsSourceCaption;
+        SyncedLabel.Text = Localization.UiStrings.SettingsSyncedLabel;
+        SyncedCaption.Text = Localization.UiStrings.SettingsSyncedCaption;
+        EqualizerHeader.Text = Localization.UiStrings.SettingsEqualizerHeader;
+        EqLinkCheck.Content = Localization.UiStrings.SettingsEqLink;
+        ExtensionsHeader.Text = Localization.UiStrings.SettingsExtensionsHeader;
+        ExtensionsCaption.Text = Localization.UiStrings.SettingsExtensionsCaption;
+        OpenExtFolderButton.Content = Localization.UiStrings.SettingsOpenExtensionsFolder;
+        RestartAppButton.Content = Localization.UiStrings.SettingsRestartKaset;
+    }
+
+    private bool _languageComboSeeded;
+
+    /// <summary>
+    /// Applies a language change instantly — no restart and no navigation: the ViewModel has
+    /// already pinned the new <c>hl</c> (two-way binding runs before this event), so relabel the
+    /// shell in place; content pages refetch in the new language when next opened (the cache
+    /// keys include <c>hl</c>).
+    /// </summary>
+    private void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // The first SelectionChanged is the combo picking up the persisted value — not a change.
+        if (!_languageComboSeeded)
+        {
+            _languageComboSeeded = true;
+            return;
+        }
+
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            // Belt-and-braces: make sure the VM saw the new index before anything refetches.
+            if (sender is ComboBox combo && combo.SelectedIndex >= 0)
+            {
+                ViewModel.SelectedLanguageIndex = combo.SelectedIndex;
+            }
+
+            (App.Current.MainWindow as MainWindow)?.ApplySidebarLanguage();
+
+            // Recreate this page in place (no back-stack growth) so every label and combo
+            // option list rebuilds in the new language — the user stays on Settings.
+            if (Frame is { } frame)
+            {
+                frame.Navigate(typeof(SettingsPage));
+                if (frame.BackStack.Count > 0)
+                {
+                    frame.BackStack.RemoveAt(frame.BackStack.Count - 1);
+                }
+            }
+        });
     }
 }

@@ -115,6 +115,7 @@
 
                 <!-- Recommended videos grid (Req 32.1) -->
                 <TextBlock
+                    x:Name="RecommendedHeader"
                     Margin="12,16,12,4"
                     Text="Recommended"
                     Style="{StaticResource SubtitleTextBlockStyle}" />

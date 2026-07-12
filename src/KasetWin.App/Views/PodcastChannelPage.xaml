@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:loc="using:KasetWin.App.Localization"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:KasetWin.Core.Models"
     xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
@@ -75,7 +76,7 @@
                                 FontSize="12"
                                 FontWeight="SemiBold"
                                 Foreground="#E03E52"
-                                Text="Telah diputar"
+                                Text="{x:Bind loc:UiStrings.PodcastFilterPlayed}"
                                 Visibility="{Binding IsPlayed, Converter={StaticResource BoolToVisibility}}"
                                 Style="{StaticResource CaptionTextBlockStyle}" />
                         </StackPanel>

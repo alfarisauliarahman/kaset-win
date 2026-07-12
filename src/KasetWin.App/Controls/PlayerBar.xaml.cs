@@ -57,6 +57,7 @@ public sealed partial class PlayerBar : UserControl
     public PlayerBar()
     {
         this.InitializeComponent();
+        ApplyLanguage();
 
         // Resolve the shared player service and bind directly to it. Guarded so the control still
         // instantiates in design-time / unexpected contexts where the host is unavailable.
@@ -219,7 +220,7 @@ public sealed partial class PlayerBar : UserControl
             LikeIcon.Foreground = liked
                 ? (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["AccentFillColorDefaultBrush"]
                 : (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["TextFillColorPrimaryBrush"];
-            ToolTipService.SetToolTip(LikeButton, liked ? "Batal suka" : "Suka");
+            ToolTipService.SetToolTip(LikeButton, liked ? Localization.UiStrings.TipUnlike : Localization.UiStrings.TipLike);
             return;
         }
 
@@ -228,7 +229,35 @@ public sealed partial class PlayerBar : UserControl
         LikeIcon.Foreground = liked
             ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0xE0, 0x24, 0x5E))
             : (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["TextFillColorPrimaryBrush"];
-        ToolTipService.SetToolTip(LikeButton, liked ? "Unlike" : "Like");
+        ToolTipService.SetToolTip(LikeButton, liked ? Localization.UiStrings.TipUnlike : Localization.UiStrings.TipLike);
+    }
+
+    /// <summary>
+    /// Applies the app language to the bar's static labels. The bar lives for the whole window
+    /// (unlike pages, which are recreated on navigation), so this is re-invoked on language change.
+    /// </summary>
+    internal void ApplyLanguage()
+    {
+        ToolTipService.SetToolTip(ShuffleButton, Localization.UiStrings.TipShuffle);
+        ToolTipService.SetToolTip(PreviousButton, Localization.UiStrings.TipPrevious);
+        ToolTipService.SetToolTip(Rewind10Button, Localization.UiStrings.TipBack10);
+        ToolTipService.SetToolTip(PlayPauseButton, Localization.UiStrings.TipPlayPause);
+        ToolTipService.SetToolTip(Forward30Button, Localization.UiStrings.TipForward30);
+        ToolTipService.SetToolTip(NextButton, Localization.UiStrings.TipNext);
+        ToolTipService.SetToolTip(RepeatButton, Localization.UiStrings.TipRepeat);
+        ToolTipService.SetToolTip(DislikeButton, Localization.UiStrings.TipDislike);
+        ToolTipService.SetToolTip(SpeedButton, Localization.UiStrings.TipSpeed);
+        ToolTipService.SetToolTip(LyricsButton, Localization.UiStrings.TipLyrics);
+        ToolTipService.SetToolTip(QueueButton, Localization.UiStrings.TipQueue);
+        ToolTipService.SetToolTip(MuteButton, Localization.UiStrings.TipMute);
+        CtxPlayNextItem.Text = Localization.UiStrings.MenuPlayNext;
+        CtxAddToQueueItem.Text = Localization.UiStrings.MenuAddToQueue;
+        CtxToggleLikeItem.Text = Localization.UiStrings.MenuLikeToggle;
+        CtxGoToArtistItem.Text = Localization.UiStrings.MenuGoToArtist;
+        CtxGoToAlbumItem.Text = Localization.UiStrings.MenuGoToAlbum;
+        CtxShareItem.Text = Localization.UiStrings.MenuShare;
+        BarTrackInfo.ApplyLanguage();
+        ApplyLikeVisual(); // refresh the language-dependent like tooltip
     }
 
     /// <summary>
@@ -255,15 +284,17 @@ public sealed partial class PlayerBar : UserControl
         {
             await _music.RateSongAsync(videoId, next);
             _likeStore?.Set(videoId, next);
-            var title = _player?.CurrentTrack?.Title ?? "lagu ini";
-            _notifier?.Show(next == LikeStatus.Like ? $"Disukai: {title}" : $"Dihapus dari suka: {title}");
+            var title = _player?.CurrentTrack?.Title ?? Localization.UiStrings.ThisSongFallback;
+            _notifier?.Show(next == LikeStatus.Like
+                ? Localization.UiStrings.ToastLiked(title)
+                : Localization.UiStrings.ToastUnliked(title));
         }
         catch (Exception)
         {
             // Persisting the rating failed â€” revert the optimistic visual so it matches the server.
             _currentLike = previous;
             ApplyLikeVisual();
-            _notifier?.Show("Gagal menyimpan suka.");
+            _notifier?.Show(Localization.UiStrings.ToastLikeFailed);
         }
     }
 
@@ -345,9 +376,15 @@ public sealed partial class PlayerBar : UserControl
             _currentLike = previous;
             ApplyLikeVisual();
             ApplyDislikeVisual();
-            _notifier?.Show("Gagal menyimpan penilaian.");
+            _notifier?.Show(Localization.UiStrings.ToastRateFailed);
         }
     }
+
+    /// <summary>Likes / unlikes the current track — invoked by the global "+" keyboard shortcut.</summary>
+    internal void ToggleLikeFromShortcut() => OnLikeClick(this, new RoutedEventArgs());
+
+    /// <summary>Dislikes / clears the dislike on the current track — invoked by the global "_" shortcut.</summary>
+    internal void DislikeFromShortcut() => OnDislikeClick(this, new RoutedEventArgs());
 
     private void OnLyricsClick(object sender, RoutedEventArgs e) => _sidePanel?.ToggleLyrics();
 
@@ -370,7 +407,7 @@ public sealed partial class PlayerBar : UserControl
         if (_player?.CurrentTrack is { } track && _queue is not null)
         {
             _queue.InsertNext([track]);
-            _notifier?.Show($"Diputar setelah ini: {track.Title}");
+            _notifier?.Show(Localization.UiStrings.ToastPlayingNext(track.Title));
         }
     }
 
@@ -379,7 +416,9 @@ public sealed partial class PlayerBar : UserControl
         if (_player?.CurrentTrack is { } track && _queue is not null)
         {
             var added = _queue.AppendDeduplicated([track]);
-            _notifier?.Show(added == 0 ? "Lagu sudah ada di antrean." : $"Ditambahkan ke antrean: {track.Title}");
+            _notifier?.Show(added == 0
+                ? Localization.UiStrings.ToastSongAlreadyQueued
+                : Localization.UiStrings.ToastAddedToQueue(track.Title));
         }
     }
 
@@ -400,7 +439,7 @@ public sealed partial class PlayerBar : UserControl
         }
         else
         {
-            _notifier?.Show("Tidak ada tautan untuk dibagikan.");
+            _notifier?.Show(Localization.UiStrings.ToastNothingToShare);
         }
     }
 

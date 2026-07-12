@@ -219,7 +219,7 @@ public sealed partial class LibraryToggleTextConverter : IValueConverter
 {
     /// <inheritdoc />
     public object Convert(object value, Type targetType, object parameter, string language) =>
-        value is true ? "Hapus dari koleksi" : "Simpan ke koleksi";
+        value is true ? Localization.UiStrings.CollectionRemove : Localization.UiStrings.CollectionSave;
 
     /// <inheritdoc />
     public object ConvertBack(object value, Type targetType, object parameter, string language) =>

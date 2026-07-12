@@ -29,6 +29,11 @@ public sealed partial class ExplorePage : Page
     public ExplorePage()
     {
         this.InitializeComponent();
+        PageTitleText.Text = Localization.UiStrings.ExploreTitle;
+        NewReleasesLabel.Text = Localization.UiStrings.ExploreNewReleases;
+        ChartsLabel.Text = Localization.UiStrings.ExploreCharts;
+        MoodsLabel.Text = Localization.UiStrings.ExploreMoodsGenres;
+        LoadMoreButton.Content = Localization.UiStrings.LoadMore;
 
         var services = App.Current.Services;
         _player = services.GetService<IPlayerService>();

@@ -1,6 +1,9 @@
 using System;
+using System.Threading.Tasks;
 using KasetWin.App.Navigation;
 using KasetWin.Core.Models;
+using KasetWin.Core.Services.Api;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -53,6 +56,22 @@ public sealed partial class TrackInfo : UserControl
     public TrackInfo()
     {
         this.InitializeComponent();
+        ApplyLanguage();
+    }
+
+    /// <summary>
+    /// Applies the app language to the link tooltips. Instances inside pages are recreated on
+    /// navigation; the player-bar instance persists and is relabelled via the bar's own
+    /// <c>ApplyLanguage</c> cascade on language change.
+    /// </summary>
+    internal void ApplyLanguage()
+    {
+        ToolTipService.SetToolTip(StaticTitleLink, Localization.UiStrings.MenuGoToAlbum);
+        ToolTipService.SetToolTip(MarqueeTitleLink, Localization.UiStrings.MenuGoToAlbum);
+        ToolTipService.SetToolTip(StaticAlbumLink, Localization.UiStrings.MenuGoToAlbum);
+        ToolTipService.SetToolTip(MarqueeAlbumLink, Localization.UiStrings.MenuGoToAlbum);
+        ToolTipService.SetToolTip(StaticArtistLink, Localization.UiStrings.MenuGoToArtist);
+        ToolTipService.SetToolTip(MarqueeArtistLink, Localization.UiStrings.MenuGoToArtist);
     }
 
     /// <summary>
@@ -177,10 +196,17 @@ public sealed partial class TrackInfo : UserControl
     public bool ShowExplicit => Track?.IsExplicit == true;
 
     /// <summary>Whether the title should render as a clickable album link.</summary>
-    public bool HasAlbumLink => Track?.HasAlbumLink == true;
+    public bool HasAlbumLink => Track?.HasAlbumLink == true || CanResolveIds;
 
     /// <summary>Whether the artist name should render as a clickable artist link.</summary>
-    public bool HasArtistLink => Track?.HasArtistLink == true;
+    public bool HasArtistLink => Track?.HasArtistLink == true || CanResolveIds;
+
+    /// <summary>
+    /// Tracks re-materialised by the queue/radio/web bridge often lose their browse ids while still
+    /// carrying a videoId. Those ids can be recovered on click via the song-metadata endpoint, so
+    /// the link affordance stays available instead of degrading to dead plain text.
+    /// </summary>
+    private bool CanResolveIds => !string.IsNullOrEmpty(Track?.VideoId);
 
     /// <summary>Whether the title should render as plain (non-clickable) text.</summary>
     public bool TitleIsPlain => !HasAlbumLink;
@@ -207,7 +233,49 @@ public sealed partial class TrackInfo : UserControl
         ((TrackInfo)d).Bindings.Update();
     }
 
-    private void OnTitleClick(object sender, RoutedEventArgs e) => NavigationHelper.NavigateToSongAlbum(Track);
+    private async void OnTitleClick(object sender, RoutedEventArgs e)
+    {
+        var track = Track;
+        if (!NavigationHelper.NavigateToSongAlbum(track))
+        {
+            NavigationHelper.NavigateToSongAlbum(await ResolveSongAsync(track));
+        }
+    }
 
-    private void OnArtistClick(object sender, RoutedEventArgs e) => NavigationHelper.NavigateToSongArtist(Track);
+    private async void OnArtistClick(object sender, RoutedEventArgs e)
+    {
+        var track = Track;
+        if (!NavigationHelper.NavigateToSongArtist(track))
+        {
+            NavigationHelper.NavigateToSongArtist(await ResolveSongAsync(track));
+        }
+    }
+
+    /// <summary>
+    /// Recovers the navigable ids of a track that lost them (queue/radio bridge) by fetching its
+    /// song metadata. Best-effort: <c>null</c> on failure, and the click stays a no-op.
+    /// </summary>
+    private static async Task<Song?> ResolveSongAsync(Song? track)
+    {
+        if (string.IsNullOrEmpty(track?.VideoId))
+        {
+            return null;
+        }
+
+        try
+        {
+            var client = ((App)Application.Current).Services.GetService<IYTMusicClient>();
+            if (client is null)
+            {
+                return null;
+            }
+
+            var meta = await client.GetSongMetadataAsync(track.VideoId);
+            return meta.Song;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
 }

@@ -28,6 +28,7 @@ public sealed partial class LikedSongsPage : Page
             services.GetService<ISingleFlight>());
 
         this.InitializeComponent();
+        PageTitleText.Text = Localization.UiStrings.LikedSongsTitle;
         Loaded += OnLoaded;
     }
 

@@ -31,6 +31,18 @@ public partial class App : Application
     {
         this.InitializeComponent();
 
+        // The content-language pin must be in place before the first API request goes out,
+        // otherwise the first page load (and its cache entries) use the account language.
+        try
+        {
+            KasetWin.Core.Services.Api.InnerTubeSupport.LanguageOverride =
+                ViewModels.SettingsViewModel.LoadLanguageSetting();
+        }
+        catch (Exception)
+        {
+            // Settings store unavailable: fall back to the account language.
+        }
+
         // Compose the application host (logging + service registrations) before any UI is shown
         // so the container is ready to resolve the main window's dependencies.
         _host = AppHost.Build();

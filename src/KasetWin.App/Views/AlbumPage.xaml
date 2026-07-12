@@ -8,6 +8,7 @@
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:loc="using:KasetWin.App.Localization"
     xmlns:models="using:KasetWin.Core.Models"
     mc:Ignorable="d">
 
@@ -124,7 +125,7 @@
                         <HyperlinkButton
                             Command="{x:Bind ViewModel.NavigateToArtistCommand}"
                             Style="{StaticResource InlineLinkButtonStyle}"
-                            ToolTipService.ToolTip="Go to artist"
+                            ToolTipService.ToolTip="{x:Bind loc:UiStrings.MenuGoToArtist}"
                             Visibility="{x:Bind ViewModel.HasAuthorLink, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock
                                 FontSize="18"
@@ -160,7 +161,7 @@
                     <HyperlinkButton
                         Padding="0"
                         Click="OnAlbumDescriptionMoreClick"
-                        Content="Selengkapnya"
+                        Content="{x:Bind loc:UiStrings.MoreLabel}"
                         Visibility="{x:Bind ViewModel.CanExpandDescription, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
                 </StackPanel>
 
@@ -191,7 +192,7 @@
                         Style="{StaticResource AccentButtonStyle}">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon FontSize="14" Glyph="&#xE768;" />
-                            <TextBlock Text="Putar" />
+                            <TextBlock Text="{x:Bind loc:UiStrings.PlayLabel}" />
                         </StackPanel>
                     </Button>
                     <Button Command="{x:Bind ViewModel.ToggleAlbumCollectionCommand}">
@@ -202,56 +203,56 @@
                     </Button>
                     <Button
                         Style="{StaticResource SubtleButtonStyle}"
-                        ToolTipService.ToolTip="More">
+                        ToolTipService.ToolTip="{x:Bind loc:UiStrings.TipMore}">
                         <FontIcon FontSize="16" Glyph="&#xE712;" />
                         <Button.Flyout>
                             <MenuFlyout>
-                                <MenuFlyoutItem Command="{x:Bind ViewModel.ShufflePlayCommand}" Text="Putar acak">
+                                <MenuFlyoutItem Command="{x:Bind ViewModel.ShufflePlayCommand}" Text="{x:Bind loc:UiStrings.MenuShufflePlay}">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE8B1;" />
                                     </MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem Command="{x:Bind ViewModel.StartMixCommand}" Text="Mulai mix">
+                                <MenuFlyoutItem Command="{x:Bind ViewModel.StartMixCommand}" Text="{x:Bind loc:UiStrings.MenuStartMix}">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE768;" />
                                     </MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem
                                     Command="{x:Bind ViewModel.ShowUnavailableCommand}"
-                                    CommandParameter="Putar setelah ini"
-                                    Text="Putar setelah ini">
+                                    CommandParameter="{x:Bind loc:UiStrings.MenuPlayNext}"
+                                    Text="{x:Bind loc:UiStrings.MenuPlayNext}">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE893;" />
                                     </MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem
                                     Command="{x:Bind ViewModel.AddAlbumToQueueCommand}"
-                                    Text="Tambahkan ke antrean">
+                                    Text="{x:Bind loc:UiStrings.MenuAddToQueue}">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE710;" />
                                     </MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem
                                     Click="OnSaveAlbumToPlaylistClick"
-                                    Text="Simpan ke playlist">
+                                    Text="{x:Bind loc:UiStrings.MenuSaveToPlaylist}">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE728;" />
                                     </MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem Command="{x:Bind ViewModel.NavigateToArtistCommand}" Text="Buka halaman artis">
+                                <MenuFlyoutItem Command="{x:Bind ViewModel.NavigateToArtistCommand}" Text="{x:Bind loc:UiStrings.MenuGoToArtist}">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE77B;" />
                                     </MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem Click="OnShareAlbumClick" Text="Bagikan">
+                                <MenuFlyoutItem Click="OnShareAlbumClick" Text="{x:Bind loc:UiStrings.MenuShare}">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE72D;" />
                                     </MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem
                                     Command="{x:Bind ViewModel.ShowUnavailableCommand}"
-                                    CommandParameter="Sematkan ke Dengarkan lagi"
-                                    Text="Sematkan ke Dengarkan lagi">
+                                    CommandParameter="{x:Bind loc:UiStrings.MenuPinListenAgain}"
+                                    Text="{x:Bind loc:UiStrings.MenuPinListenAgain}">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE718;" />
                                     </MenuFlyoutItem.Icon>
@@ -318,7 +319,7 @@
                             Tag="{x:Bind}"
                             Click="OnLikeTrackClick"
                             Style="{StaticResource SubtleButtonStyle}"
-                            ToolTipService.ToolTip="Like">
+                            ToolTipService.ToolTip="{x:Bind loc:UiStrings.TipLike}">
                             <Grid Width="16" Height="16">
                                 <FontIcon
                                     FontSize="14"
@@ -335,7 +336,7 @@
                             Tag="{x:Bind}"
                             Click="OnDislikeTrackClick"
                             Style="{StaticResource SubtleButtonStyle}"
-                            ToolTipService.ToolTip="Dislike">
+                            ToolTipService.ToolTip="{x:Bind loc:UiStrings.TipDislike}">
                             <Grid Width="16" Height="16">
                                 <FontIcon
                                     FontSize="14"
@@ -357,20 +358,20 @@
                             Grid.Column="6"
                             Tag="{x:Bind}"
                             Style="{StaticResource SubtleButtonStyle}"
-                            ToolTipService.ToolTip="More">
+                            ToolTipService.ToolTip="{x:Bind loc:UiStrings.TipMore}">
                             <FontIcon FontSize="16" Glyph="&#xE712;" />
                             <Button.Flyout>
                                 <MenuFlyout>
-                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackStartMixClick" Text="Mulai mix" />
-                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackPlayNextClick" Text="Putar setelah ini" />
-                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackAddToQueueClick" Text="Tambahkan ke antrean" />
+                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackStartMixClick" Text="{x:Bind loc:UiStrings.MenuStartMix}" />
+                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackPlayNextClick" Text="{x:Bind loc:UiStrings.MenuPlayNext}" />
+                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackAddToQueueClick" Text="{x:Bind loc:UiStrings.MenuAddToQueue}" />
                                     <MenuFlyoutItem
                                         Tag="{x:Bind}"
                                         Click="OnTrackToggleCollectionClick"
                                         Text="{x:Bind IsInLibrary, Converter={StaticResource LibraryToggleText}, Mode=OneWay}" />
-                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackSaveToPlaylistClick" Text="Simpan ke playlist" />
-                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackOpenArtistClick" Text="Buka halaman artis" />
-                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackShareClick" Text="Bagikan" />
+                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackSaveToPlaylistClick" Text="{x:Bind loc:UiStrings.MenuSaveToPlaylist}" />
+                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackOpenArtistClick" Text="{x:Bind loc:UiStrings.MenuGoToArtist}" />
+                                    <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackShareClick" Text="{x:Bind loc:UiStrings.MenuShare}" />
                                 </MenuFlyout>
                             </Button.Flyout>
                         </Button>
@@ -380,6 +381,7 @@
 
             <ListView.Footer>
                 <Button
+                    x:Name="LoadMoreButton"
                     Margin="8,12"
                     HorizontalAlignment="Center"
                     Command="{x:Bind ViewModel.LoadMoreCommand}"

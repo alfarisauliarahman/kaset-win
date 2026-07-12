@@ -7,6 +7,7 @@
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:core="using:KasetWin.Core.Models"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:loc="using:KasetWin.App.Localization"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
@@ -65,7 +66,7 @@
             Grid.Row="0"
             Padding="24,24,24,8"
             Spacing="12">
-            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Library" />
+            <TextBlock x:Name="PageTitleText" Style="{StaticResource TitleTextBlockStyle}" Text="Library" />
 
             <StackPanel
                 Orientation="Horizontal"
@@ -75,7 +76,7 @@
                     x:Name="NewPlaylistBox"
                     Width="280"
                     VerticalAlignment="Center"
-                    PlaceholderText="Judul playlist baru"
+                    PlaceholderText="{x:Bind loc:UiStrings.LibraryNewPlaylistPlaceholder}"
                     Text="{Binding NewPlaylistTitle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                 <Button
                     VerticalAlignment="Center"
@@ -83,7 +84,7 @@
                     Style="{StaticResource AccentButtonStyle}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon FontSize="14" Glyph="&#xE710;" />
-                        <TextBlock Text="Buat playlist" />
+                        <TextBlock Text="{x:Bind loc:UiStrings.LibraryCreatePlaylist}" />
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -109,27 +110,27 @@
             <Button
                 Command="{Binding SetFilterCommand}"
                 CommandParameter="All"
-                Content="Semua"
+                Content="{x:Bind loc:UiStrings.FilterAll}"
                 Style="{Binding SelectedFilter, Converter={StaticResource FilterStyle}, ConverterParameter=All}" />
             <Button
                 Command="{Binding SetFilterCommand}"
                 CommandParameter="Playlists"
-                Content="Playlist"
+                Content="{x:Bind loc:UiStrings.LibraryPlaylists}"
                 Style="{Binding SelectedFilter, Converter={StaticResource FilterStyle}, ConverterParameter=Playlists}" />
             <Button
                 Command="{Binding SetFilterCommand}"
                 CommandParameter="Songs"
-                Content="Lagu"
+                Content="{x:Bind loc:UiStrings.LibrarySongs}"
                 Style="{Binding SelectedFilter, Converter={StaticResource FilterStyle}, ConverterParameter=Songs}" />
             <Button
                 Command="{Binding SetFilterCommand}"
                 CommandParameter="Artists"
-                Content="Artis"
+                Content="{x:Bind loc:UiStrings.LibraryArtists}"
                 Style="{Binding SelectedFilter, Converter={StaticResource FilterStyle}, ConverterParameter=Artists}" />
             <Button
                 Command="{Binding SetFilterCommand}"
                 CommandParameter="Albums"
-                Content="Album"
+                Content="{x:Bind loc:UiStrings.LibraryAlbums}"
                 Style="{Binding SelectedFilter, Converter={StaticResource FilterStyle}, ConverterParameter=Albums}" />
         </StackPanel>
 
@@ -138,7 +139,7 @@
 
                 <!-- Playlists -->
                 <StackPanel Spacing="8" Visibility="{Binding ShowPlaylists, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Playlists" />
+                    <TextBlock x:Name="LibPlaylistsHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Playlists" />
                     <GridView
                         x:Name="PlaylistsGrid"
                         IsItemClickEnabled="True"
@@ -177,7 +178,7 @@
                                                 Command="{Binding DataContext.DeletePlaylistCommand, ElementName=NewPlaylistBox}"
                                                 CommandParameter="{x:Bind}"
                                                 Style="{StaticResource SubtleButtonStyle}"
-                                                ToolTipService.ToolTip="Delete playlist"
+                                                ToolTipService.ToolTip="{x:Bind loc:UiStrings.MenuDeletePlaylist}"
                                                 Visibility="{x:Bind IsOwnedByUser, Converter={StaticResource BoolToVisibility}}">
                                                 <FontIcon FontSize="14" Glyph="&#xE74D;" />
                                             </Button>
@@ -204,7 +205,7 @@
 
                 <!-- Songs (library saved songs) — columnar: title · artist · album · duration -->
                 <StackPanel Spacing="8" Visibility="{Binding ShowSongs, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Songs" />
+                    <TextBlock x:Name="LibSongsHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Songs" />
                     <ListView x:Name="LikedList" ItemsSource="{Binding LibrarySongs}" ScrollViewer.VerticalScrollMode="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="core:Song">
@@ -263,14 +264,14 @@
                                             Command="{Binding DataContext.PlaySongCommand, ElementName=NewPlaylistBox}"
                                             CommandParameter="{x:Bind}"
                                             Style="{StaticResource SubtleButtonStyle}"
-                                            ToolTipService.ToolTip="Play">
+                                            ToolTipService.ToolTip="{x:Bind loc:UiStrings.PlayLabel}">
                                             <FontIcon FontSize="16" Glyph="&#xE768;" />
                                         </Button>
                                         <Button
                                             Click="OnAddLibrarySongToPlaylist"
                                             Style="{StaticResource SubtleButtonStyle}"
                                             Tag="{x:Bind}"
-                                            ToolTipService.ToolTip="Simpan ke playlist">
+                                            ToolTipService.ToolTip="{x:Bind loc:UiStrings.MenuSaveToPlaylist}">
                                             <FontIcon FontSize="16" Glyph="&#xE710;" />
                                         </Button>
                                     </StackPanel>
@@ -282,7 +283,7 @@
 
                 <!-- Uploaded songs -->
                 <StackPanel Spacing="8" Visibility="{Binding ShowSongs, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Uploads" />
+                    <TextBlock x:Name="LibUploadsHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Uploads" />
                     <ListView x:Name="UploadsList" ItemsSource="{Binding UploadedSongs}" ScrollViewer.VerticalScrollMode="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="core:Song">
@@ -310,7 +311,7 @@
                                         Command="{Binding DataContext.PlaySongCommand, ElementName=NewPlaylistBox}"
                                         CommandParameter="{x:Bind}"
                                         Style="{StaticResource SubtleButtonStyle}"
-                                        ToolTipService.ToolTip="Play">
+                                        ToolTipService.ToolTip="{x:Bind loc:UiStrings.PlayLabel}">
                                         <FontIcon FontSize="16" Glyph="&#xE768;" />
                                     </Button>
                                 </Grid>
@@ -321,7 +322,7 @@
 
                 <!-- Followed artists -->
                 <StackPanel Spacing="8" Visibility="{Binding ShowArtists, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Artists" />
+                    <TextBlock x:Name="LibArtistsHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Artists" />
                     <GridView
                         x:Name="ArtistsGrid"
                         IsItemClickEnabled="True"
@@ -379,7 +380,7 @@
 
                 <!-- Albums -->
                 <StackPanel Spacing="8" Visibility="{Binding ShowAlbums, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Albums" />
+                    <TextBlock x:Name="LibAlbumsHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Albums" />
                     <GridView
                         x:Name="AlbumsGrid"
                         IsItemClickEnabled="True"

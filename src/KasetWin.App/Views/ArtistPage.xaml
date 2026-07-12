@@ -8,6 +8,7 @@
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:kc="using:KasetWin.App.Controls"
+    xmlns:loc="using:KasetWin.App.Localization"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:KasetWin.Core.Models"
     mc:Ignorable="d">
@@ -64,7 +65,7 @@
                             LostFocus="OnPlayOverlayLostFocus"
                             Opacity="0"
                             Style="{StaticResource AccentButtonStyle}"
-                            ToolTipService.ToolTip="Play">
+                            ToolTipService.ToolTip="{x:Bind loc:UiStrings.PlayLabel}">
                             <FontIcon FontSize="16" Glyph="&#xE768;" />
                         </Button>
                     </Grid>
@@ -182,7 +183,7 @@
                             LostFocus="OnPlayOverlayLostFocus"
                             Opacity="0"
                             Style="{StaticResource AccentButtonStyle}"
-                            ToolTipService.ToolTip="Play">
+                            ToolTipService.ToolTip="{x:Bind loc:UiStrings.PlayLabel}">
                             <FontIcon FontSize="16" Glyph="&#xE768;" />
                         </Button>
                     </Grid>
@@ -307,7 +308,7 @@
                             Visibility="{x:Bind ViewModel.HasTopSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <FontIcon FontSize="16" Glyph="&#xE8B1;" />
-                                <TextBlock Text="Acak" />
+                                <TextBlock Text="{x:Bind loc:UiStrings.ShuffleLabel}" />
                             </StackPanel>
                         </Button>
                         <Button
@@ -315,7 +316,7 @@
                             Visibility="{x:Bind ViewModel.HasTopSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <FontIcon FontSize="16" Glyph="&#xE768;" />
-                                <TextBlock Text="Putar" />
+                                <TextBlock Text="{x:Bind loc:UiStrings.PlayLabel}" />
                             </StackPanel>
                         </Button>
                         <Button
@@ -365,11 +366,11 @@
                         Spacing="8"
                         Visibility="{x:Bind ViewModel.HasTopSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <Grid>
-                            <TextBlock Text="Lagu teratas" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="{x:Bind loc:UiStrings.ArtistTopSongs}" Style="{StaticResource SubtitleTextBlockStyle}" />
                             <HyperlinkButton
                                 HorizontalAlignment="Right"
                                 Click="OnSeeAllSongsClick"
-                                Content="Lihat semua"
+                                Content="{x:Bind loc:UiStrings.SeeAll}"
                                 Visibility="{x:Bind ViewModel.CanSeeAllSongs, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
                         </Grid>
                         <!-- Column-major grid: fills 5 rows down a column, then wraps to the next
@@ -441,11 +442,11 @@
                         Spacing="8"
                         Visibility="{x:Bind ViewModel.HasAlbums, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <Grid>
-                            <TextBlock Text="Album" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="{x:Bind loc:UiStrings.SearchAlbums}" Style="{StaticResource SubtitleTextBlockStyle}" />
                             <HyperlinkButton
                                 HorizontalAlignment="Right"
                                 Click="OnSeeAllAlbumsClick"
-                                Content="Lihat semua"
+                                Content="{x:Bind loc:UiStrings.SeeAll}"
                                 Visibility="{x:Bind ViewModel.CanSeeAllAlbums, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
                         </Grid>
                         <ScrollViewer
@@ -467,11 +468,11 @@
                         Spacing="8"
                         Visibility="{x:Bind ViewModel.HasSingles, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <Grid>
-                            <TextBlock Text="Single &amp; EP" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="{x:Bind loc:UiStrings.ArtistSinglesEps}" Style="{StaticResource SubtitleTextBlockStyle}" />
                             <HyperlinkButton
                                 HorizontalAlignment="Right"
                                 Click="OnSeeAllSinglesClick"
-                                Content="Lihat semua"
+                                Content="{x:Bind loc:UiStrings.SeeAll}"
                                 Visibility="{x:Bind ViewModel.CanSeeAllSingles, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
                         </Grid>
                         <ScrollViewer
@@ -493,11 +494,11 @@
                         Spacing="8"
                         Visibility="{x:Bind ViewModel.HasVideos, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <Grid>
-                            <TextBlock Text="Video" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="{x:Bind loc:UiStrings.ArtistVideos}" Style="{StaticResource SubtitleTextBlockStyle}" />
                             <HyperlinkButton
                                 HorizontalAlignment="Right"
                                 Click="OnSeeAllVideosClick"
-                                Content="Lihat semua"
+                                Content="{x:Bind loc:UiStrings.SeeAll}"
                                 Visibility="{x:Bind ViewModel.CanSeeAllVideos, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
                         </Grid>
                         <ScrollViewer
@@ -519,11 +520,11 @@
                         Spacing="8"
                         Visibility="{x:Bind ViewModel.HasLive, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <Grid>
-                            <TextBlock Text="Pertunjukan langsung" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="{x:Bind loc:UiStrings.ArtistLive}" Style="{StaticResource SubtitleTextBlockStyle}" />
                             <HyperlinkButton
                                 HorizontalAlignment="Right"
                                 Click="OnSeeAllLiveClick"
-                                Content="Lihat semua"
+                                Content="{x:Bind loc:UiStrings.SeeAll}"
                                 Visibility="{x:Bind ViewModel.CanSeeAllLive, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
                         </Grid>
                         <ScrollViewer
@@ -545,11 +546,11 @@
                         Spacing="8"
                         Visibility="{x:Bind ViewModel.HasFeatured, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <Grid>
-                            <TextBlock Text="Tampil di" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="{x:Bind loc:UiStrings.ArtistFeaturedOn}" Style="{StaticResource SubtitleTextBlockStyle}" />
                             <HyperlinkButton
                                 HorizontalAlignment="Right"
                                 Click="OnSeeAllFeaturedClick"
-                                Content="Lihat semua"
+                                Content="{x:Bind loc:UiStrings.SeeAll}"
                                 Visibility="{x:Bind ViewModel.CanSeeAllFeatured, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
                         </Grid>
                         <ScrollViewer
@@ -572,11 +573,11 @@
                         Spacing="8"
                         Visibility="{x:Bind ViewModel.HasRelated, Converter={StaticResource BoolToVisibility}, Mode=OneWay}">
                         <Grid>
-                            <TextBlock Text="Penggemar mungkin juga suka" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="{x:Bind loc:UiStrings.ArtistFansMayLike}" Style="{StaticResource SubtitleTextBlockStyle}" />
                             <HyperlinkButton
                                 HorizontalAlignment="Right"
                                 Click="OnSeeAllRelatedClick"
-                                Content="Lihat semua"
+                                Content="{x:Bind loc:UiStrings.SeeAll}"
                                 Visibility="{x:Bind ViewModel.CanSeeAllRelated, Converter={StaticResource BoolToVisibility}, Mode=OneWay}" />
                         </Grid>
                         <ScrollViewer

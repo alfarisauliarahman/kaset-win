@@ -8,6 +8,7 @@
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:loc="using:KasetWin.App.Localization"
     xmlns:views="using:KasetWin.App.Views"
     xmlns:vm="using:KasetWin.App.ViewModels"
     mc:Ignorable="d">
@@ -25,7 +26,7 @@
                     <Button
                         HorizontalAlignment="Right"
                         Click="OnChartSeeAllClick"
-                        Content="Selengkapnya"
+                        Content="{x:Bind loc:UiStrings.MoreLabel}"
                         Tag="{x:Bind}" />
                 </Grid>
                 <ScrollViewer
@@ -101,7 +102,7 @@
                     <Button
                         HorizontalAlignment="Right"
                         Click="OnChartSeeAllClick"
-                        Content="Selengkapnya"
+                        Content="{x:Bind loc:UiStrings.MoreLabel}"
                         Tag="{x:Bind}" />
                 </Grid>
                 <ScrollViewer
@@ -186,7 +187,7 @@
             <StackPanel Margin="0,0,0,8" Spacing="12">
                 <Grid>
                     <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" />
-                    <Button HorizontalAlignment="Right" Click="OnChartSeeAllClick" Content="Lihat semua" Tag="{x:Bind}" />
+                    <Button HorizontalAlignment="Right" Click="OnChartSeeAllClick" Content="{x:Bind loc:UiStrings.SeeAll}" Tag="{x:Bind}" />
                 </Grid>
                 <ScrollViewer
                     behaviors:VerticalWheelForwarder.IsEnabled="True"
@@ -310,7 +311,7 @@
                                                 LostFocus="OnPlayOverlayLostFocus"
                                                 Opacity="0"
                                                 Style="{StaticResource AccentButtonStyle}"
-                                                ToolTipService.ToolTip="Play"
+                                                ToolTipService.ToolTip="{x:Bind loc:UiStrings.PlayLabel}"
                                                 Visibility="{x:Bind CanPlay, Converter={StaticResource BoolToVisibility}}">
                                                 <FontIcon FontSize="16" Glyph="&#xE768;" />
                                             </Button>
@@ -350,7 +351,7 @@
     <Grid>
         <ScrollViewer>
             <StackPanel Margin="24" Spacing="24">
-                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Explore" />
+                <TextBlock x:Name="PageTitleText" Style="{StaticResource TitleTextBlockStyle}" Text="Explore" />
 
                 <!-- Entry points to the reusable Explore detail surface (Req 31.1/31.2). -->
                 <StackPanel Orientation="Horizontal" Spacing="12">
@@ -362,7 +363,7 @@
                         Tag="FEmusic_new_releases">
                         <StackPanel Spacing="4">
                             <FontIcon FontSize="20" Glyph="&#xE7C3;" />
-                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="New Releases" />
+                            <TextBlock x:Name="NewReleasesLabel" Style="{StaticResource BodyStrongTextBlockStyle}" Text="New Releases" />
                         </StackPanel>
                     </Button>
                     <Button
@@ -373,7 +374,7 @@
                         Tag="FEmusic_charts">
                         <StackPanel Spacing="4">
                             <FontIcon FontSize="20" Glyph="&#xE9D9;" />
-                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Charts" />
+                            <TextBlock x:Name="ChartsLabel" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Charts" />
                         </StackPanel>
                     </Button>
                     <Button
@@ -384,7 +385,7 @@
                         Tag="FEmusic_moods_and_genres">
                         <StackPanel Spacing="4">
                             <FontIcon FontSize="20" Glyph="&#xE8EC;" />
-                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Moods &amp; Genres" />
+                            <TextBlock x:Name="MoodsLabel" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Moods &amp; Genres" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
@@ -398,6 +399,7 @@
                 </controls:ItemsRepeater>
 
                 <Button
+                    x:Name="LoadMoreButton"
                     HorizontalAlignment="Center"
                     Click="OnLoadMoreClick"
                     Content="Load more"

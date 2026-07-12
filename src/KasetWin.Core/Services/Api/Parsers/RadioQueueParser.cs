@@ -140,12 +140,14 @@ public static class RadioQueueParser
             return null;
         }
 
+        var (artists, album) = ExtractByline(renderer);
         return new Song
         {
             Id = videoId,
             VideoId = videoId,
             Title = ParsingHelpers.ExtractText(renderer, "title") ?? "Unknown",
-            Artists = ExtractByline(renderer),
+            Artists = artists,
+            Album = album,
             Duration = ParsingHelpers.ParseDuration(ParsingHelpers.ExtractText(renderer, "lengthText")),
             ThumbnailUrl = ParsingHelpers.BestThumbnailUrl(renderer),
         };
@@ -154,12 +156,19 @@ public static class RadioQueueParser
     // MARK: - Artists (byline)
 
     /// <summary>
-    /// Extracts artists from <c>longBylineText.runs</c>, falling back to <c>shortBylineText.runs</c>.
-    /// Linked runs (with a <c>browseEndpoint.browseId</c>) keep that id; plain-text runs are
-    /// preserved with a deterministic <see cref="ParsingHelpers.StableId"/> so the artist line is
-    /// never blank, and separator runs (<c>•</c>, <c>&amp;</c>, <c>,</c>) are skipped.
+    /// Extracts the artists and the album from <c>longBylineText.runs</c>, falling back to
+    /// <c>shortBylineText.runs</c>.
     /// </summary>
-    private static IReadOnlyList<Artist> ExtractByline(JsonNode renderer)
+    /// <remarks>
+    /// The byline is bullet-segmented: <c>Artist(s) • Album • Year</c>. Only the FIRST segment is
+    /// artists — treating every non-separator run as an artist put the album and year into the
+    /// artist list ("Xdinary Heroes, Livelock, 2023" in the player bar, and a dead artist link
+    /// because the first "artist" id could be the album's <c>MPRE…</c>). The album run is
+    /// recognised by its <c>MPRE…</c> browse id wherever it appears; the year/views text is
+    /// dropped. Linked artist runs keep their browse id; plain-text runs get a deterministic
+    /// <see cref="ParsingHelpers.StableId"/> so the artist line is never blank.
+    /// </remarks>
+    private static (IReadOnlyList<Artist> Artists, Album? Album) ExtractByline(JsonNode renderer)
     {
         foreach (var key in new[] { "longBylineText", "shortBylineText" })
         {
@@ -170,27 +179,49 @@ public static class RadioQueueParser
             }
 
             var artists = new List<Artist>();
+            Album? album = null;
+            var segment = 0;
             foreach (var run in runs)
             {
                 var text = GetString(run, "text");
-                if (string.IsNullOrEmpty(text) || IsArtistSeparator(text))
+                if (string.IsNullOrEmpty(text))
+                {
+                    continue;
+                }
+
+                if (text.Contains('•', StringComparison.Ordinal))
+                {
+                    segment++;
+                    continue;
+                }
+
+                if (IsArtistSeparator(text))
                 {
                     continue;
                 }
 
                 var browseId = ParsingHelpers.ExtractBrowseId(run);
-                artists.Add(browseId is not null
-                    ? new Artist { Id = browseId, Name = text }
-                    : new Artist { Id = ParsingHelpers.StableId("artist", text), Name = text });
+                if (browseId is not null && browseId.StartsWith("MPRE", StringComparison.Ordinal))
+                {
+                    album ??= new Album { Id = browseId, Title = text };
+                    continue;
+                }
+
+                if (segment == 0)
+                {
+                    artists.Add(browseId is not null
+                        ? new Artist { Id = browseId, Name = text }
+                        : new Artist { Id = ParsingHelpers.StableId("artist", text), Name = text });
+                }
             }
 
             if (artists.Count > 0)
             {
-                return artists;
+                return (artists, album);
             }
         }
 
-        return Array.Empty<Artist>();
+        return (Array.Empty<Artist>(), null);
     }
 
     // MARK: - Continuation token

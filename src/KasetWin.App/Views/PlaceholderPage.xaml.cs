@@ -18,6 +18,7 @@ public sealed partial class PlaceholderPage : Page
     public PlaceholderPage()
     {
         this.InitializeComponent();
+        ComingSoonText.Text = Localization.UiStrings.ComingSoon;
     }
 
     /// <inheritdoc />

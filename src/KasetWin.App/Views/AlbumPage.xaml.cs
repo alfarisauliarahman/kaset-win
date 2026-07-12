@@ -41,14 +41,22 @@ public sealed partial class AlbumPage : Page
             _likeStore);
 
         this.InitializeComponent();
+        LoadMoreButton.Content = Localization.UiStrings.LoadMore;
 
         // Alternating row backgrounds (zebra striping) for the track list; containers are recycled,
         // so restripe on every content change.
         TracksList.ContainerContentChanging += (_, a) =>
         {
-            if (!a.InRecycleQueue)
+            if (a.InRecycleQueue)
             {
-                StripeRow(a.ItemContainer, a.ItemIndex);
+                return;
+            }
+
+            ZebraStriping.StripeRow(a.ItemContainer, a.ItemIndex);
+            // A brand-new container has no template root yet in phase 0 — restripe once it does.
+            if (a.ItemContainer.ContentTemplateRoot is null)
+            {
+                a.RegisterUpdateCallback(static (_, b) => ZebraStriping.StripeRow(b.ItemContainer, b.ItemIndex));
             }
         };
 
@@ -63,11 +71,6 @@ public sealed partial class AlbumPage : Page
     private void OnLikeStoreChanged(string videoId) =>
         DispatcherQueue.TryEnqueue(() => ViewModel.RefreshLikeOverlay());
 
-    /// <summary>Applies the zebra background to a track row: odd rows get a subtle fill.</summary>
-    private static void StripeRow(Control container, int index) =>
-        container.Background = index % 2 == 1
-            ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"]
-            : new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
 
     /// <inheritdoc />
     protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -146,7 +149,7 @@ public sealed partial class AlbumPage : Page
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 MaxHeight = 420,
             },
-            CloseButtonText = "Tutup",
+            CloseButtonText = Localization.UiStrings.DialogClose,
             XamlRoot = this.XamlRoot,
         };
 
@@ -193,7 +196,7 @@ public sealed partial class AlbumPage : Page
         var target = ShareUrlBuilder.TryCreate(ViewModel.CurrentAlbum);
         if (!ShareInvoker.TryShow(App.Current.MainWindow, target))
         {
-            ViewModel.ShowUnavailableCommand.Execute("Bagikan");
+            ViewModel.ShowUnavailableCommand.Execute(Localization.UiStrings.MenuShare);
         }
     }
 
@@ -231,7 +234,7 @@ public sealed partial class AlbumPage : Page
         var target = ShareUrlBuilder.TryCreate(song);
         if (!ShareInvoker.TryShow(App.Current.MainWindow, target))
         {
-            ViewModel.ShowUnavailableCommand.Execute("Bagikan");
+            ViewModel.ShowUnavailableCommand.Execute(Localization.UiStrings.MenuShare);
         }
     }
 
@@ -257,10 +260,10 @@ public sealed partial class AlbumPage : Page
             {
                 var confirm = new ContentDialog
                 {
-                    Title = "Sudah ada di playlist",
-                    Content = $"\"{song.Title}\" sudah ada di \"{playlist.Title}\". Tetap tambahkan?",
-                    PrimaryButtonText = "Tetap Tambahkan",
-                    CloseButtonText = "Batal",
+                    Title = Localization.UiStrings.DialogAlreadyInPlaylistTitle,
+                    Content = Localization.UiStrings.AlreadyInPlaylistBody(song.Title, playlist.Title),
+                    PrimaryButtonText = Localization.UiStrings.DialogKeepAdd,
+                    CloseButtonText = Localization.UiStrings.DialogCancel,
                     DefaultButton = ContentDialogButton.Close,
                     XamlRoot = this.XamlRoot,
                 };
@@ -323,7 +326,7 @@ public sealed partial class AlbumPage : Page
 
         var newButton = new Button
         {
-            Content = "+ Playlist Baru",
+            Content = Localization.UiStrings.DialogNewPlaylistButton,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 8, 0, 0),
         };
@@ -334,10 +337,10 @@ public sealed partial class AlbumPage : Page
 
         var dialog = new ContentDialog
         {
-            Title = "Simpan ke playlist",
+            Title = Localization.UiStrings.MenuSaveToPlaylist,
             Content = panel,
-            PrimaryButtonText = "Simpan",
-            CloseButtonText = "Batal",
+            PrimaryButtonText = Localization.UiStrings.DialogSave,
+            CloseButtonText = Localization.UiStrings.DialogCancel,
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = this.XamlRoot,
         };
@@ -361,13 +364,13 @@ public sealed partial class AlbumPage : Page
     /// <summary>Prompts for a new playlist name, or <c>null</c> when cancelled/empty.</summary>
     private async Task<string?> PromptPlaylistNameAsync()
     {
-        var box = new TextBox { PlaceholderText = "Nama playlist" };
+        var box = new TextBox { PlaceholderText = Localization.UiStrings.DialogPlaylistNamePlaceholder };
         var dialog = new ContentDialog
         {
-            Title = "Playlist baru",
+            Title = Localization.UiStrings.DialogNewPlaylistTitle,
             Content = box,
-            PrimaryButtonText = "Buat",
-            CloseButtonText = "Batal",
+            PrimaryButtonText = Localization.UiStrings.DialogCreate,
+            CloseButtonText = Localization.UiStrings.DialogCancel,
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = this.XamlRoot,
         };

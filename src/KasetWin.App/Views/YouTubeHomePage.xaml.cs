@@ -34,6 +34,7 @@ public sealed partial class YouTubeHomePage : Page
             services.GetService<ISingleFlight>());
 
         this.InitializeComponent();
+        RecommendedHeader.Text = Localization.UiStrings.YtRecommended;
         Loaded += OnLoaded;
     }
 

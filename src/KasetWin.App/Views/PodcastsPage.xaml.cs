@@ -39,6 +39,7 @@ public sealed partial class PodcastsPage : Page
             services.GetService<ISingleFlight>());
 
         this.InitializeComponent();
+        PageTitleText.Text = Localization.UiStrings.PodcastsTitle;
         Loaded += OnLoaded;
     }
 

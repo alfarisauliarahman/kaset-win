@@ -72,6 +72,13 @@ public sealed partial class NowPlayingPanel : UserControl
             services.GetRequiredService<ILyricsService>());
 
         this.InitializeComponent();
+        ApplyLanguage();
+
+        // The SelectorBar's inner scroller can end up 1-2px scrollable, which renders as tiny
+        // up/down arrows next to the last tab — kill its scrolling outright. The template child
+        // may not exist yet at Loaded, so retry on SizeChanged until it is found.
+        QueueTabs.Loaded += (_, _) => DisableSelectorBarScrolling();
+        QueueTabs.SizeChanged += (_, _) => DisableSelectorBarScrolling();
 
         Lyrics.ActiveLineChanged += OnActiveLineChanged;
         if (_controller is not null)
@@ -90,6 +97,26 @@ public sealed partial class NowPlayingPanel : UserControl
         }
 
         Unloaded += OnUnloaded;
+    }
+
+    /// <summary>
+    /// Applies the app language to the panel's own labels. The panel lives for the whole window
+    /// (unlike pages, which are recreated on navigation), so this is re-invoked on language change.
+    /// </summary>
+    internal void ApplyLanguage()
+    {
+        UpNextTab.Text = Localization.UiStrings.QueueTabUpNext;
+        HistoryTab.Text = Localization.UiStrings.QueueTabHistory;
+        RelatedTab.Text = Localization.UiStrings.QueueTabRelated;
+        NowPlayingHeaderText.Text = Localization.UiStrings.QueueNowPlaying;
+        UpNextHeaderText.Text = Localization.UiStrings.QueueUpNextHeader;
+        QueueEmptyText.Text = Localization.UiStrings.QueueEmpty;
+        RelatedEmptyText.Text = Localization.UiStrings.RelatedEmpty;
+        LyricsEmptyText.Text = Localization.UiStrings.LyricsEmpty;
+        ToolTipService.SetToolTip(CloseButton, Localization.UiStrings.TipClose);
+        ToolTipService.SetToolTip(CcPickerButton, Localization.UiStrings.TipSubtitles);
+        NowPlayingTrackInfo.ApplyLanguage();
+        Bindings.Update(); // LyricsHeaderText follows the language too
     }
 
     /// <summary>Whether the panel is currently showing the queue.</summary>
@@ -258,7 +285,9 @@ public sealed partial class NowPlayingPanel : UserControl
 
     /// <summary>Header title: podcasts show captions, so the panel is titled accordingly.</summary>
     public string LyricsHeaderText =>
-        _player?.CurrentTrack?.IsPodcastEpisode == true ? "Subtitel (CC)" : "Lirik";
+        _player?.CurrentTrack?.IsPodcastEpisode == true
+            ? Localization.UiStrings.SubtitlesCcLabel
+            : Localization.UiStrings.TipLyrics;
 
     /// <summary>Whether the CC track picker applies (lyrics mode + podcast episode).</summary>
     public bool ShowCcPicker => IsLyrics && _player?.CurrentTrack?.IsPodcastEpisode == true;
@@ -278,7 +307,7 @@ public sealed partial class NowPlayingPanel : UserControl
         CcFlyout.Items.Clear();
         var (isOff, selectedUrl) = provider.GetSelection(videoId);
 
-        var off = new ToggleMenuFlyoutItem { Text = "Nonaktif", IsChecked = isOff };
+        var off = new ToggleMenuFlyoutItem { Text = Localization.UiStrings.CcOff, IsChecked = isOff };
         off.Click += async (_, _) =>
         {
             provider.SelectOff(videoId);
@@ -314,6 +343,13 @@ public sealed partial class NowPlayingPanel : UserControl
             };
             CcFlyout.Items.Add(item);
         }
+
+        // Word-level (karaoke) highlight is opt-in: the per-word advance follows the player's
+        // progress ticks and can trail speech, so it lives here as a user switch.
+        CcFlyout.Items.Add(new MenuFlyoutSeparator());
+        var karaoke = new ToggleMenuFlyoutItem { Text = "Sorot per kata", IsChecked = Lyrics.KaraokeEnabled };
+        karaoke.Click += (_, _) => Lyrics.KaraokeEnabled = karaoke.IsChecked;
+        CcFlyout.Items.Add(karaoke);
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => _controller?.Close();
@@ -335,10 +371,92 @@ public sealed partial class NowPlayingPanel : UserControl
 
     private void OnActiveLineChanged(object? sender, LyricLineItem? line)
     {
-        if (line is not null)
+        if (line is null)
+        {
+            return;
+        }
+
+        // Apple-Music-style transition: animate the active line into the upper third of the panel
+        // instead of the jumpy ScrollIntoView-at-top. When the container is virtualized away
+        // (user seeked far), fall back to the instant jump.
+        if (FindDescendant<ScrollViewer>(LyricsList) is { } scroller
+            && LyricsList.ContainerFromItem(line) is UIElement container)
+        {
+            var y = container.TransformToVisual(scroller).TransformPoint(new Windows.Foundation.Point(0, 0)).Y;
+            var target = scroller.VerticalOffset + y - (scroller.ViewportHeight / 3);
+            scroller.ChangeView(null, System.Math.Max(0, target), null, disableAnimation: false);
+        }
+        else
         {
             LyricsList.ScrollIntoView(line, ScrollIntoViewAlignment.Leading);
         }
+    }
+
+    /// <summary>Click-to-seek: tapping a lyric/subtitle line jumps playback to its timestamp.</summary>
+    private void OnLyricLineClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is LyricLineItem line)
+        {
+            _ = Lyrics.SeekToLineAsync(line);
+        }
+    }
+
+    private bool _selectorBarScrollFixed;
+
+    /// <summary>
+    /// Disables scrolling inside the queue-tab SelectorBar (whichever scroller type its template
+    /// uses) so no vestigial scroll arrows can appear. Idempotent; logs the verdict once.
+    /// </summary>
+    private void DisableSelectorBarScrolling()
+    {
+        if (_selectorBarScrollFixed)
+        {
+            return;
+        }
+
+        if (FindDescendant<ScrollView>(QueueTabs) is { } sv)
+        {
+            sv.VerticalScrollMode = ScrollingScrollMode.Disabled;
+            sv.VerticalScrollBarVisibility = ScrollingScrollBarVisibility.Hidden;
+            sv.HorizontalScrollMode = ScrollingScrollMode.Disabled;
+            sv.HorizontalScrollBarVisibility = ScrollingScrollBarVisibility.Hidden;
+            _selectorBarScrollFixed = true;
+            KasetWin.Core.Diag.Write("selectorbar: scrolling disabled (ScrollView)");
+        }
+        else if (FindDescendant<ScrollViewer>(QueueTabs) is { } svr)
+        {
+            svr.VerticalScrollMode = ScrollMode.Disabled;
+            svr.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
+            svr.HorizontalScrollMode = ScrollMode.Disabled;
+            svr.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+            _selectorBarScrollFixed = true;
+            KasetWin.Core.Diag.Write("selectorbar: scrolling disabled (ScrollViewer)");
+        }
+        else
+        {
+            KasetWin.Core.Diag.Write("selectorbar: no inner scroller found yet");
+        }
+    }
+
+    /// <summary>First descendant of <paramref name="root"/> of type <typeparamref name="T"/>, or null.</summary>
+    private static T? FindDescendant<T>(DependencyObject root) where T : class
+    {
+        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is T match)
+            {
+                return match;
+            }
+
+            if (FindDescendant<T>(child) is { } nested)
+            {
+                return nested;
+            }
+        }
+
+        return null;
     }
 
     private void OnPlayerPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

@@ -11,6 +11,12 @@ namespace KasetWin.App.ViewModels;
 /// </summary>
 public sealed class FavoriteCardItem
 {
+    /// <summary>Context-menu label, following the app language.</summary>
+    public string ShareMenuText => Localization.UiStrings.MenuShare;
+
+    /// <summary>Context-menu label, following the app language.</summary>
+    public string RemoveFromFavoritesMenuText => Localization.UiStrings.MenuRemoveFromFavorites;
+
     private const double SquareRadius = 6;
     private const double RoundRadius = 80; // artist avatars read as circular
 

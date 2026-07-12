@@ -112,8 +112,12 @@ public class SongMetadataParserTests
                           "title": { "runs": [ { "text": "Never Gonna Give You Up" } ] },
                           "longBylineText": { "runs": [
                             { "text": "Rick Astley", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCabcabcabcabcabcabcabc1" } } },
+                            { "text": " & " },
+                            { "text": "Plain Label" },
                             { "text": " • " },
-                            { "text": "Plain Label" }
+                            { "text": "Whenever You Need Somebody" },
+                            { "text": " • " },
+                            { "text": "1987" }
                           ] },
                           "lengthText": { "runs": [ { "text": "3:33" } ] },
                           "thumbnail": { "thumbnails": [ { "url": "https://example.invalid/omv.jpg", "width": 120, "height": 120 } ] },
@@ -150,6 +154,9 @@ public class SongMetadataParserTests
         Assert.True(metadata.VideoType.HasVideoContent());
         Assert.True(metadata.Song.HasVideo);
 
+        // The byline is bullet-segmented "Artists • Album • Year": only the first segment is
+        // artists — the album title and year must NOT leak into the artist list.
+        Assert.Equal(2, metadata.Song.Artists.Count);
         var linked = metadata.Song.Artists[0];
         Assert.Equal("UCabcabcabcabcabcabcabc1", linked.Id);
         Assert.Equal("Rick Astley", linked.Name);

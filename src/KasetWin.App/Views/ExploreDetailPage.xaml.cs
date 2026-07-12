@@ -30,6 +30,7 @@ public sealed partial class ExploreDetailPage : Page
     public ExploreDetailPage()
     {
         this.InitializeComponent();
+        LoadMoreButton.Content = Localization.UiStrings.LoadMore;
 
         var services = App.Current.Services;
         _player = services.GetService<IPlayerService>();

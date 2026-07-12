@@ -194,7 +194,7 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
     private bool _isInCollection;
 
     /// <summary>Label for the header collection button, toggling with <see cref="IsInCollection"/>.</summary>
-    public string CollectionButtonLabel => IsInCollection ? "Hapus dari koleksi" : "Tambahkan ke koleksi";
+    public string CollectionButtonLabel => IsInCollection ? Localization.UiStrings.CollectionButtonLabelRemove : Localization.UiStrings.CollectionButtonLabelAdd;
 
     /// <summary>The "N songs" summary line for the header.</summary>
     [ObservableProperty]
@@ -359,7 +359,7 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
         }
 
         var shuffled = Tracks.OrderBy(_ => Random.Shared.Next()).ToList();
-        ActionStatus = "Memutar acak album.";
+        ActionStatus = Localization.UiStrings.ToastShufflingAlbum;
         return _player.PlayCollectionAsync(shuffled, startIndex: 0);
     }
 
@@ -376,11 +376,11 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
             var mix = await _client.GetMixQueueAsync(_browseId, c).ConfigureAwait(true);
             if (mix.Songs.Count == 0)
             {
-                ActionStatus = "Mix belum tersedia untuk album ini.";
+                ActionStatus = Localization.UiStrings.ToastMixUnavailableAlbum;
                 return;
             }
 
-            ActionStatus = "Memulai mix.";
+            ActionStatus = Localization.UiStrings.ToastStartingMix;
             await _player.PlayCollectionAsync(mix.Songs).ConfigureAwait(true);
         }, ct).ConfigureAwait(true);
     }
@@ -391,12 +391,12 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
     {
         if (_queue is null || Tracks.Count == 0)
         {
-            ActionStatus = "Antrean belum tersedia.";
+            ActionStatus = Localization.UiStrings.ToastQueueUnavailable;
             return;
         }
 
         var added = _queue.InsertNext(Tracks);
-        ActionStatus = added == 0 ? "Semua lagu sudah ada di antrean." : $"{added} lagu diputar setelah ini.";
+        ActionStatus = added == 0 ? Localization.UiStrings.ToastAllAlreadyQueued : Localization.UiStrings.ToastCountPlayedNext(added);
     }
 
     [RelayCommand]
@@ -404,12 +404,12 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
     {
         if (_queue is null || Tracks.Count == 0)
         {
-            ActionStatus = "Antrean belum tersedia.";
+            ActionStatus = Localization.UiStrings.ToastQueueUnavailable;
             return;
         }
 
         var added = _queue.AppendDeduplicated(Tracks);
-        ActionStatus = added == 0 ? "Semua lagu sudah ada di antrean." : $"{added} lagu ditambahkan ke antrean.";
+        ActionStatus = added == 0 ? Localization.UiStrings.ToastAllAlreadyQueued : Localization.UiStrings.ToastCountAddedToQueue(added);
     }
 
     [RelayCommand]
@@ -427,9 +427,9 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
         ReplaceTrackLikeStatus(song, request.Rating);
         ActionStatus = request.Rating switch
         {
-            LikeStatus.Like => $"Disukai: {song.Title}",
-            LikeStatus.Dislike => $"Tidak disukai: {song.Title}",
-            _ => $"Dihapus dari suka: {song.Title}",
+            LikeStatus.Like => Localization.UiStrings.ToastLiked(song.Title),
+            LikeStatus.Dislike => Localization.UiStrings.ToastDisliked(song.Title),
+            _ => Localization.UiStrings.ToastUnliked(song.Title),
         };
 
         return RunSafeAsync(async c =>
@@ -441,7 +441,7 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
             catch (Exception)
             {
                 ReplaceTrackLikeStatus(song, previous);
-                Notify("Gagal menyimpan suka.");
+                Notify(Localization.UiStrings.ToastLikeFailed);
             }
         });
     }
@@ -460,12 +460,12 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
 
         if (_queue is null)
         {
-            ActionStatus = "Antrean belum tersedia.";
+            ActionStatus = Localization.UiStrings.ToastQueueUnavailable;
             return;
         }
 
         var added = _queue.AppendDeduplicated([song]);
-        ActionStatus = added == 0 ? "Lagu sudah ada di antrean." : $"Ditambahkan ke antrean: {song.Title}";
+        ActionStatus = added == 0 ? Localization.UiStrings.ToastSongAlreadyQueued : Localization.UiStrings.ToastAddedToQueue(song.Title);
     }
 
     /// <summary>Queues a single track to play right after the current one ("Putar setelah ini").</summary>
@@ -479,12 +479,12 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
 
         if (_queue is null)
         {
-            ActionStatus = "Antrean belum tersedia.";
+            ActionStatus = Localization.UiStrings.ToastQueueUnavailable;
             return;
         }
 
         var added = _queue.InsertNext([song]);
-        ActionStatus = added == 0 ? "Lagu sudah ada di antrean." : $"Diputar setelah ini: {song.Title}";
+        ActionStatus = added == 0 ? Localization.UiStrings.ToastSongAlreadyQueued : Localization.UiStrings.ToastPlayingNext(song.Title);
     }
 
     /// <summary>
@@ -508,8 +508,8 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
         // after, revert on failure.
         ReplaceTrackCollection(song, added: !inCollection);
         ActionStatus = inCollection
-            ? $"Dihapus dari koleksi: {song.Title}"
-            : $"Disimpan ke koleksi: {song.Title}";
+            ? Localization.UiStrings.ToastRemovedFromCollection(song.Title)
+            : Localization.UiStrings.ToastSavedToCollection(song.Title);
 
         return RunSafeAsync(async c =>
         {
@@ -520,7 +520,7 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
             catch (Exception)
             {
                 ReplaceTrackCollection(song, added: inCollection);
-                Notify("Gagal memperbarui koleksi.");
+                Notify(Localization.UiStrings.ToastCollectionFailed);
             }
         });
     }
@@ -587,7 +587,7 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
         return RunSafeAsync(async c =>
         {
             await _client.CreatePlaylistAsync(name, null, PlaylistPrivacy.Private, videoIds, c).ConfigureAwait(true);
-            Notify($"Playlist \"{name}\" dibuat.");
+            Notify(Localization.UiStrings.ToastPlaylistCreated(name));
         });
     }
 
@@ -612,13 +612,13 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
         try
         {
             await _client.AddSongToPlaylistAsync(videoId, playlistId, allowDuplicates, CancellationToken.None).ConfigureAwait(true);
-            Notify($"Ditambahkan ke playlist: {title}");
+            Notify(Localization.UiStrings.ToastAddedToPlaylist(title));
         }
         catch (Exception ex)
         {
             // Never silent — surface any failure (not just KasetError) so "Tetap Tambahkan" always
             // gives feedback instead of swallowing the error in an async void handler.
-            Notify($"Gagal menambah ke playlist: {ex.Message}");
+            Notify(Localization.UiStrings.ToastAddToPlaylistFailed(ex.Message));
         }
     }
 
@@ -651,8 +651,8 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
             }
 
             Notify(failed == 0
-                ? $"{added} lagu disimpan ke playlist."
-                : $"{added} lagu disimpan, {failed} gagal.");
+                ? Localization.UiStrings.ToastSavedCount(added)
+                : Localization.UiStrings.ToastSavedCountWithFailures(added, failed));
         });
     }
 
@@ -677,11 +677,11 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
         {
             await _client.RatePlaylistAsync(target, rating, CancellationToken.None).ConfigureAwait(true);
             IsInCollection = !removing;
-            Notify(removing ? "Dihapus dari koleksi." : "Ditambahkan ke koleksi.");
+            Notify(removing ? Localization.UiStrings.ToastRemovedFromCollectionShort : Localization.UiStrings.ToastAddedToCollectionShort);
         }
         catch (Core.Errors.KasetError ex)
         {
-            Notify($"Gagal: {ex.Message}");
+            Notify(Localization.UiStrings.ToastGenericFailed(ex.Message));
         }
     }
 
@@ -689,8 +689,8 @@ public sealed partial class PlaylistDetailViewModel : ViewModelBase
     private void ShowUnavailable(string? action)
     {
         ActionStatus = string.IsNullOrWhiteSpace(action)
-            ? "Fitur ini belum tersedia."
-            : $"{action} belum tersedia.";
+            ? Localization.UiStrings.ToastFeatureUnavailable
+            : Localization.UiStrings.ToastActionUnavailable(action);
     }
 
     /// <summary>Loads the next page of tracks via the continuation token and appends them (Req 8.4).</summary>

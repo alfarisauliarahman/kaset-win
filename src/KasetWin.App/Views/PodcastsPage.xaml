@@ -6,6 +6,8 @@
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:behaviors="using:KasetWin.App.Behaviors"
+    xmlns:loc="using:KasetWin.App.Localization"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="using:KasetWin.App.ViewModels"
     mc:Ignorable="d">
@@ -21,6 +23,7 @@
                     Text="{x:Bind Title}"
                     Style="{StaticResource SubtitleTextBlockStyle}" />
                 <ScrollViewer
+                    behaviors:VerticalWheelForwarder.IsEnabled="True"
                     HorizontalScrollBarVisibility="Auto"
                     HorizontalScrollMode="Enabled"
                     VerticalScrollBarVisibility="Disabled"
@@ -42,8 +45,8 @@
                                     DataContext="{x:Bind}">
                                     <Button.ContextFlyout>
                                         <MenuFlyout>
-                                            <MenuFlyoutItem Click="OnSubscribe" Text="Subscribe" />
-                                            <MenuFlyoutItem Click="OnUnsubscribe" Text="Unsubscribe" />
+                                            <MenuFlyoutItem Click="OnSubscribe" Text="{x:Bind SubscribeMenuText}" />
+                                            <MenuFlyoutItem Click="OnUnsubscribe" Text="{x:Bind UnsubscribeMenuText}" />
                                         </MenuFlyout>
                                     </Button.ContextFlyout>
                                     <StackPanel Spacing="2">
@@ -87,7 +90,7 @@
     <Grid>
         <ScrollViewer>
             <StackPanel Margin="24" Spacing="24">
-                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Podcasts" />
+                <TextBlock x:Name="PageTitleText" Style="{StaticResource TitleTextBlockStyle}" Text="Podcasts" />
 
                 <controls:ItemsRepeater
                     ItemTemplate="{StaticResource PodcastSectionTemplate}"
@@ -108,13 +111,13 @@
                     <TextBlock
                         HorizontalAlignment="Center"
                         Opacity="0.8"
-                        Text="Halaman Podcast belum tersedia di wilayahmu."
+                        Text="{x:Bind loc:UiStrings.PodcastsUnavailableTitle}"
                         Style="{StaticResource BodyStrongTextBlockStyle}" />
                     <TextBlock
                         HorizontalAlignment="Center"
                         MaxWidth="420"
                         Opacity="0.6"
-                        Text="YouTube Music membatasi jelajah podcast per negara. Kamu tetap bisa membuka acara/episode lewat pencarian atau dari Home."
+                        Text="{x:Bind loc:UiStrings.PodcastsUnavailableCaption}"
                         TextAlignment="Center"
                         TextWrapping="Wrap"
                         Style="{StaticResource CaptionTextBlockStyle}" />

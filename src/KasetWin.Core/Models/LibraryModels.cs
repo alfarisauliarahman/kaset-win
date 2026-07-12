@@ -92,6 +92,9 @@ public sealed record PodcastShow
     /// <summary>Optional author channel id (<c>UC…</c>) for artist-page navigation.</summary>
     public string? AuthorChannelId { get; init; }
 
+    /// <summary>Optional creator avatar (the header's strapline thumbnail), shown next to the author name.</summary>
+    public Uri? AuthorThumbnailUrl { get; init; }
+
     /// <summary>Whether the show/playlist is already saved to the user's library (header bookmark toggle).</summary>
     public bool IsSaved { get; init; }
 
