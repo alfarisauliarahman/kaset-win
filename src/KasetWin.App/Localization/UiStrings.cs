@@ -127,6 +127,13 @@ internal static class UiStrings
     internal static string SettingsVersionLabel => IsIndonesian ? "Versi aplikasi" : "App version";
     internal static string SettingsVersionCaption => IsIndonesian ? "Versi Kaset yang sedang berjalan." : "The running version of Kaset.";
 
+    // Auto-update (Velopack) — shown when a newer release has been downloaded in the background.
+    internal static string UpdateAvailableTitle => IsIndonesian ? "Pembaruan tersedia" : "Update available";
+    internal static string UpdateRestartAction => IsIndonesian ? "Mulai ulang" : "Restart";
+    internal static string UpdateReadyMessage(string version) => IsIndonesian
+        ? $"Kaset {version} siap dipasang."
+        : $"Kaset {version} is ready to install.";
+
     // Repeat button tooltip — reflects the current repeat mode (Off / All / One).
     internal static string RepeatTooltipOff => IsIndonesian ? "Ulangi: nonaktif" : "Repeat: off";
     internal static string RepeatTooltipAll => IsIndonesian ? "Ulangi semua" : "Repeat all";

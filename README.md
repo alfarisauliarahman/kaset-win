@@ -13,6 +13,8 @@ A native **Windows** client for YouTube Music, built with **C# / .NET 8 + WinUI 
   </tr>
 </table>
 
+> **Note:** the images above are placeholders — drop real screenshots into `docs/` (e.g. `docs/screenshot-home.png`, `docs/screenshot-nowplaying.png`).
+
 ## Features
 
 - 🪟 **Native Windows 11 Experience** — WinUI 3 / Fluent design with a Mica backdrop, an Apple-Music-style player bar, a clean sidebar, and a Music ↔ YouTube source toggle
@@ -69,7 +71,7 @@ dotnet publish src/KasetWin.App/KasetWin.App.csproj -c Release -r win-x64 --self
   -p:Platform=x64 -p:WindowsPackageType=None -p:WindowsAppSDKSelfContained=true
 
 # Installer + auto-update feed (requires: dotnet tool install -g vpk):
-vpk pack --packId Kaset --packVersion 0.2.0 --mainExe KasetWin.App.exe --packTitle "Kaset" `
+vpk pack --packId Kaset --packVersion 0.2.1 --mainExe KasetWin.App.exe --packTitle "Kaset" `
   --packDir src/KasetWin.App/bin/x64/Release/net8.0-windows10.0.19041.0/win-x64/publish --outputDir dist
 ```
 

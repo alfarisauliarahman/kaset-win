@@ -98,6 +98,7 @@ public sealed partial class MainWindow : Window
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _toastTimer;
     private TaskbarMediaControls? _taskbarControls;
     private TrayIcon? _tray;
+    private Updates.AppUpdateService? _updateService;
 
     /// <summary>Settings key: when true (default), closing hides to the tray; when false, ✕ quits.</summary>
     private const string CloseToTrayKey = "window.closeToTray";
@@ -445,6 +446,22 @@ public sealed partial class MainWindow : Window
         catch
         {
             // Audio arbitration is part of YouTube mode; never block startup on it.
+        }
+
+        try
+        {
+            // Kick off the background auto-update check: look for a newer GitHub release, download it,
+            // and (only if one is staged) raise a "restart to update" notification. Best-effort — a
+            // dev/unpackaged run or an offline device simply does nothing.
+            if (App.Current.Services.GetService<Notifications.IInAppNotifier>() is { } updateNotifier)
+            {
+                _updateService = new Updates.AppUpdateService(updateNotifier, DispatcherQueue);
+                _updateService.StartBackgroundCheck();
+            }
+        }
+        catch
+        {
+            // Auto-update is a convenience; never block startup on it.
         }
     }
 
