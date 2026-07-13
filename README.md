@@ -1,5 +1,7 @@
 # Kaset for Windows (KasetWin)
 
+**English** · [Bahasa Indonesia](README.id.md)
+
 A native **Windows** client for YouTube Music, built with **C# / .NET 8 + WinUI 3** (Windows App SDK). A ground-up Windows port of the macOS [Kaset](https://github.com/sozercan/kaset) app — the same idea (a clean, native music client for YouTube Music) with an Apple-Music-inspired design, rebuilt with Windows-native UI and platform integrations.
 
 <table>
@@ -12,8 +14,6 @@ A native **Windows** client for YouTube Music, built with **C# / .NET 8 + WinUI 
     <td><img src="docs/screenshot-nowplaying.png" alt="KasetWin now-playing panel screenshot"></td>
   </tr>
 </table>
-
-> **Note:** the images above are placeholders — drop real screenshots into `docs/` (e.g. `docs/screenshot-home.png`, `docs/screenshot-nowplaying.png`).
 
 ## Features
 
