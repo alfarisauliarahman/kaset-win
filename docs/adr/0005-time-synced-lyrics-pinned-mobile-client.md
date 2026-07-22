@@ -80,6 +80,26 @@ Dua temuan lain yang membentuk keputusan di bawah:
    ber-cue.
 5. **Setiap mode gagal turun kelas, tidak pernah melempar.** Rantainya:
    `Synced → Plain → Unavailable`.
+6. **Permintaan Android dikirim ANONIM — tanpa cookie, tanpa `SAPISIDHASH`.** Ini bukan pilihan gaya;
+   tanpa ini fiturnya **tidak jalan sama sekali**. InnerTube menolak konteks klien seluler yang
+   membawa `SAPISIDHASH` beroriginkan web, jadi setiap permintaan berbalas HTTP 400 dan diam-diam
+   turun ke teks polos. Gejalanya menyesatkan: eksplorasi lewat `ApiExplorer` berhasil (CLI-nya tidak
+   punya cookie) sementara aplikasi yang sudah login gagal 100%, dan satu-satunya jejaknya adalah
+   `ytm-lyrics browse android failed: ApiError` di log diagnostik. Lirik tidak butuh identitas — sama
+   untuk semua orang — dan jalur tanpa login itu justru yang sudah diverifikasi hidup. **Jangan
+   menghapus `anonymous: true` pada panggilan itu**; hasilnya adalah lirik tersinkron yang mati tanpa
+   satu pun pesan error.
+7. **Kredit lisensor ada di LABEL sumber, bukan di dalam lirik.** Sebelumnya kredit ditempel ke akhir
+   teks (polos) dan ditambahkan sebagai satu baris bertimestamp setelah lirik terakhir (tersinkron).
+   Dua-duanya menyembunyikannya — baru terlihat setelah digulir sampai habis — dan bentuk tersinkron
+   lebih buruk lagi setelah gulir gaya Apple Music masuk: sorot baris aktif ikut berpindah ke baris
+   palsu itu dan meluncurkannya ke puncak panel, seolah lagunya berakhir dengan kata "Musixmatch".
+   Labelnya menyebut **keduanya** (`YouTube Music — LyricFind`): yang pertama menjawab penyedia mana
+   yang menang (itu yang diatur di Settings), yang kedua menjawab siapa yang melisensi kata-katanya
+   (itu yang diwajibkan YouTube tampil, dan berganti per lagu sehingga tidak bisa disimpulkan sendiri).
+   Prefiks `Source:` / `Sumber:` dipangkas di parser: YouTube mengirimnya **sudah diterjemahkan**
+   mengikuti bahasa konten, sehingga membiarkannya menghasilkan "Sumber: Sumber: LyricFind" dan
+   membuat kata "Sumber" datang dari YouTube alih-alih dari pengaturan bahasa aplikasi.
 
 ### Kegagalan yang harus ditanggung (versi yang di-pin PASTI basi)
 

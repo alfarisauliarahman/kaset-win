@@ -290,6 +290,47 @@ Tiga videoId di bawah sudah diverifikasi lewat API dan bisa dipakai sebagai kasu
 
 ---
 
+## E. Perbaikan putaran 3 (2026-07-23, commit `e4b3c73` dst.)
+
+> Bagian D di atas **belum pernah dijalankan** — pengujiannya terhenti karena aplikasinya sendiri
+> crash beberapa detik setelah dibuka. Itu sudah diperbaiki, jadi D dan E sekarang bisa dijalankan
+> berurutan.
+
+### E1. Aplikasi hidup (prasyarat — kalau ini gagal, sisanya percuma)
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 112 | Buka Kaset, diamkan **1 menit penuh** tanpa mengklik apa pun | Masih hidup. Dulu mati sendiri setelah ±20–40 detik | |
+| 113 | Kalau mati: buka `%LOCALAPPDATA%\Packages\Kaset.KasetWin_kjgd17zy2bc08\LocalState\crash.log` | Berisi exception lengkap + stack. File ini **baru ada** sejak putaran ini; sebelumnya crash tidak meninggalkan jejak apa pun | |
+| 114 | Resize jendela ke ukuran aneh, tutup, buka lagi | Ukurannya kembali — dan tidak crash. Geometri tersimpan itu justru pemicu crash-nya dulu | |
+
+### E2. Lirik tersinkron (fitur baru, belum pernah diuji manual)
+
+Tiga videoId terverifikasi: `t82Q3f4pNUY` (Musixmatch, sync), `mZsHggY8G6M` (LyricFind, sync),
+`BiQIc7fG9pA` (tanpa sync).
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 115 | `start "kaset://play?v=t82Q3f4pNUY"`, buka panel lirik | Baris lirik **menyala mengikuti lagu** | |
+| 116 | Perhatikan posisi baris aktif saat lagu berjalan | Baris aktif naik ke **atas** panel dan diam di situ, baris berikutnya di bawahnya (gaya Apple Music) — **tidak terpotong** header | |
+| 117 | Lihat label sumber di bawah panel | `Sumber: YouTube Music — Musixmatch` (atau LyricFind, tergantung lagu) | |
+| 118 | Gulir lirik sampai baris terakhir | Baris terakhir masih bisa naik sampai atas, dan **tidak ada baris berisi "Source: …"** di dalam daftar liriknya | |
+| 119 | `start "kaset://play?v=BiQIc7fG9pA"` (lagu tanpa versi sync) | Lirik tetap tampil sebagai teks polos yang bisa digulir; tidak kosong, tidak error | |
+| 120 | Putar lagu Indonesia yang dulu liriknya kosong gara-gara LRCLib | Sekarang ada liriknya. **Ini alasan utama urutan penyedia dibalik** | |
+| 121 | Pengaturan → Sumber lirik | Ada pilihan **YouTube Music**, default tetap **Otomatis**, dan ada keterangan LyricFind/Musixmatch + bahwa tidak semua lagu tersinkron | |
+| 122 | Ganti ke LRCLib, putar lagu, lihat labelnya | `Sumber: LRCLib` — pilihannya benar-benar berpengaruh | |
+
+### E3. Player bar & metadata
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 123 | Lihat player bar saat memutar lagu | Tombol **hati menempel di sebelah judul/artis**, tidak terdampar jauh ke kanan | |
+| 124 | Kecilkan jendela sampai mentok (980 px) | Judul & artis tidak terpotong, tombol hati tetap terlihat | |
+| 125 | Lebarkan jendela sampai maksimum | Grup cover+judul+hati tetap menyatu di tengah, tidak melar berjauhan | |
+| 126 | Putar lagu dengan banyak artis (mis. *attached* — Tenxi, Anangga, Suisei) | Tertulis **tiga** artis. Tidak ada artis bernama "dan …" atau "and …" | |
+
+---
+
 ## C. Yang masih belum tercakup uji apa pun
 
 Dicatat jujur, bukan diklaim aman:

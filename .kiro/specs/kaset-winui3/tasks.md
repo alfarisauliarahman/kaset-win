@@ -742,6 +742,61 @@ Semua berasal dari `docs/manual-test-checklist.md` putaran 2. Nomor dalam kurung
     tidak menampilkan sisa waktu.
   - _Requirements: 39.2_
 
+### PERBAIKAN PUTARAN UJI 3 (2026-07-23) — ditemukan dengan MENJALANKAN aplikasi
+
+Seluruh isi seksi ini lolos dari build hijau dan 469 test. Tidak satu pun bisa ditangkap CI; semuanya
+muncul begitu aplikasinya benar-benar dibuka dan dipakai.
+
+- [x] 45. **Aplikasi crash beberapa detik setelah dibuka** (cacat paling parah di sesi ini)
+  - **SEBAB**: `MainWindowLayout.IsFrameVisibleOnAnyDisplay` meng-iterasi `DisplayArea.FindAll()`, dan
+    proyeksi CsWinRT-nya melempar `InvalidCastException` (`IReadOnlyListImpl<T>.GetEnumerator`).
+    Jalannya di dalam konstruktor `MainWindow`, jadi aplikasi tidak pernah selesai dibuka.
+  - **KENAPA SULIT DILACAK**: pemicunya **data, bukan kode** — hanya menyala kalau sudah ada geometri
+    jendela tersimpan. Karena itu commit-commit lama pun ikut crash saat di-bisect, sehingga sempat
+    terlihat seolah bukan ulah perubahan terbaru.
+  - **PERBAIKAN**: `DisplayArea.GetFromRect(..., Nearest)` — satu panggilan, tanpa proyeksi koleksi;
+    `catch` diperlebar karena tidak ada kegagalan di pemeriksaan kenyamanan ini yang lebih berharga
+    daripada jendela yang mau terbuka.
+  - **PELAJARAN YANG DIKODEKAN**: aplikasi **tidak punya** `Application.UnhandledException` sama
+    sekali, jadi tiap crash hanya menyisakan `0xc000027b` di Event Log — kode yang sama persis untuk
+    semua penyebab. Sekarang exception lengkap ditulis ke `crash.log` di LocalState. Setelah dipasang,
+    satu kali jalan langsung memberi stack persisnya.
+  - _Requirements: 42.5, 42.6_
+
+- [x] 46. **Lirik tersinkron tidak pernah jalan di dalam aplikasi**
+  - **SEBAB**: InnerTube menolak konteks klien seluler yang membawa `SAPISIDHASH` beroriginkan web.
+    Eksplorasi lewat `ApiExplorer` (tanpa cookie) berhasil, aplikasi yang sudah login gagal 100%.
+  - **PERBAIKAN**: permintaan Android dikirim anonim. Terverifikasi hidup: `timed lines=63
+    credit=LyricFind`. Lihat ADR 0005 keputusan 6 — **jangan dihapus**.
+  - **EFEK SAMPING YANG TERJELASKAN**: label "LRCLib" yang dikeluhkan ternyata jujur — YouTube Music
+    hanya pernah bisa mengembalikan teks polos, jadi hasil tersinkron LRCLib memenangkan tier.
+  - _Requirements: 17.1, 17.4_
+
+- [x] 47. **Kredit lisensor pindah ke label sumber** (ADR 0005 keputusan 7)
+  - Dulu disisipkan sebagai baris lirik palsu; dengan gulir gaya Apple Music baris itu ikut disorot
+    dan meluncur ke puncak panel. Sekarang `Sumber: YouTube Music — LyricFind`, selalu terlihat.
+
+- [x] 48. **Regresi player bar** (disebabkan oleh perbaikan teks terpotong #42)
+  - Kolom judul dipatok 520px, sehingga tombol suka menempel di tepi kolom — terdampar di tengah bar.
+    Barisnya kini memeluk kontennya dan tetap di tengah, kolomnya tetap star agar masih bisa menyusut
+    di lebar minimum 980px.
+
+- [x] 49. **Gulir lirik gaya Apple Music** — baris aktif naik ke atas, baris berikutnya menyusul.
+  - Target gulir diukur terhadap **isi** yang digulir, bukan viewport: mengukur ke viewport lalu
+    menjumlahkannya dengan `VerticalOffset` menggabungkan dua angka dari dua momen berbeda, dan saat
+    animasi sebelumnya masih jalan hasilnya kelewat naik sehingga baris aktif terpotong header.
+  - **SISA**: baris sebelumnya masih tampak separuh — tinggi baris dihitung sebelum teks yang melipat
+    selesai di-layout. Diterima apa adanya untuk sekarang, belum diperbaiki.
+
+- [x] 50. **Kata sambung "dan" terbaca sebagai nama artis**
+  - `Tenxi, Anangga dan Suisei` tampil sebagai tiga artis dengan artis ketiga bernama "dan Suisei".
+    Pembedanya: YouTube menulis nama artis dengan kapital, tetapi kata sambung yang ia bangkitkan
+    sendiri selalu huruf kecil — sehingga "Dan Auerbach" dan "Simon and Garfunkel" terbukti aman.
+
+- [x] 51. **Sumber lirik di Settings** — YouTube Music masuk daftar, plus keterangan bahwa isinya
+  dari LyricFind/Musixmatch (YouTube yang menentukan per lagu) dan **tidak semua lagu tersinkron**.
+  "Otomatis" tetap default: memaksa ke YouTube Music akan menghapus cadangan LRCLib/NetEase diam-diam.
+
 ## Notes
 
 - Sub-tugas bertanda `*` bersifat opsional (test atau fitur fase lanjutan) dan **tidak** diimplementasikan otomatis; dapat dilewati untuk MVP yang lebih cepat.

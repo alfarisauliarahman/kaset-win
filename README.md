@@ -26,7 +26,7 @@ A native **Windows** client for YouTube Music, built with **C# / .NET 8 + WinUI 
 - 🕓 **History** — Revisit recently played tracks
 - 🔍 **Search** — Apple-Music-style results (top results, artists, albums, songs, music videos, playlists, podcasts, episodes) with rich suggestions and local search history
 - 🎚️ **Now Playing Panel** — Apple-Music-style docked side panel for the play queue and synced lyrics
-- 📜 **Lyrics** — Plain and synced lyrics with line-by-line highlighting; providers include LRCLib and NetEase (good Asian/K-pop coverage). Podcast episodes show YouTube captions (CC) as synced "lyrics" with optional word-by-word karaoke highlighting
+- 📜 **Lyrics** — Time-synced lyrics with line-by-line highlighting, scrolling Apple-Music style (the active line rides at the top). **YouTube Music is the first source**: it matches by videoId rather than guessing from title/artist, and its words are the licensed label copy — credited per track to LyricFind or Musixmatch, whichever YouTube supplies. LRCLib and NetEase (good Asian/K-pop coverage) stay as fallbacks, and the source is always shown so you can tell where a lyric came from. Not every track has a synced version. Podcast episodes show YouTube captions (CC) as synced "lyrics" with optional word-by-word karaoke highlighting
 - 📃 **Queue Management** — View, reorder, shuffle, and auto-refill (radio) the playback queue
 - 🎛️ **Equalizer** — 9-band equalizer with presets, applied to the WebView2 playback output
 - 🪟 **Mini Player** — Shrink the window to a compact, always-on-top picture-in-picture overlay (Windows CompactOverlay) with artwork, title, transport, and a scrubber; playback never stops when switching

@@ -40,6 +40,16 @@ dotnet build src/KasetWin.App/KasetWin.App.csproj -c Debug           # XAML comp
   missing `x:Name`, unknown `StaticResource`, wrong namespace on an attached property — exists only
   at XAML-compile time and is invisible to `dotnet test`. CI has a dedicated `build-app` job for this.
 
+- **A green build and a green suite do not mean the app runs.** Every defect in the 2026-07-23 round
+  — a crash on launch, a player bar with the like button marooned mid-bar, synced lyrics that never
+  once worked — passed both gates. Launch it before claiming a UI or playback change works.
+
+- **When it crashes, read `crash.log` first.** WinUI reports every unhandled exception as the same
+  opaque `0xc000027b` in the Windows event log, with no type, message, or stack. The handler in
+  `App.xaml.cs` writes the real exception to
+  `%LOCALAPPDATA%\Packages\Kaset.KasetWin_…\LocalState\crash.log`. Do not bisect commits before
+  looking there; the stack usually names the line outright.
+
 - If a build hits an XamlCompiler file lock during parallel/iterated builds:
   `dotnet build-server shutdown` and pass `-p:UseSharedCompilation=false`.
 - Stop a running instance before rebuilding the app:

@@ -413,7 +413,7 @@ public sealed partial class NowPlayingPanel : UserControl
     /// Breathing room kept above the active lyric line so it never sits flush against the panel
     /// header (Apple Music leaves a comparable gap).
     /// </summary>
-    private const double LyricsActiveLineTopInset = 20;
+    private const double LyricsActiveLineTopInset = 36;
 
     private void OnActiveLineChanged(object? sender, LyricLineItem? line)
     {
@@ -433,8 +433,20 @@ public sealed partial class NowPlayingPanel : UserControl
             // list carries a spacer footer roughly one viewport tall.
             UpdateLyricsTailSpacer(scroller);
 
-            var y = container.TransformToVisual(scroller).TransformPoint(new Windows.Foundation.Point(0, 0)).Y;
-            var target = scroller.VerticalOffset + y - LyricsActiveLineTopInset;
+            // Measure against the scrolled CONTENT, not the viewport.
+            //
+            // Measuring against the viewport means "where the line appears right now", which then has
+            // to be added to VerticalOffset to become a scroll target — and VerticalOffset is a
+            // moving value while the previous glide is still animating. The two readings come from
+            // different moments, so the target overshoots and the active line ends up clipped by the
+            // panel header. The offset of the line inside the content does not move, so there is
+            // nothing to race.
+            var target = scroller.Content is FrameworkElement content
+                ? container.TransformToVisual(content).TransformPoint(default).Y - LyricsActiveLineTopInset
+                : scroller.VerticalOffset
+                    + container.TransformToVisual(scroller).TransformPoint(default).Y
+                    - LyricsActiveLineTopInset;
+
             scroller.ChangeView(null, System.Math.Max(0, target), null, disableAnimation: false);
         }
         else

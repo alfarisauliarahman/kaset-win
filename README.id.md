@@ -26,7 +26,7 @@ Klien **Windows** native untuk YouTube Music, dibangun dengan **C# / .NET 8 + Wi
 - 🕓 **Riwayat** — Buka kembali lagu yang baru diputar
 - 🔍 **Pencarian** — Hasil gaya Apple Music (hasil teratas, artis, album, lagu, video musik, playlist, podcast, episode) dengan saran kaya dan riwayat pencarian lokal
 - 🎚️ **Panel Sedang Diputar** — Panel samping ter-dok gaya Apple Music untuk antrean putar dan lirik tersinkron
-- 📜 **Lirik** — Lirik biasa dan tersinkron dengan sorotan baris-per-baris; penyedia meliputi LRCLib dan NetEase (cakupan Asia/K-pop bagus). Episode podcast menampilkan teks (CC) YouTube sebagai "lirik" tersinkron dengan opsi sorotan karaoke kata-per-kata
+- 📜 **Lirik** — Lirik tersinkron waktu dengan sorotan baris-per-baris, bergulir gaya Apple Music (baris aktif naik ke atas). **YouTube Music jadi sumber pertama**: ia mencocokkan lewat videoId, bukan menebak dari judul/artis, dan katanya adalah salinan resmi berlisensi dari label — dikreditkan per lagu ke LyricFind atau Musixmatch, mana pun yang dikirim YouTube. LRCLib dan NetEase (cakupan Asia/K-pop bagus) tetap jadi cadangan, dan sumbernya selalu ditampilkan sehingga ketahuan lirik itu datang dari mana. Tidak semua lagu punya versi tersinkron. Episode podcast menampilkan teks (CC) YouTube sebagai "lirik" tersinkron dengan opsi sorotan karaoke kata-per-kata
 - 📃 **Kelola Antrean** — Lihat, susun ulang, acak, dan isi-ulang otomatis (radio) antrean pemutaran
 - 🎛️ **Equalizer** — Equalizer 9-band dengan preset, diterapkan ke keluaran pemutaran WebView2
 - 🪟 **Mini Player** — Kecilkan jendela jadi overlay ringkas yang selalu di atas (CompactOverlay Windows) berisi sampul, judul, transport, dan scrubber; pemutaran tidak terputus saat berpindah mode
