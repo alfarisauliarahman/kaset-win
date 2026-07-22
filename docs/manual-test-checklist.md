@@ -37,6 +37,67 @@ dan diverifikasi. Langkah 2, 9, 16, 32, 53, 58b lulus.
   — semuanya sudah ditulis ulang di bawah
 - **Belum diuji:** A6 (Discord, 43–51b) — ditunda atas permintaan pemilik repo
 
+**Putaran 4 — 2026-07-23.** Bagian D + E dijalankan hampir penuh, ditambah sebagian A.
+
+- **Lulus:** 12, 15, 17, 30, 58c, 59, 65, 65b, 67, 75, 76, 77, 80–87, 89, 94–98, 101, 104–108,
+  114–120, 123–126. Lirik tersinkron **terkonfirmasi jalan** (label `Sumber: YouTube Music — LyricFind`).
+- **Tidak diuji:** 13, 60, 79, 110, 122 (dilewati); 70 (Podcast tidak tersedia di region ID);
+  112–113 (aplikasi tidak pernah mati sendiri lagi sejak perbaikan crash).
+- **Cacat baru — lihat seksi F di bawah.**
+
+---
+
+## F. Cacat terbuka dari putaran 4 (2026-07-23)
+
+Belum diperbaiki. Dicatat di sini supaya tidak hilang di antara langkah yang lulus.
+
+### F1. Aksesibilitas masih rusak — perbaikan glyph tidak menyelesaikannya
+
+| # | Gejala |
+|---|---|
+| 20, 91 | Narrator masih menyebut hal-hal tak jelas di sekitar sidebar; masih campur bahasa |
+| 23, 92 | Tombol Ulangi: **membacakan track id / song id**, bukan nama modenya |
+| 28, 93 | Tombol hapus riwayat: **membacakan judul lagu yang sedang diputar**, bukan "Hapus dari riwayat: …" |
+| 29 | Toggle sumber menyebut "music source button off, music source button on". Seharusnya menyatakan sumber **aktif** dan bahwa klik akan menggantinya |
+
+> Menandai `FontIcon` sebagai dekoratif ternyata hanya menghilangkan bunyi kode glyph. Nama yang
+> dibacakan masih salah objek — artinya `AutomationProperties.Name` tidak menempel pada elemen yang
+> benar-benar menerima fokus. Perlu diselidiki dengan Narrator hidup, bukan dari kode.
+
+### F2. Peluncuran `kaset://` tidak melengkapi metadata & antrean
+
+| # | Gejala |
+|---|---|
+| 73, 90 | `start "kaset://play?v=BEPSc8q6Bd8"` → lagu diputar, tapi **album tidak muncul** di player bar dan panel antrean menampilkan **"Now playing" kosong**. Memutar track yang sama secara manual dari halaman album → semuanya muncul normal. Terjadi di semua lagu yang dicoba, bukan satu lagu tertentu |
+
+### F3. Pemutaran nyangkut
+
+| # | Gejala |
+|---|---|
+| 77b | Setelah menekan **Next berkali-kali dengan cepat**, pemutaran berhenti total — tidak ada lagu yang jalan |
+| 88b | Media key sempat nyangkut: **progress bar berjalan tapi tidak ada suara**; dicoba lagi normal. Dugaan: hook-nya lambat |
+| 111b | Setelah internet kembali, lagu **tidak lanjut sendiri**. Mengklik lagu yang sama tidak memutar; harus ganti lagu lain dulu |
+
+### F4. UI
+
+| # | Gejala |
+|---|---|
+| 74, 100 | Contekan pintasan **masih memenuhi layar** saat windowed — perbaikan tinggi maksimum belum berpengaruh |
+| — | **Sidebar tidak ikut mengecil** saat jendela windowed/kecil; seharusnya menyempit apa pun situasinya |
+| — | **Sampul album berkedip-kedip** saat mode mini player |
+| — | **Klik kanan tidak berfungsi** di beberapa tempat: playlist, album, playlist podcast, dsb. |
+| 88c | **Ikon taskbar/thumbnail kosong** (lihat tangkapan layar putaran 4) |
+| — | **Like dan love tidak sinkron** satu sama lain |
+| 121 | Keterangan sumber lirik di Pengaturan **terlalu panjang** |
+
+### F5. Permintaan fitur (bukan cacat)
+
+| Asal | Permintaan |
+|---|---|
+| 17 | Bunyi notifikasi saat timer tidur habis |
+| 78 | Antrean menampilkan lagu yang **sudah** diputar, bukan memindahkannya ke Riwayat — kelompokkan jadi "telah diputar / sedang diputar / selanjutnya" seperti YouTube Music |
+| 42, 99 | Teks now-playing kini berjalan (marquee); masih kurang sreg tapi diterima |
+
 ---
 
 ## A. Perubahan 2026-07-22
