@@ -24,3 +24,9 @@ BundleArtifacts/
 
 # Velopack / standalone distribution output
 dist/
+
+# Exported Claude Code session transcripts (kept locally, not part of the source)
+2*-local-command-caveat*.md
+2*-local-command-caveat*.txt
+2026-*-2026-*.md
+2026-*-2026-*.txt

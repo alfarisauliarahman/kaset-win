@@ -44,6 +44,11 @@ public sealed partial class SettingsPage : Page
         var lyrics = services.GetService<Core.Services.Lyrics.ILyricsService>();
 
         ViewModel = new SettingsViewModel(settings, playback, lyrics);
+
+        // Must run after ViewModel exists. ApplyLabels() is called before it (it only touches XAML
+        // elements), so anything that reads the ViewModel belongs here — reading it from inside
+        // ApplyLabels crashed the page with a NullReferenceException.
+        DiscordUnavailableBar.IsOpen = !ViewModel.IsDiscordAvailable;
     }
 
     /// <summary>The page ViewModel, bound from XAML via <c>x:Bind</c>.</summary>
@@ -105,6 +110,17 @@ public sealed partial class SettingsPage : Page
         ExtensionsCaption.Text = Localization.UiStrings.SettingsExtensionsCaption;
         OpenExtFolderButton.Content = Localization.UiStrings.SettingsOpenExtensionsFolder;
         RestartAppButton.Content = Localization.UiStrings.SettingsRestartKaset;
+        HotkeysLabel.Text = Localization.UiStrings.SettingsHotkeysLabel;
+        HotkeysCaption.Text = Localization.UiStrings.SettingsHotkeysCaption;
+        DiscordHeader.Text = Localization.UiStrings.SettingsDiscordHeader;
+        DiscordLabel.Text = Localization.UiStrings.SettingsDiscordLabel;
+        DiscordCaption.Text = Localization.UiStrings.SettingsDiscordCaption;
+        DiscordAdvancedExpander.Header = Localization.UiStrings.SettingsDiscordAdvanced;
+        DiscordAdvancedCaption.Text = Localization.UiStrings.SettingsDiscordAdvancedCaption;
+        DiscordAppIdBox.PlaceholderText = Localization.UiStrings.SettingsDiscordPlaceholder;
+        Accessibility.A11y.Name(DiscordAppIdBox, Localization.UiStrings.SettingsDiscordPlaceholder);
+        DiscordPortalLink.Content = Localization.UiStrings.SettingsDiscordPortalLink;
+        DiscordUnavailableBar.Message = Localization.UiStrings.SettingsDiscordUnavailable;
         AboutHeader.Text = Localization.UiStrings.SettingsAboutHeader;
         VersionLabel.Text = Localization.UiStrings.SettingsVersionLabel;
         VersionCaption.Text = Localization.UiStrings.SettingsVersionCaption;

@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using KasetWin.Platform.Storage;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Windows.Graphics;
 
@@ -90,22 +92,170 @@ internal static class MainWindowLayout
         // Enforce the minimum size for all live resizes (DPI is read per-message inside the proc).
         SetWindowSubclass(hwnd, s_subclassProc, SubclassId, IntPtr.Zero);
 
-        // First-run sizing: KasetWin does not persist window geometry yet, so open at the default
-        // size, floored to the minimum. When geometry persistence is added later, gate this resize
-        // to the no-saved-frame case (the WM_GETMINMAXINFO floor already guards restored frames).
         if (window.AppWindow is { } appWindow)
         {
             var scale = DpiScale(hwnd);
-            var width = Math.Max(Scale(DefaultWidth, scale), Scale(MinimumWidth, scale));
-            var height = Math.Max(Scale(DefaultHeight, scale), Scale(MinimumHeight, scale));
-            appWindow.Resize(new SizeInt32(width, height));
+
+            // Restore the frame the user left behind; fall back to the default size on first run or
+            // when the saved frame no longer fits any attached display (monitor unplugged, DPI
+            // change, resolution drop) — an off-screen window is unrecoverable without registry
+            // surgery, so validating it is not optional.
+            if (TryLoadGeometry() is { } saved && IsFrameVisibleOnAnyDisplay(saved))
+            {
+                appWindow.MoveAndResize(new RectInt32(
+                    saved.X,
+                    saved.Y,
+                    Math.Max(saved.Width, Scale(MinimumWidth, scale)),
+                    Math.Max(saved.Height, Scale(MinimumHeight, scale))));
+            }
+            else
+            {
+                var width = Math.Max(Scale(DefaultWidth, scale), Scale(MinimumWidth, scale));
+                var height = Math.Max(Scale(DefaultHeight, scale), Scale(MinimumHeight, scale));
+                appWindow.Resize(new SizeInt32(width, height));
+            }
         }
     }
+
+    // ── Geometry persistence ────────────────────────────────────────────────────────────────────
+
+    private const string GeometryKey = "window.geometry";
+
+    /// <summary>
+    /// Saves the window's current frame so the next launch reopens at the same size and place.
+    /// </summary>
+    /// <remarks>
+    /// Skipped whenever the window is not a normal overlapped window: in mini-player
+    /// (<c>CompactOverlay</c>) mode the frame is 400×150, and persisting that would reopen the full
+    /// shell at mini-player size. Maximised and minimised frames are skipped for the same reason —
+    /// what should be restored is the size the user chose, not the state.
+    /// </remarks>
+    /// <param name="window">The window whose frame to persist.</param>
+    /// <param name="overrideFrame">
+    /// A frame to store instead of the window's live one. Used when closing from the mini player,
+    /// where the live frame is 400×150 but the frame worth remembering is the one captured before
+    /// shrinking.
+    /// </param>
+    public static void SaveGeometry(Window window, RectInt32? overrideFrame = null)
+    {
+        if (window?.AppWindow is not { } appWindow)
+        {
+            return;
+        }
+
+        try
+        {
+            if (overrideFrame is { } frame)
+            {
+                if (frame.Width > 0 && frame.Height > 0)
+                {
+                    AppData.Settings[GeometryKey] = $"{frame.X},{frame.Y},{frame.Width},{frame.Height}";
+                }
+
+                return;
+            }
+
+            if (appWindow.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Restored })
+            {
+                return;
+            }
+
+            var size = appWindow.Size;
+            var position = appWindow.Position;
+            if (size.Width <= 0 || size.Height <= 0)
+            {
+                return;
+            }
+
+            AppData.Settings[GeometryKey] =
+                $"{position.X},{position.Y},{size.Width},{size.Height}";
+        }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException)
+        {
+            // Geometry is a convenience; never let saving it fail a window close.
+        }
+    }
+
+    /// <summary>Reads the saved frame, or <c>null</c> when absent or malformed.</summary>
+    private static RectInt32? TryLoadGeometry()
+    {
+        try
+        {
+            if (AppData.Settings[GeometryKey] is not string raw)
+            {
+                return null;
+            }
+
+            var parts = raw.Split(',');
+            if (parts.Length != 4
+                || !int.TryParse(parts[0], out var x)
+                || !int.TryParse(parts[1], out var y)
+                || !int.TryParse(parts[2], out var width)
+                || !int.TryParse(parts[3], out var height)
+                || width <= 0
+                || height <= 0)
+            {
+                return null;
+            }
+
+            return new RectInt32(x, y, width, height);
+        }
+        catch (Exception ex) when (ex is FormatException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Whether a meaningful part of <paramref name="frame"/> lands on a connected display. Guards
+    /// against restoring onto a monitor that is no longer attached, which would open the window
+    /// somewhere the user cannot see or reach.
+    /// </summary>
+    private static bool IsFrameVisibleOnAnyDisplay(RectInt32 frame)
+    {
+        try
+        {
+            foreach (var area in DisplayArea.FindAll())
+            {
+                var bounds = area.OuterBounds;
+                var overlapX = Math.Min(frame.X + frame.Width, bounds.X + bounds.Width) - Math.Max(frame.X, bounds.X);
+                var overlapY = Math.Min(frame.Y + frame.Height, bounds.Y + bounds.Height) - Math.Max(frame.Y, bounds.Y);
+
+                // Require a real patch of title bar on screen, not a single overlapping pixel.
+                if (overlapX >= 200 && overlapY >= 80)
+                {
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException)
+        {
+            return false;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether the minimum-size floor is currently waived. The mini player's CompactOverlay is far
+    /// smaller than 980×600, and the floor would otherwise veto that size.
+    /// </summary>
+    private static bool s_minimumSuspended;
+
+    /// <summary>
+    /// Waives the minimum-size floor so the window can shrink below it (mini player). Pair every
+    /// call with <see cref="RestoreMinimumSize"/> — while suspended, nothing stops a user from
+    /// dragging the full shell down to an unusable size.
+    /// </summary>
+    public static void SuspendMinimumSize() => s_minimumSuspended = true;
+
+    /// <summary>Reinstates the minimum-size floor after <see cref="SuspendMinimumSize"/>.</summary>
+    public static void RestoreMinimumSize() => s_minimumSuspended = false;
 
     private static IntPtr MinMaxSubclassProc(
         IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam, uint idSubclass, IntPtr refData)
     {
-        if (msg == WM_GETMINMAXINFO && lParam != IntPtr.Zero)
+        if (msg == WM_GETMINMAXINFO && lParam != IntPtr.Zero && !s_minimumSuspended)
         {
             var info = Marshal.PtrToStructure<MINMAXINFO>(lParam);
             var scale = DpiScale(hwnd);

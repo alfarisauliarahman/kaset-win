@@ -31,6 +31,9 @@ Apa yang jadi lebih mudah atau lebih sulit karena keputusan ini?
 | ADR | Judul | Status |
 |-----|-------|--------|
 | [0001](0001-webview2-playback-and-projection.md) | Pemutaran DRM via WebView2 + Projection/Packaging | Accepted |
+| [0002](0002-now-playing-side-panel.md) | Panel now-playing berlabuh (antrean / lirik / terkait) | Accepted |
+| [0003](0003-mini-player-and-sleep-timer.md) | Mini player (CompactOverlay) dan timer tidur | Accepted |
+| [0004](0004-discord-presence-hotkeys-geometry.md) | Discord Rich Presence, pintasan global, geometri jendela | Accepted |
 
 ## Padanan platform (ringkas)
 

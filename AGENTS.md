@@ -33,7 +33,12 @@ data via the InnerTube API (`YTMusicClient`) using `SAPISIDHASH`.
 ```powershell
 dotnet build KasetWin.sln -c Debug                                   # build
 dotnet test tests/KasetWin.Core.Tests/KasetWin.Core.Tests.csproj     # headless unit + property tests
+dotnet build src/KasetWin.App/KasetWin.App.csproj -c Debug           # XAML compile (CI runs this too)
 ```
+
+- **Always build `KasetWin.App`, not just the tests.** A large class of errors — bad `x:Bind` paths,
+  missing `x:Name`, unknown `StaticResource`, wrong namespace on an attached property — exists only
+  at XAML-compile time and is invisible to `dotnet test`. CI has a dedicated `build-app` job for this.
 
 - If a build hits an XamlCompiler file lock during parallel/iterated builds:
   `dotnet build-server shutdown` and pass `-p:UseSharedCompilation=false`.
@@ -58,6 +63,23 @@ dotnet test tests/KasetWin.Core.Tests/KasetWin.Core.Tests.csproj     # headless 
 | `DispatcherQueue` misuse off-thread | marshal UI work via `DispatcherQueue.TryEnqueue` | UI-thread safety |
 | Force-unwrap / `!` everywhere | nullable handling, `is { }` patterns | Nullable is enabled |
 | Throwing parsers | return ignore/empty or `KasetError(ParseError)` | Resilient parsing |
+| bare `ToolTipService.SetToolTip` | `A11y.Label(element, text)` | Sets the accessible name too (see below) |
+
+> ♿ **Accessibility is not optional.** A tooltip is **not** read by Narrator, so an icon-only control
+> with only a tooltip is announced as an unnamed "button". Use `KasetWin.App.Accessibility.A11y`:
+> `Label` (name + tooltip from one string), `Name` (name only — sliders), `Decorative` (hide artwork
+> that repeats adjacent text). Two rules with teeth:
+> - Anything **icon-only or value-only** needs a name. XAML carries an English fallback;
+>   `ApplyLanguage()` / `ApplyLabels()` re-applies it via `A11y` so the name follows the app language.
+> - Do **not** name a control whose accessible name already comes from its text content — setting
+>   `AutomationProperties.Name="Go to album"` on a link wrapping a song title *replaces* the title.
+> See Req 38 in the spec and `Controls/TrackInfo.xaml.cs` for the documented exception.
+
+> 🌐 **Localization reality check.** Visible text comes from `Localization/UiStrings.cs`
+> (English/Indonesian), **not** from the `.resw` files — `x:Uid` usage in the app is 0. Never widen
+> `SupportedLanguages.All` before `UiStrings` can render that language: the list drives
+> `PrimaryLanguageOverride` *and* RTL layout direction, and a language with no strings produced an
+> RTL window full of Indonesian text. Read `src/KasetWin.App/Strings/README.md` first.
 
 - Map HTTP 401/403 → `KasetError(AuthExpired)`.
 - `@Observable`-style VMs use CommunityToolkit.Mvvm (`[ObservableProperty]`, `[RelayCommand]`).
@@ -77,9 +99,11 @@ dotnet run --project src/KasetWin.ApiExplorer -- browse FEmusic_home -v
 ## Task planning
 
 For non-trivial work: **Research → Plan → Implement → Verify**. Build continuously; keep the test
-suite green. The spec that drives this project lives at the **workspace root** under
-`../.kiro/specs/kaset-winui3/` (requirements / design / tasks + `upstream-sync.md`) — this is the
-single canonical copy read by the Kiro tooling; do not re-create a copy inside `KasetWin/`.
+suite green. The spec that drives this project lives **inside this repo** at
+`.kiro/specs/kaset-winui3/` (requirements / design / tasks + `upstream-sync.md`) — the single
+canonical copy. A second copy used to sit at the workspace root (`M:\kaset\kaset\.kiro\`), outside
+this repo and therefore never committed; the two drifted and the root one was retired on
+2026-07-22 (renamed to `.kiro.duplicate-removed-20260722`). Do not re-create a copy outside this repo.
 
 ## Credits
 

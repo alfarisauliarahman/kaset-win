@@ -11,6 +11,9 @@ namespace KasetWin.Core.Tests.Properties;
 /// </summary>
 public class LocalizationProperties
 {
+    /// <summary>RTL-script locales the app ships no translation for.</summary>
+    private static readonly string[] UntranslatedRtlLocales = ["ar", "ar-SA", "ar-EG", "he-IL", "fa-IR"];
+
     /// <summary>Region/script suffixes appended to a primary subtag to exercise normalization.</summary>
     private static readonly Gen<string> RegionSuffix = Gen.OneOfConst(
         string.Empty, "-US", "-GB", "-FR", "-KR", "-ID", "-TR", "-SA", "_Latn", "-419");
@@ -61,5 +64,49 @@ public class LocalizationProperties
         Assert.Equal(SupportedLanguages.Fallback, LanguageSelector.Select(string.Empty, supported));
         Assert.Equal(SupportedLanguages.Fallback, LanguageSelector.Select("   ", supported));
         Assert.False(LayoutDirection.IsRtl(null));
+    }
+
+    /// <summary>
+    /// A language the app has no strings for must not drag the layout into its writing direction.
+    ///
+    /// Regression for a shipped bug: <c>SupportedLanguages.All</c> listed <c>ar</c> (plus fr/ko/tr)
+    /// on the strength of <c>.resw</c> stubs that nothing bound, while every visible string came
+    /// from <c>UiStrings</c> — English or Indonesian only. On an Arabic system the selector returned
+    /// <c>"ar"</c>, <c>MainWindow</c> flipped the window to right-to-left, and the mirrored layout
+    /// then filled with Indonesian text.
+    ///
+    /// The invariant that prevents it: direction is derived from the <b>selected</b> language, never
+    /// the raw system locale, so an unsupported locale is LTR because its fallback is LTR.
+    /// </summary>
+    [Fact]
+    public void Unsupported_rtl_locale_falls_back_to_english_and_stays_ltr()
+    {
+        var supported = SupportedLanguages.All;
+
+        foreach (var locale in UntranslatedRtlLocales)
+        {
+            var selected = LanguageSelector.Select(locale, supported);
+
+            Assert.Equal(SupportedLanguages.Fallback, selected);
+            Assert.False(
+                LayoutDirection.IsRtl(selected),
+                $"'{locale}' has no translation, so the layout must follow its LTR fallback.");
+        }
+
+        // The RTL machinery itself is intact and ready for the first RTL translation — this is a
+        // claim about coverage, not about LayoutDirection being broken.
+        Assert.True(LayoutDirection.IsRtl("ar"));
+    }
+
+    /// <summary>
+    /// Every advertised language must be one the app can actually render. <c>UiStrings</c> is the
+    /// real source of visible text and is English-or-Indonesian, so the supported list may not grow
+    /// past those two until <c>UiStrings</c> itself gains a language (see Strings/README.md).
+    /// </summary>
+    [Fact]
+    public void Supported_languages_match_the_strings_that_exist()
+    {
+        Assert.Equal(new[] { "en", "id" }, SupportedLanguages.All);
+        Assert.Contains(SupportedLanguages.Fallback, SupportedLanguages.All);
     }
 }

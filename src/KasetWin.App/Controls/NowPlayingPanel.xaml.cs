@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Linq;
+using KasetWin.App.Accessibility;
 using KasetWin.App.Navigation;
 using KasetWin.App.ViewModels;
 using KasetWin.App.Views;
@@ -113,8 +114,15 @@ public sealed partial class NowPlayingPanel : UserControl
         QueueEmptyText.Text = Localization.UiStrings.QueueEmpty;
         RelatedEmptyText.Text = Localization.UiStrings.RelatedEmpty;
         LyricsEmptyText.Text = Localization.UiStrings.LyricsEmpty;
-        ToolTipService.SetToolTip(CloseButton, Localization.UiStrings.TipClose);
-        ToolTipService.SetToolTip(CcPickerButton, Localization.UiStrings.TipSubtitles);
+        A11y.Label(CloseButton, Localization.UiStrings.TipClose);
+        A11y.Label(CcPickerButton, Localization.UiStrings.TipSubtitles);
+
+        // The three list panes carry no visible heading of their own once a tab is active, so name
+        // them for screen readers (no tooltip — hovering a long list to read a label is noise).
+        A11y.Name(UpNextList, Localization.UiStrings.A11yQueueList);
+        A11y.Name(HistoryList, Localization.UiStrings.A11yHistoryList);
+        A11y.Name(LyricsList, Localization.UiStrings.A11yLyricsList);
+
         NowPlayingTrackInfo.ApplyLanguage();
         Bindings.Update(); // LyricsHeaderText follows the language too
     }

@@ -17,8 +17,8 @@ Kebutuhan dikelompokkan menjadi tiga tingkat lingkup:
 ### Pengelompokan Lingkup (Ringkasan)
 
 - **Inti Rilis-1**: Autentikasi & SAPISIDHASH (Req 1–4), Pemutaran musik WebView2 & antrian (Req 5–9), Now Playing/SMTC (Req 10), Browsing dasar Home/Search/Library/Playlist/Album/Artist (Req 11–16), Lyrics (Req 17), Settings dasar & lokalisasi (Req 18–19), Penanganan error/logging/keamanan/performa & API Explorer (Req 20–24).
-- **Fase Lanjutan**: Multi-akun lanjutan, Infinite Mix & radio (Req 25), Video & mini/floating player (Req 26), Podcasts (Req 27), Scrobbling Last.fm (Req 28), Favorites/pinned & History (Req 29–30), Explore detail Moods/Charts/New Releases (Req 31), Mode YouTube penuh (Req 32), Protocol activation & share & notifikasi (Req 33–35).
-- **Ditunda**: Equalizer, Haptic feedback, Extensions, AppleScript, Auto-update (Req 36).
+- **Fase Lanjutan**: Multi-akun lanjutan, Infinite Mix & radio (Req 25), Video & mini/floating player (Req 26), Podcasts (Req 27), ~~Scrobbling Last.fm (Req 28 — dibatalkan)~~, Favorites/pinned & History (Req 29–30), Explore detail Moods/Charts/New Releases (Req 31), Mode YouTube penuh (Req 32), Protocol activation & share & notifikasi (Req 33–35).
+- **Ditunda**: Haptic feedback, AppleScript, fitur AI (Req 36). _(Equalizer, Web Extensions dan Auto-update semula di sini tetapi sudah diimplementasikan — lihat catatan pada Req 36.)_
 
 ## Glossary
 
@@ -265,9 +265,21 @@ Kebutuhan dikelompokkan menjadi tiga tingkat lingkup:
 
 #### Acceptance Criteria
 
-1. THE Kaset SHALL menyediakan antarmuka dalam bahasa English, French, Korean, Indonesian, Turkish, dan Arabic.
+1. THE Kaset SHALL menyediakan antarmuka dalam bahasa **English dan Indonesian**. _(Direvisi 2026-07-22 — lihat catatan di bawah.)_
 2. WHERE bahasa aktif ditulis dari kanan ke kiri, THE Kaset SHALL menampilkan tata letak dengan arah kanan-ke-kiri (RTL).
-3. WHEN bahasa sistem termasuk salah satu bahasa yang didukung, THE Kaset SHALL memilih bahasa tersebut sebagai default.
+3. WHEN bahasa sistem termasuk salah satu bahasa yang didukung, THE Kaset SHALL memilih bahasa tersebut sebagai default; WHERE bahasa sistem tidak didukung, THE Kaset SHALL memakai fallback English **beserta arah tata letaknya** (LTR).
+
+> **Catatan revisi (2026-07-22).** Kriteria 1 semula menyebut enam bahasa (English, French, Korean,
+> Indonesian, Turkish, Arabic) atas dasar enam folder `.resw`. Folder itu tidak pernah tersambung —
+> jumlah `x:Uid` di seluruh aplikasi adalah **0**, dan semua teks yang terlihat berasal dari
+> `KasetWin.App/Localization/UiStrings.cs` yang hanya English/Indonesian. Klaim enam bahasa
+> menimbulkan cacat yang terlihat pengguna: di sistem berbahasa Arab, pemilihan bahasa memilih `ar`,
+> jendela dibalik ke RTL, lalu diisi teks bahasa Indonesia. `SupportedLanguages.All` dipersempit ke
+> `["en", "id"]` dan stub `.resw` yang mati dihapus, sehingga janji spec cocok dengan string yang
+> benar-benar ada. Kriteria 2 dan mesin RTL-nya dipertahankan dan tetap diuji (Property 42 +
+> `Unsupported_rtl_locale_falls_back_to_english_and_stays_ltr`), siap dipakai begitu ada terjemahan
+> RTL. Urutan menambah bahasa: terjemahkan `UiStrings` dulu, baru tambah subtag — lihat
+> `KasetWin/src/KasetWin.App/Strings/README.md`.
 
 ### Requirement 20: Penanganan Error Terpadu (Inti Rilis-1, Foundational)
 
@@ -338,7 +350,7 @@ Kebutuhan dikelompokkan menjadi tiga tingkat lingkup:
 #### Acceptance Criteria
 
 1. WHEN sebuah track memiliki video yang tersedia, THE Kaset SHALL menandai ketersediaan video (OMV versus ATV/UGC).
-2. WHEN pengguna mengaktifkan floating video window, THE Kaset SHALL menampilkan video dalam jendela picture-in-picture yang terpisah.
+2. WHEN pengguna mengaktifkan floating video window, THE Kaset SHALL menampilkan video dalam jendela picture-in-picture yang terpisah. _(Untuk **audio**, padanannya adalah mini player CompactOverlay — lihat Req 39, yang justru memakai ulang jendela utama karena WebView2 pemutaran tidak boleh di-re-parent.)_
 3. WHERE preferensi pop-out video diaktifkan dan pengguna menavigasi keluar dari halaman video, THE Kaset SHALL memindahkan video yang sedang diputar ke jendela mengambang.
 4. WHERE preferensi pop-out video dinonaktifkan dan pengguna menavigasi keluar dari halaman video, THE Kaset SHALL menghentikan pemutaran video.
 
@@ -353,16 +365,11 @@ Kebutuhan dikelompokkan menjadi tiga tingkat lingkup:
 3. WHEN pengguna mendengarkan sebuah episode, THE Kaset SHALL menyimpan progress episode dan status sudah diputar.
 4. WHEN pengguna subscribe atau unsubscribe sebuah podcast, THE YTMusic_Client SHALL memperbarui status langganan melalui InnerTube.
 
-### Requirement 28: Scrobbling Last.fm (Fase Lanjutan)
+### Requirement 28 (DIBATALKAN): Scrobbling Last.fm (Fase Lanjutan)
 
-**User Story:** Sebagai pengguna, saya ingin lagu yang saya dengar di-scrobble ke Last.fm, sehingga riwayat mendengarkan saya tercatat.
-
-#### Acceptance Criteria
-
-1. WHERE scrobbling Last.fm diaktifkan dan sebuah track telah diputar mencapai 50 persen durasinya atau 240 detik, THE Kaset SHALL mengantrikan scrobble untuk track tersebut.
-2. WHEN Kaset melakukan scrobble, THE Kaset SHALL berkomunikasi melalui proxy sehingga rahasia (secret) tidak disertakan dalam binary.
-3. WHILE perangkat sedang offline, THE Kaset SHALL menyimpan scrobble dalam antrian persisten hingga konektivitas pulih.
-4. WHEN Kaset menyimpan kredensial Last.fm, THE Kaset SHALL menyimpannya di Credential_Store.
+> **Dibatalkan 2026-07-22** atas keputusan pemilik repo. Scrobbling Last.fm dikeluarkan dari
+> lingkup KasetWin; tidak ada acceptance criteria yang berlaku. Task 21 di `tasks.md` ditandai
+> dibatalkan, dan Property 38 & 39 tidak akan ditulis.
 
 ### Requirement 29: Favorites dan Item Tersemat (Fase Lanjutan)
 
@@ -443,11 +450,11 @@ Kebutuhan dikelompokkan menjadi tiga tingkat lingkup:
 
 #### Acceptance Criteria
 
-1. THE Kaset SHALL mengecualikan equalizer dari rilis awal dan mencatatnya sebagai future work.
+1. ~~THE Kaset SHALL mengecualikan equalizer dari rilis awal~~ — **DIIMPLEMENTASIKAN** (ekualiser 9-band + preset via Web Audio pada WebView2 pemutaran).
 2. THE Kaset SHALL mengecualikan haptic feedback karena tidak ada padanan native Windows.
-3. THE Kaset SHALL mengecualikan dukungan ekstensi web (WebKit Web Extensions) hingga padanan Windows dievaluasi.
+3. ~~THE Kaset SHALL mengecualikan dukungan ekstensi web~~ — **DIIMPLEMENTASIKAN** (`ExtensionsService` memuat ekstensi unpacked; uBlock Origin auto-unduh & auto-perbarui).
 4. THE Kaset SHALL mengecualikan integrasi AppleScript dan menggantinya dengan Protocol_Activation atau argumen CLI pada fase lanjutan.
-5. THE Kaset SHALL mengecualikan mekanisme auto-update (misalnya MSIX atau Velopack) dari rilis awal dan mencatatnya sebagai future work.
+5. ~~THE Kaset SHALL mengecualikan mekanisme auto-update~~ — **DIIMPLEMENTASIKAN** (Velopack + GithubSource; aktif hanya pada build terinstal).
 6. THE Kaset SHALL mengecualikan seluruh fitur berbasis AI/Apple Intelligence (Command Bar AI, penjelasan lirik AI, analisis antrian AI, dan refine playlist AI) dari lingkup.
 
 ### Requirement 37: Sinkronisasi Fitur Upstream v0.12.0 (Fase Lanjutan)
@@ -465,3 +472,71 @@ Kebutuhan dikelompokkan menjadi tiga tingkat lingkup:
 7. WHILE aplikasi berada di latar belakang, WHEN pengguna menekan media-key "next", THE Player_Service SHALL memajukan ke track berikutnya (bukan mengulang track yang sama). _(upstream #319)_
 8. WHEN main window ditampilkan, THE Kaset SHALL menegakkan kontrak ukuran window (batas minimum/maksimum dan persistensi ukuran) yang konsisten. _(upstream #322)_
 9. WHEN pengguna bernavigasi antar-halaman, THE Kaset SHALL mempertahankan warna ikon sidebar yang ter-branding. _(upstream #336)_
+
+### Requirement 38: Aksesibilitas Antarmuka (Inti)
+
+**User Story:** Sebagai pengguna pembaca layar (Narrator/NVDA), saya ingin setiap kontrol menyebutkan namanya, sehingga saya dapat memakai Kaset tanpa melihat layar.
+
+#### Acceptance Criteria
+
+1. THE Kaset SHALL memberi `AutomationProperties.Name` pada setiap kontrol yang kontennya hanya ikon (tombol transport, suka/tidak suka, antrean, lirik, timer tidur, mini player, bisukan, toggle sumber, tombol kembali, hapus riwayat pencarian).
+2. THE Kaset SHALL memberi nama aksesibilitas pada kontrol yang hanya memiliki nilai tanpa label terlihat (slider posisi pemutaran, slider volume, sembilan slider ekualiser).
+3. WHERE sebuah kontrol memiliki tooltip, THE Kaset SHALL menetapkan nama aksesibilitas dari sumber string yang sama sehingga keduanya tidak pernah berbeda — tooltip **tidak** dibacakan pembaca layar dan bukan pengganti nama.
+4. WHERE nama aksesibilitas sebuah kontrol sudah berasal dari teks kontennya (mis. tautan judul/artis pada `TrackInfo`), THE Kaset SHALL **tidak** menimpanya dengan label generik.
+5. THE Kaset SHALL menandai konten dekoratif (sampul album, ikon aplikasi di title bar) sebagai `AccessibilityView="Raw"` agar pembaca layar tidak berhenti pada gambar yang mengulang teks di sebelahnya.
+6. WHEN bahasa aplikasi berubah, THE Kaset SHALL memperbarui nama aksesibilitas mengikuti bahasa tersebut.
+
+### Requirement 39: Mini Player dan Timer Tidur (Fase Lanjutan)
+
+**User Story:** Sebagai pengguna, saya ingin mengecilkan Kaset menjadi overlay ringkas sambil bekerja, dan menjadwalkan pemutaran berhenti sendiri, sehingga aplikasi tetap berguna di latar dan saat tidur.
+
+#### Acceptance Criteria
+
+1. WHEN pengguna menekan tombol mini player, THE Kaset SHALL mengubah jendela utama ke presenter `CompactOverlay` (selalu di atas) dan menampilkan permukaan ringkas berisi sampul, judul/artis, transport (sebelumnya/putar-jeda/berikutnya), scrubber, dan tombol kembali.
+2. WHILE berpindah masuk atau keluar mode mini player, THE Kaset SHALL mempertahankan pemutaran tanpa terputus — WebView2 pemutaran tidak boleh di-re-parent.
+3. WHEN keluar dari mode mini player, THE Kaset SHALL memulihkan presenter, chrome (title bar + sidebar), batas ukuran minimum, dan mode panel now-playing yang terbuka sebelumnya.
+4. WHEN pengguna memilih durasi timer tidur (15/30/45/60 menit), THE Kaset SHALL menjeda pemutaran setelah durasi tersebut habis, **tepat satu kali**, dan tidak lebih cepat dari durasi yang dipilih.
+5. WHEN pengguna memilih timer "akhir lagu ini", THE Player_Service SHALL menjeda pemutaran pada akhir track yang diharapkan alih-alih memajukan antrean, dan SHALL mengabaikan event `TRACK_ENDED` yang tidak cocok dengan track tersebut.
+6. WHILE timer tidur aktif, THE Kaset SHALL menampilkan indikasi visual pada Player_Bar beserta sisa waktu pada nama aksesibilitasnya; WHEN timer dibatalkan atau selesai, THE Kaset SHALL menghentikan tick-nya.
+7. THE Kaset SHALL menempatkan keputusan "kapan berhenti" pada logika murni di `KasetWin.Core` yang dapat diuji headless, terpisah dari aksi menjeda.
+
+### Requirement 40: Integritas Continuous Integration (Foundational)
+
+**User Story:** Sebagai kontributor, saya ingin CI menangkap kesalahan XAML pada pull request, sehingga main tidak pernah hijau saat aplikasi sebenarnya gagal dibangun.
+
+#### Acceptance Criteria
+
+1. THE CI SHALL membangun `KasetWin.App` (kompilasi XAML) pada setiap push dan pull request ke `main`, terpisah dari job core headless.
+2. WHERE sebuah perubahan mengandung kesalahan yang hanya muncul saat kompilasi XAML (jalur `x:Bind` salah, `x:Name` hilang, `StaticResource` tak dikenal, namespace attached property keliru), THE CI SHALL gagal.
+
+### Requirement 41: Discord Rich Presence (Fase Lanjutan, Opsional)
+
+**User Story:** Sebagai pengguna, saya ingin lagu yang sedang saya dengar tampil di profil Discord, sehingga teman-teman melihat apa yang saya putar.
+
+#### Acceptance Criteria
+
+1. WHERE pengguna menyalakan toggle Discord di Pengaturan, THE Kaset SHALL menerbitkan aktivitas "Listening" berisi judul lagu, artis, dan gambar sampul ke klien Discord lokal — **tanpa langkah setup apa pun dari pengguna**.
+2. THE Kaset SHALL memakai satu Discord Application ID bersama yang ditanam di aplikasi. Application ID bersifat **publik** (ikut terkirim di tiap payload presence); yang rahasia adalah *Client Secret*, yang tidak dipakai jalur IPC lokal ini dan tidak pernah disentuh Kaset.
+   - Meminta tiap pengguna mendaftarkan aplikasi Discord sendiri sebelum fitur ini berfungsi sama saja dengan meniadakan fitur ini bagi hampir semua orang.
+2a. THE Kaset SHALL menyediakan override Application ID opsional di bagian "Lanjutan", hanya untuk pengguna yang ingin nama aplikasi berbeda muncul di profilnya.
+2b. THE Kaset SHALL menonaktifkan fitur ini secara default, karena menyiarkan apa yang didengar ke profil publik adalah pilihan privasi pengguna.
+2c. WHERE tidak ada Application ID yang tersedia (konstanta bersama kosong dan pengguna tidak mengisi override), THE Kaset SHALL menjelaskan kondisi itu di kartu Pengaturan alih-alih menampilkan toggle yang diam-diam tidak berfungsi.
+3. WHEN pemutaran berjalan, THE Kaset SHALL menyertakan timestamp mulai yang sudah dikurangi posisi saat ini, sehingga penghitung waktu Discord tidak mengulang dari nol setiap seek atau reconnect.
+4. WHILE pemutaran dijeda, THE Kaset SHALL menghilangkan timestamp agar lagu yang dijeda tidak tampak terus berjalan.
+5. THE Kaset SHALL menjepit `details` dan `state` ke rentang 2–128 karakter yang diterima Discord, karena aktivitas di luar rentang itu ditolak diam-diam tanpa pesan error.
+6. WHERE Discord tidak terpasang, tidak berjalan, atau ditutup di tengah sesi, THE Kaset SHALL memperlakukannya sebagai kondisi normal — tanpa error ke pengguna dan tanpa memengaruhi pemutaran.
+7. THE Kaset SHALL membatasi frekuensi pembaruan presence (Discord membatasi ~1 per 15 detik) dan tidak mendorong pembaruan per-tik progres.
+
+### Requirement 42: Pintasan Global dan Persistensi Geometri Jendela
+
+**User Story:** Sebagai pengguna, saya ingin mengendalikan pemutaran dari aplikasi lain dan menemukan jendela Kaset di ukuran yang saya tinggalkan.
+
+#### Acceptance Criteria
+
+1. WHERE pintasan global diaktifkan di Pengaturan, THE Kaset SHALL mendaftarkan `Ctrl+Alt+↓` (putar/jeda), `Ctrl+Alt+→` (berikutnya), `Ctrl+Alt+←` (sebelumnya), dan `Ctrl+Alt+↑` (bisukan) secara sistem-wide.
+2. WHERE sebuah kombinasi sudah diklaim aplikasi lain, THE Kaset SHALL melewati kombinasi itu saja dan tetap mendaftarkan sisanya.
+3. THE Kaset SHALL menonaktifkan pintasan global secara default, karena mengklaim kombinasi tersebut dari seluruh aplikasi lain bukan keputusan yang boleh diambil sepihak.
+4. WHEN pengguna mengubah toggle pintasan global, THE Kaset SHALL menerapkannya langsung tanpa perlu restart.
+5. WHEN jendela ditutup, THE Kaset SHALL menyimpan ukuran dan posisi jendela, dan WHEN dibuka lagi SHALL memulihkannya.
+6. WHERE jendela sedang dalam mode mini player, dimaksimalkan, atau diminimalkan, THE Kaset SHALL **tidak** menyimpan geometri tersebut — yang dipulihkan harus ukuran yang dipilih pengguna, bukan state sementara.
+7. WHERE geometri tersimpan tidak lagi muat pada layar mana pun yang terpasang, THE Kaset SHALL mengabaikannya dan membuka pada ukuran default, agar jendela tidak muncul di luar area yang terlihat.

@@ -244,9 +244,15 @@ public sealed partial class MainWindow : Window
 
     private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
+        // While in the mini player the live frame is 400×150, which must never be persisted as the
+        // window size. The frame captured on the way in is the one worth keeping.
+        var frameToPersist = _isMiniPlayer ? FrameBeforeMiniPlayer : null;
+
         if (_isQuitting)
         {
-            return; // genuine quit â€” let the window close.
+            // A genuine quit destroys the window, so there is nothing to restore chrome for.
+            MainWindowLayout.SaveGeometry(this, frameToPersist);
+            return;
         }
 
         // The user can opt out of the background-audio model (Settings): when close-to-tray is off,
@@ -263,6 +269,17 @@ public sealed partial class MainWindow : Window
         // surface a tray icon so the hidden window can be brought back.
         args.Cancel = true;
         AppWindow.Hide();
+
+        // Closing does not destroy this window — the tray reopens this same instance. Mini-player
+        // mode therefore has to be left, or reopening hands back a 400×150 window with no chrome and
+        // no obvious way out. Done *after* Hide() so the window is already off screen: restoring
+        // first made the window visibly grow back to full size before vanishing.
+        if (_isMiniPlayer)
+        {
+            ExitMiniPlayer();
+        }
+
+        MainWindowLayout.SaveGeometry(this, frameToPersist);
         _tray?.Show();
     }
 
@@ -463,6 +480,73 @@ public sealed partial class MainWindow : Window
         {
             // Auto-update is a convenience; never block startup on it.
         }
+
+        try
+        {
+            // Discord rich presence, only when the user switched it on. Off by default because it
+            // publishes what they are listening to onto a public profile. The application id comes
+            // from the shared one Kaset ships, unless the user overrode it in Settings.
+            var appId = ViewModels.SettingsViewModel.ResolveDiscordApplicationId();
+            if (ViewModels.SettingsViewModel.LoadDiscordEnabled()
+                && !string.IsNullOrWhiteSpace(appId)
+                && App.Current.Services.GetService<Hosting.RichPresenceService>() is { } presence)
+            {
+                _ = presence.StartAsync(appId);
+            }
+        }
+        catch
+        {
+            // Rich presence is decoration; never block startup on it.
+        }
+
+        try
+        {
+            // System-wide playback hotkeys (Ctrl+Alt+Arrows), opt-in from Settings. Windows grants a
+            // combination to one process only, so partial registration is normal and tolerated.
+            if (ViewModels.SettingsViewModel.LoadGlobalHotkeysEnabled()
+                && App.Current.Services.GetService<IPlayerService>() is { } hotkeyPlayer)
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                _globalHotkeys = GlobalHotkeys.TryCreate(hwnd, hotkeyPlayer, DispatcherQueue);
+            }
+        }
+        catch
+        {
+            // Global hotkeys are a convenience; never block startup on them.
+        }
+    }
+
+    /// <summary>System-wide playback hotkeys; <c>null</c> when disabled or fully claimed elsewhere.</summary>
+    private GlobalHotkeys? _globalHotkeys;
+
+    /// <summary>
+    /// Turns system-wide hotkeys on or off at runtime, so the Settings toggle takes effect without a
+    /// restart. Returns how many combinations Windows actually granted (0 when off or all taken).
+    /// </summary>
+    internal int SetGlobalHotkeysEnabled(bool enabled)
+    {
+        _globalHotkeys?.Dispose();
+        _globalHotkeys = null;
+
+        if (!enabled)
+        {
+            return 0;
+        }
+
+        try
+        {
+            if (App.Current.Services.GetService<IPlayerService>() is { } player)
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                _globalHotkeys = GlobalHotkeys.TryCreate(hwnd, player, DispatcherQueue);
+            }
+        }
+        catch
+        {
+            // Treated as "none registered" below.
+        }
+
+        return _globalHotkeys?.RegisteredCount ?? 0;
     }
 
     /// <summary>

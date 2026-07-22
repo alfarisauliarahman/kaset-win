@@ -113,11 +113,15 @@
   </ItemGroup>
 
   <!--
-    Localized UI strings (Req 19.1) live under Strings\{lang}\Resources.resw. The .NET SDK globs
+    PRI string resources (Req 19.1) live under Strings\{lang}\Resources.resw. The .NET SDK globs
     them as <PRIResource> automatically (EnableDefaultPriItems), so each file is compiled into the
     app's PRI package; ResourceLoader / x:Uid bindings then resolve keys for the language chosen via
-    ApplicationLanguages.PrimaryLanguageOverride. See Strings\README.md. (Do not re-declare the
-    .resw files explicitly here — that triggers NETSDK1022 duplicate-item errors.)
+    ApplicationLanguages.PrimaryLanguageOverride. (Do not re-declare the .resw files explicitly
+    here — that triggers NETSDK1022 duplicate-item errors.)
+
+    NOTE: the app's visible strings do NOT come from these files — they come from
+    Localization\UiStrings.cs, and nothing currently binds a .resw key (x:Uid count: 0). Read
+    Strings\README.md before adding a language; translating UiStrings is the actual work.
   -->
 
   <!--

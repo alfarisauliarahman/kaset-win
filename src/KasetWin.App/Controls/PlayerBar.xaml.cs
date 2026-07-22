@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel;
+using KasetWin.App.Accessibility;
 using KasetWin.App.Hosting;
 using KasetWin.App.Navigation;
 using KasetWin.App.Sharing;
@@ -106,9 +107,149 @@ public sealed partial class PlayerBar : UserControl
         SeekSlider.AddHandler(PointerReleasedEvent, new PointerEventHandler(OnSeekPointerReleased), handledEventsToo: true);
         SeekSlider.AddHandler(PointerCaptureLostEvent, new PointerEventHandler(OnSeekPointerReleased), handledEventsToo: true);
 
+        // The flyout is built by ApplyLanguage (called above), so only the subscription is needed here.
+        _sleepTimer.StateChanged += OnSleepTimerStateChanged;
+
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
+
+    // ── Sleep timer ────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Pure "when to stop" policy, shared with <see cref="IPlayerService"/> via DI so an "end of
+    /// this track" timer is enforced at the real track-end event rather than guessed at from a
+    /// CurrentTrack change (which also fires when the user skips manually). Falls back to a local
+    /// instance only in design-time/host-less contexts, where duration timers still work.
+    /// </summary>
+    private readonly SleepTimer _sleepTimer =
+        (Application.Current as App)?.Services.GetService<SleepTimer>() ?? new SleepTimer();
+
+    /// <summary>
+    /// Drives <see cref="_sleepTimer"/>. Runs only while a timer is armed — an idle timer costs no
+    /// ticks. One second is fine: the countdown is displayed to the minute.
+    /// </summary>
+    private DispatcherTimer? _sleepTicker;
+
+    /// <summary>Builds the sleep-timer menu: off, a few durations, and end-of-track.</summary>
+    private void BuildSleepTimerFlyout()
+    {
+        SleepTimerFlyout.Items.Clear();
+
+        var off = new MenuFlyoutItem { Text = Localization.UiStrings.SleepTimerOff };
+        off.Click += (_, _) => CancelSleepTimer();
+        SleepTimerFlyout.Items.Add(off);
+        SleepTimerFlyout.Items.Add(new MenuFlyoutSeparator());
+
+        foreach (var minutes in SleepTimerPresets)
+        {
+            var label = minutes == 60
+                ? Localization.UiStrings.SleepTimerHour
+                : Localization.UiStrings.SleepTimerMinutes(minutes);
+            var item = new MenuFlyoutItem { Text = label };
+            var chosen = minutes;
+            item.Click += (_, _) => ArmSleepTimer(chosen);
+            SleepTimerFlyout.Items.Add(item);
+        }
+
+        SleepTimerFlyout.Items.Add(new MenuFlyoutSeparator());
+        var endOfTrack = new MenuFlyoutItem { Text = Localization.UiStrings.SleepTimerEndOfTrack };
+        endOfTrack.Click += (_, _) =>
+        {
+            _sleepTimer.StartEndOfTrack();
+            _notifier?.Show(Localization.UiStrings.ToastSleepTimerSet(Localization.UiStrings.SleepTimerAtTrackEnd));
+        };
+        SleepTimerFlyout.Items.Add(endOfTrack);
+    }
+
+    private static readonly int[] SleepTimerPresets = [15, 30, 45, 60];
+
+    private void ArmSleepTimer(int minutes)
+    {
+        _sleepTimer.StartDuration(TimeSpan.FromMinutes(minutes));
+        _notifier?.Show(
+            Localization.UiStrings.ToastSleepTimerSet(Localization.UiStrings.SleepTimerInMinutes(minutes)));
+    }
+
+    private void CancelSleepTimer()
+    {
+        if (!_sleepTimer.State.IsArmed)
+        {
+            return;
+        }
+
+        _sleepTimer.Cancel();
+        _notifier?.Show(Localization.UiStrings.ToastSleepTimerCancelled);
+    }
+
+    /// <summary>
+    /// Reflects the timer on the button and starts/stops the ticker. The ticker is created lazily
+    /// and stopped whenever the timer disarms, so an unused sleep timer costs nothing.
+    /// </summary>
+    private void OnSleepTimerStateChanged(object? sender, SleepTimerState state)
+    {
+        if (state.IsArmed)
+        {
+            _sleepTicker ??= CreateSleepTicker();
+            _sleepTicker.Start();
+
+            // A lit icon is the only persistent signal that playback is going to stop by itself.
+            SleepTimerIcon.Foreground =
+                (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+
+            var remaining = state.Mode == SleepTimerMode.EndOfTrack
+                ? Localization.UiStrings.SleepTimerAtTrackEnd
+                : FormatRemaining(state.Remaining);
+            A11y.Label(SleepTimerButton, Localization.UiStrings.A11ySleepTimerArmed(remaining));
+            return;
+        }
+
+        _sleepTicker?.Stop();
+        SleepTimerIcon.Foreground =
+            (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
+        A11y.Label(SleepTimerButton, Localization.UiStrings.TipSleepTimer);
+    }
+
+    private DispatcherTimer CreateSleepTicker()
+    {
+        var ticker = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        ticker.Tick += (_, _) =>
+        {
+            if (_sleepTimer.Advance(TimeSpan.FromSeconds(1)))
+            {
+                _ = PauseForSleepTimerAsync();
+            }
+        };
+        return ticker;
+    }
+
+    /// <summary>Pauses playback because the sleep timer expired, and says so.</summary>
+    private async Task PauseForSleepTimerAsync()
+    {
+        try
+        {
+            if (_player is { IsPlaying: true })
+            {
+                await _player.PauseAsync();
+            }
+
+            _notifier?.Show(Localization.UiStrings.ToastSleepTimerFired);
+        }
+        catch (Exception)
+        {
+            // A failed pause must not take the shell down; the timer has already disarmed itself.
+        }
+    }
+
+    /// <summary>Shrinks the shell to the compact always-on-top mini player.</summary>
+    private void OnMiniPlayerClick(object sender, RoutedEventArgs e) =>
+        ((Application.Current as App)?.MainWindow as MainWindow)?.ToggleMiniPlayer();
+
+    /// <summary>Formats the countdown coarsely ("12 minutes", then seconds in the final minute).</summary>
+    private static string FormatRemaining(TimeSpan remaining) =>
+        remaining >= TimeSpan.FromMinutes(1)
+            ? Localization.UiStrings.SleepTimerMinutes((int)Math.Ceiling(remaining.TotalMinutes))
+            : $"{Math.Max(0, (int)remaining.TotalSeconds)}s";
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -138,6 +279,11 @@ public sealed partial class PlayerBar : UserControl
         {
             _sidePanel.Changed -= OnSidePanelChanged;
         }
+
+        // The sleep timer is a DI singleton and outlives this control, so leaving the handler
+        // attached would keep the bar alive with it.
+        _sleepTimer.StateChanged -= OnSleepTimerStateChanged;
+        _sleepTicker?.Stop();
     }
 
     /// <summary>Refreshes the like button when the current track's like state changes elsewhere.</summary>
@@ -202,7 +348,7 @@ public sealed partial class PlayerBar : UserControl
             Core.Models.RepeatMode.One => Localization.UiStrings.RepeatTooltipOne,
             _ => Localization.UiStrings.RepeatTooltipOff,
         };
-        ToolTipService.SetToolTip(RepeatButton, tip);
+        A11y.Label(RepeatButton, tip);
     }
 
     /// <summary>
@@ -238,7 +384,7 @@ public sealed partial class PlayerBar : UserControl
             LikeIcon.Foreground = liked
                 ? (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["AccentFillColorDefaultBrush"]
                 : (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["TextFillColorPrimaryBrush"];
-            ToolTipService.SetToolTip(LikeButton, liked ? Localization.UiStrings.TipUnlike : Localization.UiStrings.TipLike);
+            A11y.Label(LikeButton, liked ? Localization.UiStrings.TipUnlike : Localization.UiStrings.TipLike);
             return;
         }
 
@@ -247,7 +393,7 @@ public sealed partial class PlayerBar : UserControl
         LikeIcon.Foreground = liked
             ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0xE0, 0x24, 0x5E))
             : (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["TextFillColorPrimaryBrush"];
-        ToolTipService.SetToolTip(LikeButton, liked ? Localization.UiStrings.TipUnlike : Localization.UiStrings.TipLike);
+        A11y.Label(LikeButton, liked ? Localization.UiStrings.TipUnlike : Localization.UiStrings.TipLike);
     }
 
     /// <summary>
@@ -256,18 +402,31 @@ public sealed partial class PlayerBar : UserControl
     /// </summary>
     internal void ApplyLanguage()
     {
-        ToolTipService.SetToolTip(ShuffleButton, Localization.UiStrings.TipShuffle);
-        ToolTipService.SetToolTip(PreviousButton, Localization.UiStrings.TipPrevious);
-        ToolTipService.SetToolTip(Rewind10Button, Localization.UiStrings.TipBack10);
-        ToolTipService.SetToolTip(PlayPauseButton, Localization.UiStrings.TipPlayPause);
-        ToolTipService.SetToolTip(Forward30Button, Localization.UiStrings.TipForward30);
-        ToolTipService.SetToolTip(NextButton, Localization.UiStrings.TipNext);
+        // A11y.Label sets the accessible name alongside the tooltip: these are all icon-only
+        // buttons, and a tooltip alone leaves them unnamed for Narrator.
+        A11y.Label(ShuffleButton, Localization.UiStrings.TipShuffle);
+        A11y.Label(PreviousButton, Localization.UiStrings.TipPrevious);
+        A11y.Label(Rewind10Button, Localization.UiStrings.TipBack10);
+        A11y.Label(PlayPauseButton, Localization.UiStrings.TipPlayPause);
+        A11y.Label(Forward30Button, Localization.UiStrings.TipForward30);
+        A11y.Label(NextButton, Localization.UiStrings.TipNext);
         UpdateRepeatTooltip();
-        ToolTipService.SetToolTip(DislikeButton, Localization.UiStrings.TipDislike);
-        ToolTipService.SetToolTip(SpeedButton, Localization.UiStrings.TipSpeed);
-        ToolTipService.SetToolTip(LyricsButton, Localization.UiStrings.TipLyrics);
-        ToolTipService.SetToolTip(QueueButton, Localization.UiStrings.TipQueue);
-        ToolTipService.SetToolTip(MuteButton, Localization.UiStrings.TipMute);
+        A11y.Label(DislikeButton, Localization.UiStrings.TipDislike);
+        A11y.Label(SpeedButton, Localization.UiStrings.TipSpeed);
+        ApplyLyricsButtonLabel();
+        A11y.Label(QueueButton, Localization.UiStrings.TipQueue);
+        A11y.Label(MuteButton, Localization.UiStrings.TipMute);
+        A11y.Label(MiniPlayerButton, Localization.UiStrings.TipMiniPlayer);
+
+        // Rebuild rather than relabel: the menu is generated, and an armed timer's button label
+        // carries its own (localized) countdown, which OnSleepTimerStateChanged restores.
+        BuildSleepTimerFlyout();
+        OnSleepTimerStateChanged(this, _sleepTimer.State);
+
+        // Sliders announce their value but not what the value means, so they need a name too —
+        // without a tooltip, which would fight the seek/volume drag affordance.
+        A11y.Name(SeekSlider, Localization.UiStrings.A11ySeekSlider);
+        A11y.Name(VolumeSlider, Localization.UiStrings.A11yVolumeSlider);
         CtxPlayNextItem.Text = Localization.UiStrings.MenuPlayNext;
         CtxAddToQueueItem.Text = Localization.UiStrings.MenuAddToQueue;
         CtxToggleLikeItem.Text = Localization.UiStrings.MenuLikeToggle;
@@ -322,6 +481,15 @@ public sealed partial class PlayerBar : UserControl
     /// (Bug 3). Routed through <see cref="NavigationHelper"/> because the PlayerBar lives outside
     /// the content <see cref="Frame"/>.
     /// </summary>
+    /// <summary>
+    /// Labels the Lyrics button for the current content kind: "Subtitles (CC)" for a podcast
+    /// episode, "Lyrics" for a song — always from <see cref="Localization.UiStrings"/>, so the
+    /// label follows the app language instead of being pinned to one of them.
+    /// </summary>
+    private void ApplyLyricsButtonLabel() => A11y.Label(
+        LyricsButton,
+        _isPodcastUi ? Localization.UiStrings.SubtitlesCcLabel : Localization.UiStrings.TipLyrics);
+
     private void UpdateLyricsAvailability()
     {
         var track = _player?.CurrentTrack;
@@ -331,10 +499,10 @@ public sealed partial class PlayerBar : UserControl
         // glyph and tooltip so the affordance reads "Subtitel (CC)" like YT Music.
         var isPodcast = track?.IsPodcastEpisode == true;
         LyricsIcon.Glyph = isPodcast ? "" : ""; // ClosedCaption vs the default lyric glyph
-        ToolTipService.SetToolTip(LyricsButton, isPodcast ? "Subtitel (CC)" : "Lirik");
+        _isPodcastUi = isPodcast;
+        ApplyLyricsButtonLabel();
 
         // Podcast-only affordances: ±seek jumps and the dislike rating.
-        _isPodcastUi = isPodcast;
         var podcastVisibility = isPodcast ? Visibility.Visible : Visibility.Collapsed;
         ApplyLikeVisual();
         Rewind10Button.Visibility = podcastVisibility;

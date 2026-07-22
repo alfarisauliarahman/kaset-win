@@ -7,7 +7,7 @@ Dokumen ini melacak **delta** antara repo asli `sozercan/kaset` (macOS/Swift) da
 - **Sinkron terakhir sampai commit:** `bd68513` (PR #341), tag rilis **v0.12.0**
 - **Sumber kebenaran:** kode Swift di `Sources/` = referensi; port hidup di `KasetWin/`
 
-> Catatan: spec **kanonik tunggal** ada di root workspace `.kiro/specs/kaset-winui3/` (dibaca oleh tooling Kiro). Jangan membuat salinan di dalam `KasetWin/`.
+> Catatan: spec **kanonik tunggal** ada di `KasetWin/.kiro/specs/kaset-winui3/` — di dalam repo git port ini, jadi ikut ter-commit dan ter-push. Salinan lama di root workspace sudah dinonaktifkan (2026-07-22, diganti nama jadi `M:\kaset\kaset\.kiro.duplicate-removed-20260722\` — boleh dihapus kapan saja): root itu milik repo Kaset macOS upstream dan spec di sana tidak pernah ter-version-control, sehingga sempat drift (requirements/tasks di root lebih baru daripada salinan di sini). Jangan membuat salinan di luar repo ini lagi.
 
 ---
 

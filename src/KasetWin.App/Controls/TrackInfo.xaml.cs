@@ -63,6 +63,11 @@ public sealed partial class TrackInfo : UserControl
     /// Applies the app language to the link tooltips. Instances inside pages are recreated on
     /// navigation; the player-bar instance persists and is relabelled via the bar's own
     /// <c>ApplyLanguage</c> cascade on language change.
+    ///
+    /// Deliberately tooltip-only, unlike the icon-only buttons elsewhere: each of these links wraps
+    /// a <c>TextBlock</c> holding the song / artist / album name, so the accessible name is already
+    /// derived from that content. Setting <c>AutomationProperties.Name</c> to "Go to album" here
+    /// would <b>replace</b> the title with a generic verb and make the link less usable, not more.
     /// </summary>
     internal void ApplyLanguage()
     {

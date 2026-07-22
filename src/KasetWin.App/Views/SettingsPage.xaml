@@ -194,6 +194,33 @@
                 </Grid>
             </Border>
 
+            <!-- Global hotkeys (Req: system-wide playback control) -->
+            <Border Style="{StaticResource SettingsCardStyle}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock x:Name="HotkeysLabel" Text="Global hotkeys" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock
+                            x:Name="HotkeysCaption"
+                            Opacity="0.7"
+                            TextWrapping="Wrap"
+                            Text="Control playback from any app: Ctrl+Alt+↓ play/pause, Ctrl+Alt+→ next, Ctrl+Alt+← previous, Ctrl+Alt+↑ mute. A combination already claimed by another app is skipped."
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                    <ToggleSwitch
+                        Grid.Column="1"
+                        MinWidth="0"
+                        AutomationProperties.Name="Global hotkeys"
+                        VerticalAlignment="Center"
+                        OnContent=""
+                        OffContent=""
+                        IsOn="{x:Bind ViewModel.GlobalHotkeysEnabled, Mode=TwoWay}" />
+                </Grid>
+            </Border>
+
             <!-- ── Lyrics ────────────────────────────────────────────── -->
             <TextBlock
                 x:Name="LyricsHeader"
@@ -324,9 +351,13 @@
                                         Width="52"
                                         HorizontalAlignment="Center"
                                         Spacing="4">
+                                        <!-- Nine identical sliders: without a per-band name a screen
+                                             reader announces nine anonymous "-12 to 12" sliders and
+                                             the frequency label below is unreachable from the thumb. -->
                                         <Slider
                                             Height="150"
                                             HorizontalAlignment="Center"
+                                            AutomationProperties.Name="{Binding AccessibleName}"
                                             Maximum="12"
                                             Minimum="-12"
                                             Orientation="Vertical"
@@ -379,6 +410,74 @@
                         <Button x:Name="OpenExtFolderButton" Click="OnOpenExtensionsFolder" Content="Open extensions folder" />
                         <Button x:Name="RestartAppButton" Click="OnRestartApp" Content="Restart Kaset" />
                     </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ── Discord Rich Presence ─────────────────────────────── -->
+            <TextBlock
+                x:Name="DiscordHeader"
+                Margin="0,8,0,0"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="Discord" />
+
+            <Border Style="{StaticResource SettingsCardStyle}">
+                <StackPanel Spacing="10">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center" Spacing="2">
+                            <TextBlock x:Name="DiscordLabel" Text="Show on Discord" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <TextBlock
+                                x:Name="DiscordCaption"
+                                Opacity="0.7"
+                                TextWrapping="Wrap"
+                                Text="Show what you're listening to on your Discord profile. Off by default — this publishes your listening to anyone who can see your profile."
+                                Style="{StaticResource CaptionTextBlockStyle}" />
+                        </StackPanel>
+                        <ToggleSwitch
+                            Grid.Column="1"
+                            MinWidth="0"
+                            AutomationProperties.Name="Show on Discord"
+                            VerticalAlignment="Center"
+                            OnContent=""
+                            OffContent=""
+                            IsOn="{x:Bind ViewModel.DiscordRichPresenceEnabled, Mode=TwoWay}" />
+                    </Grid>
+
+                    <!-- Advanced: almost nobody needs this. Only changes which application name
+                         Discord displays; blank uses the id Kaset ships with. -->
+                    <Expander
+                        x:Name="DiscordAdvancedExpander"
+                        HorizontalAlignment="Stretch"
+                        Header="Advanced">
+                        <StackPanel Spacing="10">
+                            <TextBlock
+                                x:Name="DiscordAdvancedCaption"
+                                Opacity="0.7"
+                                TextWrapping="Wrap"
+                                Text="Kaset uses its own Discord application. Set your own Application ID only if you want a different name to appear in &quot;Listening to …&quot;."
+                                Style="{StaticResource CaptionTextBlockStyle}" />
+                            <TextBox
+                                x:Name="DiscordAppIdBox"
+                                AutomationProperties.Name="Discord Application ID"
+                                PlaceholderText="Discord Application ID (optional)"
+                                Text="{x:Bind ViewModel.DiscordApplicationId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <HyperlinkButton
+                                x:Name="DiscordPortalLink"
+                                Content="Open the Discord Developer Portal"
+                                NavigateUri="https://discord.com/developers/applications" />
+                        </StackPanel>
+                    </Expander>
+
+                    <!-- Shown only while no id is available at all, so an inert toggle explains itself. -->
+                    <InfoBar
+                        x:Name="DiscordUnavailableBar"
+                        IsClosable="False"
+                        IsOpen="False"
+                        Message="Discord rich presence isn't configured in this build. Set an Application ID under Advanced to use it."
+                        Severity="Informational" />
                 </StackPanel>
             </Border>
 

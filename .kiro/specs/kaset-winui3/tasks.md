@@ -403,18 +403,10 @@ Fase:
     - **Validates: Requirements 27.3**
     - _Properties: 41_
 
-- [ ] 21. (Fase Lanjutan) Scrobbling Last.fm
-  - [ ]* 21.1 Implementasikan scrobble threshold + proxy + antrian persisten
-    - Antrikan scrobble pada ≥50% atau ≥240s; komunikasi via proxy (tanpa secret di binary); antrian FIFO persisten saat offline; kredensial di Credential_Store
-    - _Requirements: 28.1, 28.2, 28.3, 28.4_
-  - [ ]* 21.2 Property test ambang scrobble
-    - **Property 38: Ambang scrobble**
-    - **Validates: Requirements 28.1**
-    - _Properties: 38_
-  - [ ]* 21.3 Property test round-trip antrian scrobble persisten
-    - **Property 39: Round-trip antrian scrobble persisten**
-    - **Validates: Requirements 28.3**
-    - _Properties: 39_
+- [~] 21. (Fase Lanjutan) ~~Scrobbling Last.fm~~ — **DIBATALKAN (2026-07-22, keputusan user)**
+  - Dikeluarkan dari lingkup atas permintaan pemilik repo. Task 21.1–21.3 beserta Property 38 & 39
+    dan Requirement 28 tidak akan dikerjakan. Tidak ada kode yang perlu dihapus (belum pernah
+    diimplementasikan). Jika suatu saat dihidupkan lagi, rujukan desainnya masih ada di riwayat git.
 
 - [x] 22. (Fase Lanjutan) Favorites & item tersemat
   - [x]* 22.1 Implementasikan FavoritesService + bagian Home
@@ -510,6 +502,181 @@ Fase:
     - **N/A untuk port saat ini**: sidebar WinUI pakai `NavigationView` standar dengan `FontIcon` monokrom (tanpa override `Foreground`) — tidak ada konsep "ikon berwarna brand" seperti `KasetSidebarRow` macOS, dan NavigationView mengelola foreground state selected/unselected otomatis. Bug #336 tak punya analog di sini. Ditinjau ulang bila sidebar berwarna brand ditambahkan.
     - _Requirements: 37.9_
 
+### KUALITAS & FITUR TAMBAHAN (2026-07-22)
+
+> Hasil audit menyeluruh atas basis kode. Tiga temuan cacat (aksesibilitas nol, klaim bahasa yang
+> tidak sesuai kenyataan, CI yang tidak pernah mengompilasi XAML) plus dua fitur yang hilang
+> dibanding klien musik desktop lain. Detail keputusan: `docs/adr/0003` (mini player & timer tidur)
+> dan `docs/adr/0004` (Discord, pintasan global, geometri jendela).
+
+- [x] 31. Aksesibilitas antarmuka
+  - [x] 31.1 Beri nama aksesibilitas pada seluruh kontrol ikon-saja dan nilai-saja
+    - **SELESAI**: sebelumnya `AutomationProperties` muncul **0 kali** di 26 file XAML — setiap tombol
+      ikon-saja terbaca Narrator sebagai "button" tanpa nama. Ditambahkan helper
+      `KasetWin.App/Accessibility/A11y.cs` (`Label` = nama + tooltip sekaligus, `Name` = nama saja
+      untuk slider, `Decorative` = sembunyikan sampul/ikon dekoratif). Seluruh `SetToolTip` di jalur
+      `ApplyLanguage` diganti `A11y.Label`, sehingga nama aksesibilitas ikut bahasa aplikasi tanpa
+      jalur terpisah. Hasil akhir: **47 atribut `AutomationProperties` di XAML, 0 tombol ikon-saja
+      tanpa nama** (diverifikasi dengan skrip pemindai, bukan perkiraan).
+    - Cakupan: 13 tombol transport Player_Bar, slider seek + volume, tombol/daftar panel now-playing,
+      tombol kembali title bar, toggle sumber (pill + compact, menyebut sumber yang sedang aktif),
+      tombol playlist baru, hapus riwayat pencarian (di dalam `DataTemplate`, lewat handler `Loaded`,
+      menyertakan query yang akan dihapus), 9 slider ekualiser, dan 14 tombol di halaman konten.
+    - **Sengaja TIDAK diberi nama**: tautan pada `TrackInfo` — nama aksesibilitasnya sudah berasal
+      dari judul/artis; menimpanya dengan "Buka album" justru menghapus judulnya. Alasan ini ditulis
+      di komentar kode agar tidak "diperbaiki" belakangan.
+    - _Requirements: 38.1, 38.2, 38.3, 38.4, 38.5, 38.6_
+
+- [x] 32. Koherensi lokalisasi + cacat RTL
+  - [x] 32.1 Persempit bahasa yang didukung agar cocok dengan string yang ada
+    - **SELESAI**: `SupportedLanguages.All` menyebut 6 bahasa karena ada 6 folder `.resw`, padahal
+      `x:Uid` di seluruh app = **0** dan semua teks berasal dari `UiStrings` (id/en saja). Cacat yang
+      terlihat pengguna: di Windows berbahasa Arab, jendela dibalik ke **RTL** lalu diisi teks bahasa
+      Indonesia. Diperbaiki ke `["en", "id"]`; stub `ar/fr-FR/ko-KR/tr-TR` dihapus; mesin RTL
+      dipertahankan + tetap diuji. `Strings/README.md` ditulis ulang (urutan menambah bahasa:
+      terjemahkan `UiStrings` dulu, baru tambah subtag). +2 test regresi.
+    - _Requirements: 19.1, 19.3_
+  - [x] 32.2 Perbaiki kebocoran bahasa yang tersisa
+    - **TERVERIFIKASI MANUAL (2026-07-22)**: tombol lirik dalam mode English menampilkan "Lyrics"
+      (langkah 32) — OK.
+    - **SELESAI**: 4 kebocoran nyata (bukan 10 seperti dugaan awal — literal XAML lain ternyata hanya
+      *fallback* yang ditimpa `ApplyLanguage` di konstruktor). (a) `PlayerBar.xaml.cs` menetapkan
+      tooltip lirik hardcoded `"Subtitel (CC)" : "Lirik"` yang **menimpa** versi terlokalisasi →
+      dipindah ke `ApplyLyricsButtonLabel()`; (b) tooltip tombol kembali title bar tak pernah
+      direlabel; (c) judul + pesan banner offline hardcoded **Inggris** (kebalikannya); (d) tombol
+      hapus riwayat di dalam `DataTemplate` tak terjangkau. Fallback XAML dinormalkan ke Inggris agar
+      konvensinya konsisten.
+
+- [x] 33. Integritas CI — kompilasi XAML
+  - [x] 33.1 Tambah job CI yang membangun `KasetWin.App`
+    - **SELESAI**: job `build-app` di `.github/workflows/ci.yml` menjalankan
+      `dotnet build src/KasetWin.App -c Release -p:Platform=x64 -p:WindowsPackageType=None`.
+      Sebelumnya CI **hanya** membangun test core, sehingga error XAML (jalur `x:Bind` salah, `x:Name`
+      hilang, `StaticResource` tak dikenal) tidak pernah tertangkap di PR. Windows App SDK ter-restore
+      dari NuGet di runner standar — tanpa install workload. Perintahnya diverifikasi jalan lokal
+      sebelum ditulis ke workflow.
+    - _Requirements: 40.1, 40.2_
+
+- [x] 34. Mini player (CompactOverlay)
+  - [x] 34.1 Implementasikan mode mini player pada jendela utama
+    - **SELESAI**: `MainWindow.MiniPlayer.cs` + `Controls/MiniPlayerView.xaml`. Jendela yang sama
+      dipakai ulang dan hanya chrome-nya ditukar — membuat jendela kedua akan me-re-parent WebView2
+      pemutaran dan **mematikan audio**. `MainWindowLayout` dapat `SuspendMinimumSize()` /
+      `RestoreMinimumSize()` karena floor 980×600 akan memveto ukuran compact. Panel now-playing
+      ditutup saat masuk dan modenya dipulihkan saat keluar.
+    - **BUG DITEMUKAN & DIPERBAIKI SAAT UJI MANUAL (2026-07-22)**: menutup jendela dari dalam mode
+      mini player lalu membukanya lagi dari tray mengembalikan jendela 400×150 tanpa chrome, dan
+      pengguna tidak punya jalan keluar yang jelas. Penyebabnya bukan persistensi geometri sama
+      sekali: menutup jendela **tidak menghancurkannya** — jendela hanya di-`Hide()` ke tray agar
+      audio tetap jalan, sehingga presenter `CompactOverlay` bertahan. Perbaikan: `OnAppWindowClosing`
+      memanggil `ExitMiniPlayer()` sebelum menyembunyikan. Sekalian: frame sebelum masuk mini player
+      kini disimpan eksplisit (`_frameBeforeMini`) dan dipulihkan saat keluar — peralihan presenter
+      tidak dapat diandalkan mengembalikan ukuran yang dipilih pengguna.
+    - **TERVERIFIKASI MANUAL (2026-07-22)**: kontinuitas audio saat masuk/keluar mini player (langkah 2)
+      OK; buka-lagi-dari-tray kembali ke ukuran normal (58) OK; tombol restore mengembalikan ukuran &
+      posisi persis seperti sebelumnya (58b) OK; batas ukuran minimum aktif lagi setelah keluar mini
+      player (9) OK. Langkah 58: ukuran sudah benar, tetapi memunculkan cacat visual di bawah.
+    - **CACAT VISUAL LANJUTAN, SUDAH DIPERBAIKI (2026-07-22)**: perbaikan pertama benar secara
+      perilaku tetapi jelek dilihat — jendela tampak membesar kembali ke ukuran penuh sesaat sebelum
+      hilang ke tray, karena `ExitMiniPlayer()` dijalankan **sebelum** `AppWindow.Hide()`. Urutan
+      dibalik: `Hide()` dulu, pelepasan mini player menyusul saat jendela sudah tidak terlihat.
+      Ukuran yang dipersistensi juga tidak lagi diambil dari frame aktif (400×150) melainkan dari
+      `FrameBeforeMiniPlayer` lewat parameter baru `SaveGeometry(window, overrideFrame)`.
+      **Perlu diuji ulang** (langkah 58 + 58c pada checklist).
+    - **Jangan** membalik urutan ini lagi: melepas mini player sebelum menyembunyikan memunculkan
+      animasi; tidak melepasnya sama sekali memunculkan bug aslinya (jendela 400×150 tanpa chrome
+      saat dibuka lagi dari tray).
+    - _Requirements: 39.1, 39.2, 39.3_
+
+- [x] 35. Timer tidur
+  - [x] 35.1 Implementasikan `SleepTimer` (Core) + UI Player_Bar
+    - **SELESAI**: `KasetWin.Core/Services/Player/SleepTimer.cs` — state machine murni, waktu disuplai
+      pemanggil sehingga deterministik dan bisa diuji headless. `Advance`/`NotifyTrackEnded`
+      mengembalikan `true` **tepat sekali** lalu men-disarm dirinya. Singleton DI dipakai dua pihak:
+      `PlayerBar` (arm + tick 1 detik, hanya berjalan saat aktif + hitung mundur di nama
+      aksesibilitas) dan `PlayerService.HandleTrackEndedAsync` (menegakkan mode "akhir lagu ini").
+    - **Keputusan penting**: hook diletakkan di `HandleTrackEndedAsync` **setelah** `WebQueueSync`
+      mengklasifikasi event — bukan pada perubahan `CurrentTrack`, yang juga menyala saat pengguna
+      menekan Next manual dan akan menjeda tepat setelah pengguna ganti lagu.
+    - _Requirements: 39.4, 39.5, 39.6, 39.7_
+  - **TERVERIFIKASI MANUAL (2026-07-22)**: mode "akhir lagu ini" + Next manual (langkah 16) — timer
+    tetap aktif dan pemutaran tidak terjeda, sesuai desain.
+  - [x] 35.2 Test `SleepTimer`
+    - **SELESAI**: `SleepTimerTests.cs` — 9 test, termasuk properti 100 iterasi bahwa timer durasi
+      menyala tepat sekali dan tidak pernah lebih cepat dari durasi penuh.
+    - _Requirements: 39.4, 39.7_
+
+- [x] 36. Polish tata letak shell
+  - [x] 36.1 Banner offline jadi overlay (pemindahan toggle sumber: dibatalkan)
+    - **SELESAI**: banner offline dulu menempati baris Grid tersendiri, sehingga putus koneksi
+      menggeser seluruh aplikasi turun lalu menyentak balik saat online — reflow atas kejadian yang
+      bukan ulah pengguna. Kini overlay di area konten (baris 1 sengaja dibiarkan kosong).
+    - **Toggle sumber: DIKEMBALIKAN ke `PaneFooter` (2026-07-22, keputusan user).** Sempat dipindah
+      ke `PaneHeader` dengan alasan ia mengganti seluruh isi sidebar sehingga layak di posisi yang
+      pertama dilihat. Setelah dilihat langsung di aplikasi, pemilik repo menolak — itu penilaian
+      tata letak yang subjektif, dan penilaian pengguna yang memakainya tiap hari yang menang.
+      Jangan diulang tanpa diminta.
+    - **BELUM DIVERIFIKASI VISUAL** (banner offline).
+
+- [x] 36b. Fix crash halaman Pengaturan (ditemukan saat uji manual 2026-07-22)
+  - **BUG**: membuka Pengaturan langsung membuat aplikasi crash (`0xc000027b` di
+    `Microsoft.ui.xaml.dll`, tanda WER `80004003` = null pointer). Penyebab: `ApplyLabels()` dipanggil
+    di ctor **sebelum** `ViewModel` dibuat, dan baris baru di dalamnya membaca
+    `ViewModel.IsDiscordAvailable`. Perbaikan: baris yang membaca ViewModel dipindah ke setelah
+    ViewModel dibuat; `ApplyLabels()` kembali hanya menyentuh elemen XAML.
+  - **PELAJARAN**: di halaman-halaman ini `ApplyLabels()` berjalan sebelum ViewModel ada. Jangan
+    pernah membaca ViewModel dari dalamnya.
+  - **TERVERIFIKASI**: dibuka lewat `Ctrl+,`, tidak crash, tidak ada event WER baru.
+
+- [x] 37. Discord Rich Presence
+  - [x] 37.1 Implementasikan klien IPC Discord + service pengamat player
+    - **SELESAI**: protokol IPC Discord ditulis langsung (named pipe `discord-ipc-0..9`, frame
+      `[int32 opcode][int32 length][utf8 json]` little-endian) — **tanpa library pihak ketiga**
+      sesuai AGENTS.md. `KasetWin.Core/Services/RichPresence/DiscordActivity.cs` = pemetaan murni
+      dari state player → payload (bisa dites headless); `KasetWin.Platform/RichPresence/DiscordRpcClient.cs`
+      = koneksi pipa; `KasetWin.App/Hosting/RichPresenceService.cs` = pengamat player.
+    - **Detail yang gampang salah**: (a) timestamp mulai harus `now - progress`, kalau `now` saja
+      penghitung Discord mengulang dari nol tiap seek; (b) `details`/`state` di luar 2–128 karakter
+      **ditolak diam-diam** oleh Discord — gejalanya "presence-nya nggak muncul" tanpa error apa pun;
+      (c) update tidak boleh mengikuti `Progress` (tik ~1 detik) karena Discord membatasi ~1 per 15 detik.
+    - **KOREKSI DESAIN (2026-07-22).** Versi pertama mewajibkan tiap pengguna mendaftarkan aplikasi
+      Discord sendiri lalu menempel Application ID-nya. Itu salah: Application ID **bukan rahasia**
+      (ikut terkirim di tiap payload presence dan bisa dilihat siapa saja) — yang rahasia adalah
+      *Client Secret*, dan jalur IPC lokal ini tidak memakainya sama sekali. Mewajibkan setiap
+      pengguna mampir ke Developer Portal dulu sama saja dengan meniadakan fitur ini bagi hampir
+      semua orang. Sekarang: **satu ID bersama** di `Hosting/DiscordRichPresenceOptions.cs`, pengguna
+      cukup menyalakan satu toggle. Kolom Application ID tetap ada tetapi turun jadi override
+      opsional di bagian "Lanjutan".
+    - **TINDAKAN YANG MASIH DIBUTUHKAN**: `DiscordRichPresenceOptions.DefaultApplicationId` masih
+      kosong. Pemilik repo perlu membuat satu aplikasi di Discord Developer Portal (beri nama
+      **"Kaset"** — nama itu yang muncul sebagai "Listening to …"), lalu menempel Application ID-nya
+      ke konstanta tersebut. Sampai itu dilakukan, toggle-nya tidak berfungsi dan kartu Pengaturan
+      menjelaskan kenapa.
+    - Mati secara default: menyiarkan apa yang didengar ke profil publik adalah pilihan privasi.
+    - _Requirements: 41.1, 41.2, 41.3, 41.4, 41.5, 41.6, 41.7_
+  - [x] 37.2 Test pemetaan aktivitas Discord
+    - **SELESAI**: `DiscordActivityBuilderTests.cs` — 12 test, termasuk properti 100 iterasi bahwa
+      hasil clamp selalu masuk rentang 2–128 karakter.
+    - _Requirements: 41.3, 41.4, 41.5_
+
+- [x] 38. Pintasan global + persistensi geometri jendela
+  - [x] 38.1 Implementasikan `GlobalHotkeys` (RegisterHotKey + subclass WM_HOTKEY)
+    - **SELESAI**: `Ctrl+Alt+↓/→/←/↑`. Kombinasi sengaja dipilih yang jarang dipakai — `RegisterHotKey`
+      memberi satu kombinasi ke **satu proses saja** se-sistem, jadi kombinasi populer berisiko
+      merebut pintasan editor/browser pengguna atau justru gagal diam-diam. Kegagalan per-kombinasi
+      ditoleransi: tiga dari empat tetap jalan kalau satu sudah dipakai aplikasi lain. **Mati secara
+      default** dan bisa dinyalakan/dimatikan tanpa restart.
+    - **TERVERIFIKASI MANUAL (2026-07-22)**: `Ctrl+Alt+→` dari aplikasi lain (Kaset di latar)
+      memajukan lagu (langkah 53) — OK.
+    - _Requirements: 42.1, 42.2, 42.3, 42.4_
+  - [x] 38.2 Simpan & pulihkan geometri jendela
+    - **SELESAI**: disimpan saat `AppWindow.Closing`, dipulihkan di `MainWindowLayout.Configure`.
+      Dua penjagaan yang penting: (a) **tidak** menyimpan saat mode mini player / maximized /
+      minimized — kalau tidak, shell penuh akan dibuka lagi seukuran mini player 400×150;
+      (b) geometri tersimpan divalidasi terhadap `DisplayArea.FindAll()`, jadi monitor yang dicabut
+      tidak membuat jendela terbuka di luar layar (kondisi yang tak bisa dipulihkan pengguna biasa).
+    - _Requirements: 42.5, 42.6, 42.7_
+
 ## Notes
 
 - Sub-tugas bertanda `*` bersifat opsional (test atau fitur fase lanjutan) dan **tidak** diimplementasikan otomatis; dapat dilewati untuk MVP yang lebih cepat.
@@ -521,13 +688,16 @@ Fase:
 
 ### Out of Scope (Ditunda — Req 36, tidak dibuat task)
 
-Fitur berikut **sengaja tidak dibuat task** dan dicatat sebagai future work; seam-nya dipertahankan agar penambahan kemudian tidak memecah kontrak publik:
+Fitur berikut **sengaja tidak dibuat task** dan dicatat sebagai future work; seam-nya dipertahankan agar penambahan kemudian tidak memecah kontrak publik.
 
-- **Equalizer** (Req 36.1) — tidak ada padanan langsung; preferensi audio seam tetap ada di SettingsService.
+> **Diperbarui 2026-07-22.** Tiga item di bawah ternyata sudah dikerjakan di luar jalur task dan
+> tidak lagi "ditunda" — ditandai ✅ agar daftar ini tidak menyesatkan pembaca berikutnya.
+
+- ✅ **Equalizer** (Req 36.1) — **SUDAH ADA**: ekualiser 9-band + preset, diterapkan ke keluaran WebView2 lewat Web Audio; UI di SettingsPage.
 - **Haptic feedback** (Req 36.2) — tidak ada padanan native Windows.
-- **Web Extensions** (Req 36.3) — menunggu evaluasi padanan Windows.
+- ✅ **Web Extensions** (Req 36.3) — **SUDAH ADA**: `ExtensionsService` memuat ekstensi unpacked ke profil WebView2 pemutaran; uBlock Origin diunduh & diperbarui otomatis.
 - **AppleScript penuh** (Req 36.4) — digantikan Protocol activation `kaset://` + CLI args (Tugas 26).
-- **Auto-update** MSIX/Velopack (Req 36.5) — future work.
+- ✅ **Auto-update** MSIX/Velopack (Req 36.5) — **SUDAH ADA**: `Updates/AppUpdateService.cs` (Velopack + GithubSource), cek/unduh di startup, notifikasi in-app "Mulai ulang". Hanya aktif pada build terinstal.
 - **Seluruh fitur AI/Apple Intelligence** (Req 36.6) — Command Bar AI, penjelasan lirik AI, analisis antrian AI, refine playlist AI.
 
 ## Task Dependency Graph
@@ -542,8 +712,8 @@ Fitur berikut **sengaja tidak dibuat task** dan dicatat sebagai future work; sea
     { "id": 4, "tasks": ["7.2", "7.3", "7.4", "8.3", "9.3", "12.1", "14.1", "14.2", "15.1", "5.10", "5.11", "5.12", "5.13", "5.14", "5.15", "5.16", "6.3", "6.4", "10.2", "10.3", "10.4", "10.5", "10.6", "10.7", "11.2", "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "8.4", "8.5", "9.4", "9.5", "13.5"] },
     { "id": 5, "tasks": ["7.5", "7.6", "7.7", "16.1", "14.3", "14.4", "14.5", "14.6", "14.7", "14.8", "14.9", "14.10", "15.2", "12.2"] },
     { "id": 6, "tasks": ["14.11", "14.12", "16.2"] },
-    { "id": 7, "tasks": ["18.1", "19.1", "20.1", "21.1", "22.1", "23.1", "24.1", "25.1", "25.2", "25.3", "26.1", "27.1", "28.1"] },
-    { "id": 8, "tasks": ["18.2", "19.2", "20.2", "21.2", "21.3", "22.2", "26.2"] }
+    { "id": 7, "tasks": ["18.1", "19.1", "20.1", "22.1", "23.1", "24.1", "25.1", "25.2", "25.3", "26.1", "27.1", "28.1"] },
+    { "id": 8, "tasks": ["18.2", "19.2", "20.2", "22.2", "26.2"] }
   ]
 }
 ```

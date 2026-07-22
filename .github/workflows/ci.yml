@@ -22,9 +22,8 @@ jobs:
           dotnet-version: 8.0.x
 
       # The class libraries (Core / Platform / ApiExplorer) and the tests build
-      # without the MSIX / Windows App SDK packaging tooling. The WinUI app
-      # (KasetWin.App) is intentionally not built here — it needs the App SDK
-      # workload — so CI stays fast and reliable on a stock runner.
+      # without the MSIX / Windows App SDK packaging tooling, so this job stays
+      # fast and is the gate that must never be red.
       - name: Restore
         run: dotnet restore tests/KasetWin.Core.Tests/KasetWin.Core.Tests.csproj
 
@@ -33,3 +32,33 @@ jobs:
 
       - name: Test
         run: dotnet test tests/KasetWin.Core.Tests/KasetWin.Core.Tests.csproj -c Release --no-build --verbosity normal
+
+  build-app:
+    name: Build WinUI app (XAML compile)
+    runs-on: windows-latest
+
+    # Everything above only compiles C#. XAML errors — a bad x:Bind path, a missing
+    # x:Name, an unknown StaticResource, a wrong namespace on an attached property —
+    # surface only when XamlCompiler runs over KasetWin.App, which nothing else here
+    # does. Without this job those land on main with CI green and break locally.
+    # The Windows App SDK restores from NuGet on a stock runner, so no workload
+    # install is needed.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore src/KasetWin.App/KasetWin.App.csproj -p:Platform=x64
+
+      # UseSharedCompilation=false avoids the XamlCompiler file-lock flake that the
+      # shared compiler server can hit on repeated/parallel builds (see AGENTS.md).
+      - name: Build (Release, unpackaged)
+        run: >
+          dotnet build src/KasetWin.App/KasetWin.App.csproj
+          -c Release -p:Platform=x64 -p:WindowsPackageType=None
+          -p:UseSharedCompilation=false --no-restore

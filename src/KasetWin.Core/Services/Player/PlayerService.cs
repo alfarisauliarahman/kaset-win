@@ -78,6 +78,9 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// <summary>Volume captured before muting so it can be restored on unmute (Req 5.6).</summary>
     private int _volumeBeforeMute = DefaultVolume;
 
+    /// <summary>Sleep timer consulted at track end; <c>null</c> when the feature is not wired.</summary>
+    private readonly SleepTimer? _sleepTimer;
+
     /// <summary>
     /// Creates a player wired to the queue, the playback controller, and the JS bridge. The
     /// constructor subscribes to <see cref="IJsBridge.StateUpdated"/> and
@@ -90,18 +93,24 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// Optional infinite-mix coordinator (Req 25). When supplied it shares the same
     /// <paramref name="queue"/>; when <c>null</c> the mix flow is inert.
     /// </param>
+    /// <param name="sleepTimer">
+    /// Optional sleep timer (Req: sleep timer). Consulted at track end so an "end of this track"
+    /// timer stops playback instead of advancing; <c>null</c> leaves the flow untouched.
+    /// </param>
     public PlayerService(
         IQueueService queue,
         IPlaybackController controller,
         IJsBridge bridge,
         InfiniteMixCoordinator? mixCoordinator = null,
-        Func<string, CancellationToken, Task<Song?>>? metadataFetcher = null)
+        Func<string, CancellationToken, Task<Song?>>? metadataFetcher = null,
+        SleepTimer? sleepTimer = null)
     {
         _queue = queue ?? throw new ArgumentNullException(nameof(queue));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _bridge = bridge ?? throw new ArgumentNullException(nameof(bridge));
         _mixCoordinator = mixCoordinator;
         _metadataFetcher = metadataFetcher;
+        _sleepTimer = sleepTimer;
 
         _stateHandler = (_, message) => HandleStateUpdate(message);
         _trackEndedHandler = (_, message) => _ = HandleTrackEndedAsync(message.VideoId);
@@ -453,6 +462,17 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         bool hasNext = _queue.PeekNext() is not null;
 
         TrackEndedAction action = WebQueueSync.ResolveTrackEnded(observedVideoId, expected, hasNext);
+
+        // An "end of this track" sleep timer wins over advancing — but only for a genuine end of the
+        // expected track. Checking after WebQueueSync has classified the event keeps a stray
+        // TRACK_ENDED for some other video (YouTube autoplay drift) from silently disarming the
+        // timer and pausing the wrong thing.
+        if (action is TrackEndedAction.AdvanceToNext or TrackEndedAction.EndPlayback
+            && _sleepTimer?.NotifyTrackEnded() == true)
+        {
+            await PauseAsync().ConfigureAwait(false);
+            return;
+        }
         switch (action)
         {
             case TrackEndedAction.AdvanceToNext:

@@ -203,6 +203,7 @@
                     </Button>
                     <Button
                         Style="{StaticResource SubtleButtonStyle}"
+                        AutomationProperties.Name="{x:Bind loc:UiStrings.TipMore}"
                         ToolTipService.ToolTip="{x:Bind loc:UiStrings.TipMore}">
                         <FontIcon FontSize="16" Glyph="&#xE712;" />
                         <Button.Flyout>
@@ -319,6 +320,7 @@
                             Tag="{x:Bind}"
                             Click="OnLikeTrackClick"
                             Style="{StaticResource SubtleButtonStyle}"
+                            AutomationProperties.Name="{x:Bind loc:UiStrings.TipLike}"
                             ToolTipService.ToolTip="{x:Bind loc:UiStrings.TipLike}">
                             <Grid Width="16" Height="16">
                                 <FontIcon
@@ -336,6 +338,7 @@
                             Tag="{x:Bind}"
                             Click="OnDislikeTrackClick"
                             Style="{StaticResource SubtleButtonStyle}"
+                            AutomationProperties.Name="{x:Bind loc:UiStrings.TipDislike}"
                             ToolTipService.ToolTip="{x:Bind loc:UiStrings.TipDislike}">
                             <Grid Width="16" Height="16">
                                 <FontIcon
@@ -358,6 +361,7 @@
                             Grid.Column="6"
                             Tag="{x:Bind}"
                             Style="{StaticResource SubtleButtonStyle}"
+                            AutomationProperties.Name="{x:Bind loc:UiStrings.TipMore}"
                             ToolTipService.ToolTip="{x:Bind loc:UiStrings.TipMore}">
                             <FontIcon FontSize="16" Glyph="&#xE712;" />
                             <Button.Flyout>

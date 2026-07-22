@@ -41,6 +41,7 @@
             </Grid.ColumnDefinitions>
             <Button
                 x:Name="TitleBarBackButton"
+                AutomationProperties.Name="Back"
                 Grid.Column="0"
                 Width="40"
                 Height="32"
@@ -49,7 +50,7 @@
                 Background="Transparent"
                 BorderThickness="0"
                 Click="OnTitleBarBackClick"
-                ToolTipService.ToolTip="Kembali"
+                ToolTipService.ToolTip="Back"
                 Visibility="Collapsed">
                 <FontIcon FontSize="14" Glyph="&#xE72B;" />
             </Button>
@@ -63,6 +64,7 @@
                         Height="18"
                         Margin="10,0,0,0"
                         VerticalAlignment="Center"
+                        AutomationProperties.AccessibilityView="Raw"
                         Source="ms-appx:///Assets/Square44x44Logo.png" />
                     <TextBlock
                         x:Name="AppTitleText"
@@ -75,21 +77,22 @@
         </Grid>
 
         <!--
-            Offline indicator (Req 35.3): shown while the device has no connectivity and hidden when
-            back online. IsOpen is driven from the code-behind via INetworkMonitor.ConnectivityChanged.
-            Non-closable so the user cannot dismiss a still-accurate offline state.
+            Row 1 is intentionally empty (it collapses to zero height). The offline indicator used to
+            live here as a layout row, which meant losing connectivity pushed the entire app down by
+            the banner's height and regaining it snapped everything back up — a jarring reflow on an
+            event the user did not cause. It is now an overlay inside the content area (below), so
+            appearing and disappearing costs no layout.
         -->
-        <InfoBar
-            x:Name="OfflineInfoBar"
-            Grid.Row="1"
-            Title="Offline"
-            IsClosable="False"
-            IsOpen="False"
-            Message="Connectivity is unavailable. Some features may not work until you're back online."
-            Severity="Warning" />
 
         <!-- Row 2: main content (NavigationView) + the docked right-hand now-playing side panel. -->
         <Grid Grid.Row="2">
+
+        <!--
+            Mini player (CompactOverlay). Sits in the same row as the NavigationView and swaps places
+            with it, so the hidden playback WebView2 mounted on RootGrid is never re-parented —
+            re-parenting it would tear playback down.
+        -->
+        <controls:MiniPlayerView x:Name="MiniPlayerHost" Visibility="Collapsed" />
 
         <NavigationView
             x:Name="NavView"
@@ -158,9 +161,11 @@
                                     Grid.Column="2"
                                     Padding="4"
                                     VerticalAlignment="Center"
+                                    AutomationProperties.Name="Remove from history"
                                     Click="OnDeleteHistoryClick"
+                                    Loaded="OnDeleteHistoryLoaded"
                                     Style="{StaticResource SubtleButtonStyle}"
-                                    ToolTipService.ToolTip="Hapus dari riwayat"
+                                    ToolTipService.ToolTip="Remove from history"
                                     Visibility="{Binding IsHistory, Converter={StaticResource GlobalBoolToVisibility}}">
                                     <FontIcon FontSize="12" Glyph="&#xE711;" />
                                 </Button>
@@ -178,6 +183,7 @@
                      open). A round icon-only button, like the account avatar; a click flips the source. -->
                 <Button
                     x:Name="SourceToggleCompact"
+                    AutomationProperties.Name="Source: Music or YouTube"
                     Width="36"
                     Height="36"
                     Margin="0,0,0,8"
@@ -238,6 +244,7 @@
                         <StackPanel Orientation="Horizontal">
                             <ToggleButton
                                 x:Name="MusicSourceItem"
+                                AutomationProperties.Name="Music source"
                                 Width="96"
                                 MinWidth="0"
                                 Padding="0,7"
@@ -255,6 +262,7 @@
                             </ToggleButton>
                             <ToggleButton
                                 x:Name="YouTubeSourceItem"
+                                AutomationProperties.Name="YouTube source"
                                 Width="96"
                                 MinWidth="0"
                                 Padding="0,7"
@@ -329,12 +337,13 @@
                             <TextBlock x:Name="PlaylistsRootLabel" VerticalAlignment="Center" Text="Playlists" />
                             <Button
                                 x:Name="NewPlaylistButton"
+                                AutomationProperties.Name="New playlist"
                                 Grid.Column="1"
                                 Padding="4"
                                 VerticalAlignment="Center"
                                 Click="OnNewPlaylistClick"
                                 Style="{StaticResource SubtleButtonStyle}"
-                                ToolTipService.ToolTip="Playlist baru">
+                                ToolTipService.ToolTip="New playlist">
                                 <FontIcon FontSize="12" Glyph="&#xE710;" />
                             </Button>
                         </Grid>
@@ -410,6 +419,29 @@
                         Grid.Column="1"
                         Visibility="Collapsed" />
                 </Grid>
+
+                <!--
+                    Offline indicator (Req 35.3): shown while the device has no connectivity, hidden
+                    when back online. IsOpen is driven from the code-behind via
+                    INetworkMonitor.ConnectivityChanged. Non-closable so the user cannot dismiss a
+                    still-accurate offline state.
+
+                    Floats over the top of the content area rather than occupying a layout row, so
+                    connectivity changes never reflow the shell. It shares Row 0 with the content
+                    frame and so never covers the player bar.
+                -->
+                <InfoBar
+                    x:Name="OfflineInfoBar"
+                    Grid.Row="0"
+                    Margin="12,12,12,0"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Top"
+                    Title="Offline"
+                    CornerRadius="8"
+                    IsClosable="False"
+                    IsOpen="False"
+                    Message="Connectivity is unavailable. Some features may not work until you're back online."
+                    Severity="Warning" />
 
                 <!-- Global in-app notification: floats at the bottom of the CONTENT area, above the
                      player bar (Row 1), so it never overlaps/collides with the transport. -->

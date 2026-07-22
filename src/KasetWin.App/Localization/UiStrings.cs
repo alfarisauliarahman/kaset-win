@@ -122,6 +122,28 @@ internal static class UiStrings
     internal static string SettingsOpenExtensionsFolder => IsIndonesian ? "Buka folder ekstensi" : "Open extensions folder";
     internal static string SettingsRestartKaset => IsIndonesian ? "Mulai ulang Kaset" : "Restart Kaset";
 
+    // Global hotkeys.
+    internal static string SettingsHotkeysLabel => IsIndonesian ? "Pintasan global" : "Global hotkeys";
+    internal static string SettingsHotkeysCaption => IsIndonesian
+        ? "Kendalikan pemutaran dari aplikasi mana pun: Ctrl+Alt+↓ putar/jeda, Ctrl+Alt+→ berikutnya, Ctrl+Alt+← sebelumnya, Ctrl+Alt+↑ bisukan. Kombinasi yang sudah dipakai aplikasi lain akan dilewati."
+        : "Control playback from any app: Ctrl+Alt+↓ play/pause, Ctrl+Alt+→ next, Ctrl+Alt+← previous, Ctrl+Alt+↑ mute. A combination already claimed by another app is skipped.";
+
+    // Discord Rich Presence.
+    internal static string SettingsDiscordHeader => "Discord";
+    internal static string SettingsDiscordLabel => IsIndonesian ? "Tampilkan di Discord" : "Show on Discord";
+    internal static string SettingsDiscordCaption => IsIndonesian
+        ? "Tampilkan lagu yang sedang kamu dengar di profil Discord. Mati secara default — ini menyiarkan apa yang kamu dengar ke siapa pun yang bisa melihat profilmu."
+        : "Show what you're listening to on your Discord profile. Off by default — this publishes your listening to anyone who can see your profile.";
+    internal static string SettingsDiscordAdvanced => IsIndonesian ? "Lanjutan" : "Advanced";
+    internal static string SettingsDiscordAdvancedCaption => IsIndonesian
+        ? "Kaset memakai aplikasi Discord miliknya sendiri. Isi Application ID sendiri hanya kalau kamu ingin nama lain yang muncul di \"Listening to …\"."
+        : "Kaset uses its own Discord application. Set your own Application ID only if you want a different name to appear in \"Listening to …\".";
+    internal static string SettingsDiscordPlaceholder => IsIndonesian ? "Application ID Discord (opsional)" : "Discord Application ID (optional)";
+    internal static string SettingsDiscordPortalLink => IsIndonesian ? "Buka Discord Developer Portal" : "Open the Discord Developer Portal";
+    internal static string SettingsDiscordUnavailable => IsIndonesian
+        ? "Discord rich presence belum dikonfigurasi di build ini. Isi Application ID di bagian Lanjutan untuk memakainya."
+        : "Discord rich presence isn't configured in this build. Set an Application ID under Advanced to use it.";
+
     // About / version.
     internal static string SettingsAboutHeader => IsIndonesian ? "Tentang" : "About";
     internal static string SettingsVersionLabel => IsIndonesian ? "Versi aplikasi" : "App version";
@@ -175,13 +197,60 @@ internal static class UiStrings
     internal static string TipQueue => IsIndonesian ? "Antrean" : "Queue";
     internal static string TipMute => IsIndonesian ? "Bisukan" : "Mute";
     internal static string TipClose => IsIndonesian ? "Tutup" : "Close";
+    internal static string TipMiniPlayer => IsIndonesian ? "Mini player" : "Mini player";
+    internal static string TipExitMiniPlayer => IsIndonesian ? "Kembali ke jendela penuh" : "Back to full window";
+
+    // ── Sleep timer ────────────────────────────────────────────────────────────────────────────
+
+    internal static string TipSleepTimer => IsIndonesian ? "Timer tidur" : "Sleep timer";
+    internal static string SleepTimerOff => IsIndonesian ? "Nonaktif" : "Off";
+    internal static string SleepTimerEndOfTrack => IsIndonesian ? "Akhir lagu ini" : "End of this track";
+    internal static string SleepTimerMinutes(int minutes) => IsIndonesian ? $"{minutes} menit" : $"{minutes} minutes";
+    internal static string SleepTimerHour => IsIndonesian ? "1 jam" : "1 hour";
+    internal static string ToastSleepTimerSet(string when) => IsIndonesian
+        ? $"Pemutaran berhenti {when}."
+        : $"Playback will stop {when}.";
+    internal static string SleepTimerInMinutes(int minutes) => IsIndonesian ? $"dalam {minutes} menit" : $"in {minutes} minutes";
+    internal static string SleepTimerAtTrackEnd => IsIndonesian ? "di akhir lagu ini" : "at the end of this track";
+    internal static string ToastSleepTimerCancelled => IsIndonesian ? "Timer tidur dibatalkan." : "Sleep timer cancelled.";
+    internal static string ToastSleepTimerFired => IsIndonesian ? "Timer tidur selesai — pemutaran dijeda." : "Sleep timer finished — playback paused.";
+    internal static string A11ySleepTimerArmed(string remaining) => IsIndonesian
+        ? $"Timer tidur aktif, sisa {remaining}"
+        : $"Sleep timer on, {remaining} remaining";
     internal static string TipSubtitles => IsIndonesian ? "Pilih subtitel" : "Choose subtitles";
     internal static string TipSharePlaylist => IsIndonesian ? "Bagikan playlist" : "Share playlist";
     internal static string TipDeleteFromHistory => IsIndonesian ? "Hapus dari riwayat" : "Remove from history";
     internal static string TipNewPlaylist => IsIndonesian ? "Playlist baru" : "New playlist";
+    internal static string TipBack => IsIndonesian ? "Kembali" : "Back";
     internal static string CollectionAdd => IsIndonesian ? "Tambahkan ke koleksi" : "Add to library";
     internal static string CollectionSave => IsIndonesian ? "Simpan ke koleksi" : "Save to library";
     internal static string CollectionRemove => IsIndonesian ? "Hapus dari koleksi" : "Remove from library";
+
+    // ── Shell chrome (sidebar, title bar, offline banner) ──────────────────────────────────────
+
+    internal static string SearchPlaceholderShort => IsIndonesian ? "Cari" : "Search";
+    internal static string PlaylistsRoot => IsIndonesian ? "Playlist" : "Playlists";
+    internal static string OfflineTitle => IsIndonesian ? "Offline" : "Offline";
+    internal static string OfflineMessage => IsIndonesian
+        ? "Koneksi tidak tersedia. Sebagian fitur tidak berfungsi sampai kamu kembali online."
+        : "Connectivity is unavailable. Some features may not work until you're back online.";
+
+    // ── Accessible names (screen readers) ──────────────────────────────────────────────────────
+    //
+    // Names for controls that carry no visible text of their own. A tooltip is not announced by
+    // Narrator, so anything icon-only or value-only needs one of these via A11y.Label/A11y.Name.
+
+    internal static string A11ySeekSlider => IsIndonesian ? "Posisi pemutaran" : "Playback position";
+    internal static string A11yVolumeSlider => IsIndonesian ? "Volume" : "Volume";
+    internal static string A11ySourceToggle => IsIndonesian ? "Sumber: Musik atau YouTube" : "Source: Music or YouTube";
+    internal static string A11ySourceMusic => IsIndonesian ? "Sumber Musik" : "Music source";
+    internal static string A11ySourceYouTube => IsIndonesian ? "Sumber YouTube" : "YouTube source";
+    internal static string A11ySourceActiveMusic => IsIndonesian ? "Sumber: Musik — ganti ke YouTube" : "Source: Music — switch to YouTube";
+    internal static string A11ySourceActiveYouTube => IsIndonesian ? "Sumber: YouTube — ganti ke Musik" : "Source: YouTube — switch to Music";
+    internal static string A11yQueueList => IsIndonesian ? "Antrean pemutaran" : "Playback queue";
+    internal static string A11yHistoryList => IsIndonesian ? "Riwayat pemutaran" : "Playback history";
+    internal static string A11yLyricsList => IsIndonesian ? "Lirik" : "Lyrics";
+    internal static string A11yEqBand(string label) => IsIndonesian ? $"Penguatan {label}" : $"{label} gain";
 
     // ── Now-playing side panel ─────────────────────────────────────────────────────────────────
 

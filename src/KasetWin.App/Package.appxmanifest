@@ -24,9 +24,9 @@
   <Resources>
     <!--
       Localization (Req 19). 'x-generate' is expanded at build time to one <Resource> entry per
-      language found in the PRI (the Strings\{lang}\Resources.resw folders): en-US, fr-FR, ko-KR,
-      id-ID, tr-TR, ar. The default/neutral language is en-US, set via <DefaultLanguage> in
-      KasetWin.App.csproj (Req 19.3 fallback).
+      language found in the PRI (the Strings\{lang}\Resources.resw folders): en-US and id-ID, the
+      two languages UiStrings actually renders. The default/neutral language is en-US, set via
+      <DefaultLanguage> in KasetWin.App.csproj (Req 19.3 fallback). See Strings\README.md.
     -->
     <Resource Language="x-generate" />
   </Resources>

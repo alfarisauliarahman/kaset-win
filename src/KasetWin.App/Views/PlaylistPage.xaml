@@ -152,6 +152,7 @@
                         Grid.Column="1"
                         VerticalAlignment="Bottom"
                         Style="{StaticResource SubtleButtonStyle}"
+                        AutomationProperties.Name="{x:Bind loc:UiStrings.TipMore}"
                         ToolTipService.ToolTip="{x:Bind loc:UiStrings.TipMore}">
                         <FontIcon FontSize="16" Glyph="&#xE712;" />
                         <Button.Flyout>

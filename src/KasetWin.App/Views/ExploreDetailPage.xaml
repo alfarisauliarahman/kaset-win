@@ -123,6 +123,7 @@
                                                 LostFocus="OnPlayOverlayLostFocus"
                                                 Opacity="0"
                                                 Style="{StaticResource AccentButtonStyle}"
+                                                AutomationProperties.Name="{x:Bind loc:UiStrings.PlayLabel}"
                                                 ToolTipService.ToolTip="{x:Bind loc:UiStrings.PlayLabel}"
                                                 Visibility="{x:Bind CanPlay, Converter={StaticResource BoolToVisibility}}">
                                                 <FontIcon FontSize="16" Glyph="&#xE768;" />

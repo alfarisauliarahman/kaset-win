@@ -1,4 +1,5 @@
-﻿using KasetWin.App.Auth;
+﻿using KasetWin.App.Accessibility;
+using KasetWin.App.Auth;
 using KasetWin.App.Hosting;
 using KasetWin.App.ViewModels;
 using KasetWin.App.Views;
@@ -75,7 +76,12 @@ public sealed partial class MainWindow
     {
         var youtube = YouTubeSourceItem.IsChecked == true;
         SourceCompactIcon.Glyph = youtube ? "" : "";
-        ToolTipService.SetToolTip(SourceToggleCompact, youtube ? "YouTube" : "Music");
+        // The compact button is a single icon that both *shows* the active source and *switches*
+        // it, so the label has to say which is active — an icon alone leaves a screen-reader user
+        // with no way to know which of the two they are on.
+        A11y.Label(
+            SourceToggleCompact,
+            youtube ? Localization.UiStrings.A11ySourceActiveYouTube : Localization.UiStrings.A11ySourceActiveMusic);
     }
 
     /// <summary>Glides the segmented source indicator to the active segment (Music = 0, YouTube = 96).</summary>

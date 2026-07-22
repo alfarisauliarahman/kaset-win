@@ -6,6 +6,7 @@ using KasetWin.Core.Abstractions;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Settings;
 using KasetWin.Platform.Storage;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace KasetWin.App.ViewModels;
 
@@ -14,6 +15,13 @@ public sealed partial class EqBand : ObservableObject
 {
     /// <summary>Human-readable centre frequency, e.g. "62 Hz" / "1 kHz".</summary>
     public required string Label { get; init; }
+
+    /// <summary>
+    /// Screen-reader name for this band's slider, e.g. "1 kHz gain". The visible <see cref="Label"/>
+    /// sits in a sibling TextBlock that a screen reader never associates with the slider, so the
+    /// frequency has to be carried onto the control itself.
+    /// </summary>
+    public string AccessibleName => Localization.UiStrings.A11yEqBand(Label);
 
     /// <summary>Gain applied at this band in dB (-12..+12).</summary>
     [ObservableProperty]
@@ -262,6 +270,125 @@ public sealed partial class SettingsViewModel : ViewModelBase
         }
 
         AppData.Settings[CloseToTrayKey] = value;
+    }
+
+    // ── Global hotkeys ────────────────────────────────────────────────────────────────────────────
+
+    private const string GlobalHotkeysKey = "input.globalHotkeys";
+
+    /// <summary>
+    /// Whether system-wide playback hotkeys are enabled. Off by default: they claim
+    /// <c>Ctrl+Alt+Arrow</c> from every other app on the machine, which is not a decision to make on
+    /// the user's behalf.
+    /// </summary>
+    public static bool LoadGlobalHotkeysEnabled() =>
+        AppData.Settings[GlobalHotkeysKey] is bool enabled && enabled;
+
+    /// <summary>Whether system-wide playback hotkeys are enabled (Ctrl+Alt+←/→/↑/↓).</summary>
+    [ObservableProperty]
+    private bool _globalHotkeysEnabled = LoadGlobalHotkeysEnabled();
+
+    partial void OnGlobalHotkeysEnabledChanged(bool value)
+    {
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        AppData.Settings[GlobalHotkeysKey] = value;
+
+        // Apply live so the toggle is verifiable immediately rather than after a restart.
+        if (App.Current?.MainWindow is MainWindow window)
+        {
+            window.SetGlobalHotkeysEnabled(value);
+        }
+    }
+
+    // ── Discord Rich Presence ─────────────────────────────────────────────────────────────────────
+
+    private const string DiscordEnabledKey = "discord.richPresenceEnabled";
+    private const string DiscordAppIdKey = "discord.applicationId";
+
+    /// <summary>
+    /// Whether the user has switched rich presence on. <b>Off by default</b>: publishing what you are
+    /// listening to onto a public profile is a privacy choice, not something to enable on someone's
+    /// behalf.
+    /// </summary>
+    public static bool LoadDiscordEnabled() =>
+        AppData.Settings[DiscordEnabledKey] is bool enabled && enabled;
+
+    /// <summary>
+    /// The user's optional Application ID override — empty means "use the shared one Kaset ships".
+    /// Static so <c>MainWindow</c> can read it at startup without constructing this ViewModel.
+    /// </summary>
+    public static string LoadDiscordApplicationId() =>
+        AppData.Settings[DiscordAppIdKey] as string ?? string.Empty;
+
+    /// <summary>Resolves the id actually used: the override when set, otherwise Kaset's shared id.</summary>
+    public static string ResolveDiscordApplicationId() =>
+        Hosting.DiscordRichPresenceOptions.Resolve(LoadDiscordApplicationId());
+
+    /// <summary>Whether Discord rich presence is switched on.</summary>
+    [ObservableProperty]
+    private bool _discordRichPresenceEnabled = LoadDiscordEnabled();
+
+    /// <summary>
+    /// Optional Application ID override. Almost nobody needs this — it only changes which
+    /// application name Discord displays. Blank uses the id Kaset ships with.
+    /// </summary>
+    [ObservableProperty]
+    private string _discordApplicationId = LoadDiscordApplicationId();
+
+    /// <summary>
+    /// Whether the feature can actually run: either Kaset ships a shared id or the user supplied one.
+    /// Surfaced so the Settings card can explain an unavailable toggle instead of doing nothing.
+    /// </summary>
+    public bool IsDiscordAvailable => !string.IsNullOrWhiteSpace(ResolveDiscordApplicationId());
+
+    partial void OnDiscordRichPresenceEnabledChanged(bool value)
+    {
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        AppData.Settings[DiscordEnabledKey] = value;
+        ApplyDiscordPresence();
+    }
+
+    partial void OnDiscordApplicationIdChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsDiscordAvailable));
+
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        AppData.Settings[DiscordAppIdKey] = (value ?? string.Empty).Trim();
+        ApplyDiscordPresence();
+    }
+
+    /// <summary>
+    /// Starts or stops presence right away. A setting that only takes effect after a restart reads
+    /// as "it doesn't work", so both the toggle and the id apply live.
+    /// </summary>
+    private void ApplyDiscordPresence()
+    {
+        if (App.Current?.Services.GetService<Hosting.RichPresenceService>() is not { } presence)
+        {
+            return;
+        }
+
+        var appId = ResolveDiscordApplicationId();
+        if (DiscordRichPresenceEnabled && !string.IsNullOrWhiteSpace(appId))
+        {
+            _ = presence.StartAsync(appId);
+        }
+        else
+        {
+            _ = presence.StopAsync();
+        }
     }
 
     partial void OnSelectedLaunchPageChanged(LaunchPage value)

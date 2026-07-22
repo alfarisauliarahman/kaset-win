@@ -9,7 +9,10 @@ namespace KasetWin.Core.Services.Localization;
 /// <para>
 /// Matching is performed on the normalized <em>primary language subtag</em> (see
 /// <see cref="LanguageTag.PrimarySubtag"/>), so <c>"en-US"</c>, <c>"en-GB"</c> and <c>"en"</c> all
-/// resolve to the supported <c>"en"</c>, and <c>"ar-SA"</c> resolves to <c>"ar"</c>.
+/// resolve to the supported <c>"en"</c>, and <c>"id-ID"</c> resolves to the supported <c>"id"</c>.
+/// A locale whose subtag is not in the supported set resolves to the fallback, not to itself:
+/// <c>"ar-SA"</c> gives <c>"en"</c> while Arabic has no translation. That is what keeps an Arabic
+/// system on an LTR layout — direction is derived from the <em>selected</em> language.
 /// </para>
 /// <para>
 /// Kept in <c>Core</c> (no WinUI dependency) so it is exercised headless by Property 42: <em>for any

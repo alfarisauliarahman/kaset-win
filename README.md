@@ -29,6 +29,11 @@ A native **Windows** client for YouTube Music, built with **C# / .NET 8 + WinUI 
 - 📜 **Lyrics** — Plain and synced lyrics with line-by-line highlighting; providers include LRCLib and NetEase (good Asian/K-pop coverage). Podcast episodes show YouTube captions (CC) as synced "lyrics" with optional word-by-word karaoke highlighting
 - 📃 **Queue Management** — View, reorder, shuffle, and auto-refill (radio) the playback queue
 - 🎛️ **Equalizer** — 9-band equalizer with presets, applied to the WebView2 playback output
+- 🪟 **Mini Player** — Shrink the window to a compact, always-on-top picture-in-picture overlay (Windows CompactOverlay) with artwork, title, transport, and a scrubber; playback never stops when switching
+- 😴 **Sleep Timer** — Stop playback after 15/30/45/60 minutes or at the end of the current track, with a live countdown on the player bar
+- 🎮 **Discord Rich Presence** — Optionally show what you're listening to on your Discord profile. One toggle, no setup; off by default because it publishes your listening publicly
+- ⌨️ **Global Hotkeys** — Optional system-wide playback control (Ctrl+Alt+↓/→/←/↑) that works from any app, even without media keys on your keyboard
+- 📐 **Remembers Your Window** — Reopens at the size and position you left it, validated against your current displays
 - 🌗 **Light / Dark Mode** — Follow Windows, or force light or dark
 - ⌨️ **Keyboard Shortcuts** — Full keyboard control (YouTube-Music-style scheme) for playback, seeking, volume, like/dislike, lyrics, and navigation — press **Shift + /** for the in-app cheat sheet
 - 🖥️ **System Integration** — Windows Now Playing / media transport controls (SMTC), media-key support, taskbar thumbbar controls, and track-change notifications
@@ -76,6 +81,8 @@ vpk pack --packId Kaset --packVersion 0.2.1 --mainExe KasetWin.App.exe --packTit
 ```
 
 > Tip: if a parallel build hits an XamlCompiler file lock, run `dotnet build-server shutdown` and add `-p:UseSharedCompilation=false`.
+
+> Tests cover the headless core only. Anything involving a real WebView2, a signed-in session, window presenters or SMTC has to be exercised by hand — see [`docs/manual-test-checklist.md`](docs/manual-test-checklist.md).
 
 ## Project layout
 

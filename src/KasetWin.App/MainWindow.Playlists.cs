@@ -1,4 +1,5 @@
-﻿using KasetWin.App.Auth;
+﻿using KasetWin.App.Accessibility;
+using KasetWin.App.Auth;
 using KasetWin.App.Hosting;
 using KasetWin.App.ViewModels;
 using KasetWin.App.Views;
@@ -206,9 +207,22 @@ public sealed partial class MainWindow
     internal void ApplySidebarLanguage()
     {
         var indo = ViewModels.SettingsViewModel.LoadLanguageSetting() != "en";
-        SidebarSearchBox.PlaceholderText = indo ? "Cari" : "Search";
-        PlaylistsRootLabel.Text = indo ? "Playlist" : "Playlists";
-        ToolTipService.SetToolTip(NewPlaylistButton, Localization.UiStrings.TipNewPlaylist);
+        SidebarSearchBox.PlaceholderText = Localization.UiStrings.SearchPlaceholderShort;
+        PlaylistsRootLabel.Text = Localization.UiStrings.PlaylistsRoot;
+        A11y.Label(NewPlaylistButton, Localization.UiStrings.TipNewPlaylist);
+
+        // Chrome that no other relabel path reaches: the title-bar back button and the offline
+        // banner were previously pinned to one language (ID and EN respectively) because nothing
+        // ever rewrote their XAML text.
+        A11y.Label(TitleBarBackButton, Localization.UiStrings.TipBack);
+        OfflineInfoBar.Title = Localization.UiStrings.OfflineTitle;
+        OfflineInfoBar.Message = Localization.UiStrings.OfflineMessage;
+
+        // Source toggle: two icon+text segments plus an icon-only compact variant, none of which
+        // announce which source they select.
+        A11y.Name(MusicSourceItem, Localization.UiStrings.A11ySourceMusic);
+        A11y.Name(YouTubeSourceItem, Localization.UiStrings.A11ySourceYouTube);
+        A11y.Label(SourceToggleCompact, Localization.UiStrings.A11ySourceToggle);
 
         // These controls live for the window's lifetime (pages are recreated on navigation and
         // re-read their labels in the ctor, but these persist), so relabel them on every language change.

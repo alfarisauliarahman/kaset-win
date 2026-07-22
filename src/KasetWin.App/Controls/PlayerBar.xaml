@@ -47,6 +47,7 @@
             Spacing="6">
             <Button
                 x:Name="ShuffleButton"
+                AutomationProperties.Name="Shuffle"
                 Click="OnShuffleClick"
                 Opacity="{Binding IsShuffled, Converter={StaticResource BoolOpacity}}"
                 Style="{StaticResource SubtleButtonStyle}"
@@ -55,6 +56,7 @@
             </Button>
             <Button
                 x:Name="PreviousButton"
+                AutomationProperties.Name="Previous"
                 Click="OnPreviousClick"
                 Style="{StaticResource SubtleButtonStyle}"
                 ToolTipService.ToolTip="Previous">
@@ -63,14 +65,16 @@
             <!-- Podcast-only: jump back 10s (YouTube convention). -->
             <Button
                 x:Name="Rewind10Button"
+                AutomationProperties.Name="Back 10 seconds"
                 Click="OnRewind10Click"
                 Style="{StaticResource SubtleButtonStyle}"
-                ToolTipService.ToolTip="Mundur 10 detik"
+                ToolTipService.ToolTip="Back 10 seconds"
                 Visibility="Collapsed">
                 <FontIcon FontSize="16" Glyph="&#xEB9E;" />
             </Button>
             <Button
                 x:Name="PlayPauseButton"
+                AutomationProperties.Name="Play/Pause"
                 Width="36"
                 Height="36"
                 Padding="0"
@@ -85,14 +89,16 @@
             <!-- Podcast-only: jump forward 30s (YouTube convention). -->
             <Button
                 x:Name="Forward30Button"
+                AutomationProperties.Name="Forward 30 seconds"
                 Click="OnForward30Click"
                 Style="{StaticResource SubtleButtonStyle}"
-                ToolTipService.ToolTip="Maju 30 detik"
+                ToolTipService.ToolTip="Forward 30 seconds"
                 Visibility="Collapsed">
                 <FontIcon FontSize="16" Glyph="&#xEB9D;" />
             </Button>
             <Button
                 x:Name="NextButton"
+                AutomationProperties.Name="Next"
                 Click="OnNextClick"
                 Style="{StaticResource SubtleButtonStyle}"
                 ToolTipService.ToolTip="Next">
@@ -100,6 +106,7 @@
             </Button>
             <Button
                 x:Name="RepeatButton"
+                AutomationProperties.Name="Repeat"
                 Click="OnRepeatClick"
                 Opacity="{Binding RepeatMode, Converter={StaticResource RepeatOpacity}}"
                 Style="{StaticResource SubtleButtonStyle}"
@@ -140,41 +147,44 @@
                             CornerRadius="6">
                     <Border.ContextFlyout>
                         <MenuFlyout>
-                            <MenuFlyoutItem x:Name="CtxPlayNextItem" Click="OnCtxPlayNext" Text="Putar setelah ini">
+                            <MenuFlyoutItem x:Name="CtxPlayNextItem" Click="OnCtxPlayNext" Text="Play next">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE893;" />
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
-                            <MenuFlyoutItem x:Name="CtxAddToQueueItem" Click="OnCtxAddToQueue" Text="Tambahkan ke antrean">
+                            <MenuFlyoutItem x:Name="CtxAddToQueueItem" Click="OnCtxAddToQueue" Text="Add to queue">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE710;" />
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
-                            <MenuFlyoutItem x:Name="CtxToggleLikeItem" Click="OnCtxToggleLike" Text="Suka / batal suka">
+                            <MenuFlyoutItem x:Name="CtxToggleLikeItem" Click="OnCtxToggleLike" Text="Like / unlike">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xEB51;" />
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
                             <MenuFlyoutSeparator />
-                            <MenuFlyoutItem x:Name="CtxGoToArtistItem" Click="OnCtxGoToArtist" Text="Buka halaman artis">
+                            <MenuFlyoutItem x:Name="CtxGoToArtistItem" Click="OnCtxGoToArtist" Text="Go to artist">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE77B;" />
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
-                            <MenuFlyoutItem x:Name="CtxGoToAlbumItem" Click="OnCtxGoToAlbum" Text="Buka album">
+                            <MenuFlyoutItem x:Name="CtxGoToAlbumItem" Click="OnCtxGoToAlbum" Text="Go to album">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE93C;" />
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
                             <MenuFlyoutSeparator />
-                            <MenuFlyoutItem x:Name="CtxShareItem" Click="OnCtxShare" Text="Bagikan">
+                            <MenuFlyoutItem x:Name="CtxShareItem" Click="OnCtxShare" Text="Share">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE72D;" />
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
                         </MenuFlyout>
                     </Border.ContextFlyout>
+                            <!-- Decorative: the title/artist right next to it already carry the
+                                 information, so Narrator should not stop on the artwork. -->
                             <Image
+                                AutomationProperties.AccessibilityView="Raw"
                                 Source="{Binding CurrentTrack.ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
                                 Stretch="UniformToFill" />
                         </Border>
@@ -199,6 +209,7 @@
                         </Border>
                         <Button
                             x:Name="LikeButton"
+                            AutomationProperties.Name="Like"
                             VerticalAlignment="Center"
                             Click="OnLikeClick"
                             IsEnabled="False"
@@ -209,10 +220,11 @@
                         <!-- Podcast-only: dislike (thumbs down), mirrors YT Music's episode rating. -->
                         <Button
                             x:Name="DislikeButton"
+                            AutomationProperties.Name="Dislike"
                             VerticalAlignment="Center"
                             Click="OnDislikeClick"
                             Style="{StaticResource SubtleButtonStyle}"
-                            ToolTipService.ToolTip="Tidak suka"
+                            ToolTipService.ToolTip="Dislike"
                             Visibility="Collapsed">
                             <FontIcon x:Name="DislikeIcon" FontSize="16" Glyph="&#xE8E0;" />
                         </Button>
@@ -235,6 +247,7 @@
                         Style="{StaticResource CaptionTextBlockStyle}" />
                     <Slider
                         x:Name="SeekSlider"
+                        AutomationProperties.Name="Playback position"
                         Grid.Column="1"
                         HorizontalAlignment="Stretch"
                         Maximum="{Binding Duration}"
@@ -260,33 +273,59 @@
             Spacing="4">
             <Button
                 x:Name="SpeedButton"
+                AutomationProperties.Name="Playback speed"
                 VerticalAlignment="Center"
                 Style="{StaticResource SubtleButtonStyle}"
-                ToolTipService.ToolTip="Kecepatan pemutaran">
+                ToolTipService.ToolTip="Playback speed">
                 <FontIcon FontSize="16" Glyph="&#xEC4A;" />
                 <Button.Flyout>
                     <MenuFlyout x:Name="SpeedFlyout" Placement="Top" />
                 </Button.Flyout>
             </Button>
+            <!-- Sleep timer: armed from this flyout, ticked by the bar, enforced by Core's SleepTimer. -->
+            <Button
+                x:Name="SleepTimerButton"
+                AutomationProperties.Name="Sleep timer"
+                VerticalAlignment="Center"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Sleep timer">
+                <FontIcon x:Name="SleepTimerIcon" FontSize="16" Glyph="&#xEC46;" />
+                <Button.Flyout>
+                    <MenuFlyout x:Name="SleepTimerFlyout" Placement="Top" />
+                </Button.Flyout>
+            </Button>
             <Button
                 x:Name="LyricsButton"
+                AutomationProperties.Name="Lyrics"
                 VerticalAlignment="Center"
                 Click="OnLyricsClick"
                 IsEnabled="False"
                 Style="{StaticResource SubtleButtonStyle}"
-                ToolTipService.ToolTip="Lirik">
+                ToolTipService.ToolTip="Lyrics">
                 <FontIcon x:Name="LyricsIcon" FontSize="16" Glyph="&#xE8D2;" />
             </Button>
             <Button
                 x:Name="QueueButton"
+                AutomationProperties.Name="Queue"
                 VerticalAlignment="Center"
                 Click="OnQueueClick"
                 Style="{StaticResource SubtleButtonStyle}"
-                ToolTipService.ToolTip="Antrean">
+                ToolTipService.ToolTip="Queue">
                 <FontIcon FontSize="16" Glyph="&#xE90B;" />
+            </Button>
+            <!-- Mini player: shrinks the window to a compact always-on-top overlay. -->
+            <Button
+                x:Name="MiniPlayerButton"
+                AutomationProperties.Name="Mini player"
+                VerticalAlignment="Center"
+                Click="OnMiniPlayerClick"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Mini player">
+                <FontIcon FontSize="16" Glyph="&#xEE49;" />
             </Button>
             <Button
                 x:Name="MuteButton"
+                AutomationProperties.Name="Mute"
                 Click="OnMuteClick"
                 Style="{StaticResource SubtleButtonStyle}"
                 ToolTipService.ToolTip="Mute">
@@ -294,6 +333,7 @@
             </Button>
             <Slider
                 x:Name="VolumeSlider"
+                AutomationProperties.Name="Volume"
                 Width="100"
                 Maximum="100"
                 Minimum="0"

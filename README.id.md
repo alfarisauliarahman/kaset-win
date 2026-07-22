@@ -29,6 +29,11 @@ Klien **Windows** native untuk YouTube Music, dibangun dengan **C# / .NET 8 + Wi
 - 📜 **Lirik** — Lirik biasa dan tersinkron dengan sorotan baris-per-baris; penyedia meliputi LRCLib dan NetEase (cakupan Asia/K-pop bagus). Episode podcast menampilkan teks (CC) YouTube sebagai "lirik" tersinkron dengan opsi sorotan karaoke kata-per-kata
 - 📃 **Kelola Antrean** — Lihat, susun ulang, acak, dan isi-ulang otomatis (radio) antrean pemutaran
 - 🎛️ **Equalizer** — Equalizer 9-band dengan preset, diterapkan ke keluaran pemutaran WebView2
+- 🪟 **Mini Player** — Kecilkan jendela jadi overlay ringkas yang selalu di atas (CompactOverlay Windows) berisi sampul, judul, transport, dan scrubber; pemutaran tidak terputus saat berpindah mode
+- 😴 **Timer Tidur** — Hentikan pemutaran setelah 15/30/45/60 menit atau di akhir lagu yang sedang diputar, lengkap dengan hitung mundur di player bar
+- 🎮 **Discord Rich Presence** — Opsional: tampilkan lagu yang sedang kamu dengar di profil Discord. Cukup satu toggle, tanpa setup; mati secara default karena ini menyiarkan apa yang kamu dengar ke publik
+- ⌨️ **Pintasan Global** — Opsional: kendali pemutaran dari aplikasi mana pun (Ctrl+Alt+↓/→/←/↑), berguna kalau keyboardmu tidak punya tombol media
+- 📐 **Ukuran Jendela Diingat** — Dibuka lagi di ukuran dan posisi terakhir, dicek dulu apakah masih muat di layar yang terpasang
 - 🌗 **Mode Terang / Gelap** — Ikuti Windows, atau paksa terang atau gelap
 - ⌨️ **Pintasan Keyboard** — Kendali keyboard penuh (skema gaya YouTube Music) untuk pemutaran, geser posisi, volume, suka/tidak-suka, lirik, dan navigasi — tekan **Shift + /** untuk contekan pintasan di dalam app
 - 🖥️ **Integrasi Sistem** — Kontrol Now Playing / transport media Windows (SMTC), dukungan tombol media, kontrol thumbbar taskbar, dan notifikasi pergantian lagu
@@ -76,6 +81,8 @@ vpk pack --packId Kaset --packVersion 0.2.1 --mainExe KasetWin.App.exe --packTit
 ```
 
 > Tips: jika build paralel kena file lock XamlCompiler, jalankan `dotnet build-server shutdown` dan tambahkan `-p:UseSharedCompilation=false`.
+
+> Test hanya mencakup core headless. Apa pun yang melibatkan WebView2 sungguhan, sesi login, presenter jendela, atau SMTC harus diuji manual — lihat [`docs/manual-test-checklist.md`](docs/manual-test-checklist.md).
 
 ## Tata letak proyek
 

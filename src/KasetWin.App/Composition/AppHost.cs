@@ -169,6 +169,11 @@ internal static class AppHost
         services.AddSingleton(static sp => new InfiniteMixCoordinator(
             sp.GetRequiredService<IQueueService>(),
             (token, ct) => sp.GetRequiredService<IYTMusicClient>().GetMixContinuationAsync(token, ct)));
+        // Sleep timer: a singleton so the player (which enforces "end of this track" at the real
+        // track-end event) and the player bar (which arms it and shows the countdown) share one
+        // instance. Pure policy — it decides when to stop, the player does the stopping.
+        services.AddSingleton<SleepTimer>();
+
         services.AddSingleton<IPlayerService>(static sp => new PlayerService(
             sp.GetRequiredService<IQueueService>(),
             sp.GetRequiredService<IPlaybackController>(),
@@ -187,7 +192,8 @@ internal static class AppHost
                 {
                     return null;
                 }
-            }));
+            },
+            sp.GetRequiredService<SleepTimer>()));
 
         // ── Core: full YouTube mode — parallel client + parsers (task 25.1, Req 32) ──────
         // Parallel to IYTMusicClient (ADR-0020): own browser-shaped HttpClient, the YouTube origin
@@ -272,6 +278,16 @@ internal static class AppHost
         // App (not Platform) because the toast APIs ship with the Windows App SDK. The shell starts
         // it once the window is live (MainWindow.StartBackgroundControllers).
         services.AddSingleton<INotificationService, ToastNotificationService>();
+
+        // ── Discord Rich Presence (optional, user-supplied application id) ──────────────
+        // The pipe client lives in Platform (named pipes); the observer that turns player state into
+        // an activity lives here. Both are inert until MainWindow starts the service with an id.
+        services.AddSingleton<IRichPresenceClient>(static sp => new KasetWin.Platform.RichPresence.DiscordRpcClient(
+            sp.GetService<ILogger<KasetWin.Platform.RichPresence.DiscordRpcClient>>()));
+        services.AddSingleton(static sp => new Hosting.RichPresenceService(
+            sp.GetRequiredService<IPlayerService>(),
+            sp.GetRequiredService<IRichPresenceClient>(),
+            sp.GetService<ILogger<Hosting.RichPresenceService>>()));
 
         // ── ViewModels (transient, resolved from App.Services) ───────────────────────────
         // TODO (task 14.x): register ViewModels here as the UI pages land, e.g.

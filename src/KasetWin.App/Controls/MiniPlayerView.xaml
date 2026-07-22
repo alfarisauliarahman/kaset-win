@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="KasetWin.App.Controls.MiniPlayerView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:KasetWin.App.Controls"
+    xmlns:converters="using:KasetWin.App.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
+        <converters:PlayPauseGlyphConverter x:Key="PlayPauseGlyph" />
+        <converters:SecondsToTimeConverter x:Key="SecondsToTime" />
+    </UserControl.Resources>
+
+    <!--
+        Compact now-playing surface for CompactOverlay (picture-in-picture) mode: artwork, title and
+        artist, transport, and a seek bar. Deliberately a reduced set — at 400×150 there is no room
+        for shuffle/repeat/volume/lyrics, and the full bar's three-column layout does not survive the
+        width. Everything binds to the same IPlayerService instance the main player bar uses.
+    -->
+    <Grid Padding="12,10" ColumnSpacing="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border
+            Grid.Row="0"
+            Grid.Column="0"
+            Width="64"
+            Height="64"
+            VerticalAlignment="Center"
+            CornerRadius="6">
+            <Image
+                AutomationProperties.AccessibilityView="Raw"
+                Source="{Binding CurrentTrack.ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
+                Stretch="UniformToFill" />
+        </Border>
+
+        <controls:TrackInfo
+            x:Name="MiniTrackInfo"
+            Grid.Row="0"
+            Grid.Column="1"
+            VerticalAlignment="Center"
+            Song="{Binding CurrentTrack}" />
+
+        <!-- Transport. Kept to the three controls that matter when the window is this small. -->
+        <StackPanel
+            Grid.Row="0"
+            Grid.Column="2"
+            VerticalAlignment="Center"
+            Orientation="Horizontal"
+            Spacing="2">
+            <Button
+                x:Name="MiniPreviousButton"
+                AutomationProperties.Name="Previous"
+                Click="OnPreviousClick"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Previous">
+                <FontIcon FontSize="14" Glyph="&#xE892;" />
+            </Button>
+            <Button
+                x:Name="MiniPlayPauseButton"
+                AutomationProperties.Name="Play/Pause"
+                Width="34"
+                Height="34"
+                Padding="0"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center"
+                Click="OnPlayPauseClick"
+                CornerRadius="17"
+                Style="{StaticResource AccentButtonStyle}"
+                ToolTipService.ToolTip="Play/Pause">
+                <FontIcon FontSize="14" Glyph="{Binding IsPlaying, Converter={StaticResource PlayPauseGlyph}}" />
+            </Button>
+            <Button
+                x:Name="MiniNextButton"
+                AutomationProperties.Name="Next"
+                Click="OnNextClick"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Next">
+                <FontIcon FontSize="14" Glyph="&#xE893;" />
+            </Button>
+            <Button
+                x:Name="MiniRestoreButton"
+                AutomationProperties.Name="Back to full window"
+                Margin="4,0,0,0"
+                Click="OnRestoreClick"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Back to full window">
+                <FontIcon FontSize="14" Glyph="&#xEE47;" />
+            </Button>
+        </StackPanel>
+
+        <!-- Seek row spanning the full width, matching the main bar's affordance. -->
+        <Grid
+            Grid.Row="1"
+            Grid.Column="0"
+            Grid.ColumnSpan="3"
+            Margin="0,4,0,0"
+            ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock
+                Grid.Column="0"
+                MinWidth="34"
+                HorizontalTextAlignment="Right"
+                VerticalAlignment="Center"
+                Opacity="0.7"
+                Text="{Binding Progress, Converter={StaticResource SecondsToTime}}"
+                Style="{StaticResource CaptionTextBlockStyle}" />
+            <Slider
+                x:Name="MiniSeekSlider"
+                Grid.Column="1"
+                AutomationProperties.Name="Playback position"
+                HorizontalAlignment="Stretch"
+                Maximum="{Binding Duration}"
+                Minimum="0"
+                StepFrequency="1"
+                VerticalAlignment="Center" />
+            <TextBlock
+                Grid.Column="2"
+                MinWidth="34"
+                VerticalAlignment="Center"
+                Opacity="0.7"
+                Text="{Binding Duration, Converter={StaticResource SecondsToTime}}"
+                Style="{StaticResource CaptionTextBlockStyle}" />
+        </Grid>
+    </Grid>
+</UserControl>

@@ -1,4 +1,5 @@
-﻿using KasetWin.App.Auth;
+﻿using KasetWin.App.Accessibility;
+using KasetWin.App.Auth;
 using KasetWin.App.Hosting;
 using KasetWin.App.ViewModels;
 using KasetWin.App.Views;
@@ -183,6 +184,24 @@ public sealed partial class MainWindow
         }
 
         SaveSearchHistory();
+    }
+
+    /// <summary>
+    /// Labels the per-row delete button as each suggestion row is realized. The button lives inside
+    /// the AutoSuggestBox's <c>ItemTemplate</c>, so it has no <c>x:Name</c> for
+    /// <c>ApplySidebarLanguage</c> to reach — without this its text stayed pinned to Indonesian and
+    /// it was an unnamed "button" to Narrator. Naming it with the query it deletes also
+    /// disambiguates the rows, which are otherwise identical to a screen reader.
+    /// </summary>
+    private void OnDeleteHistoryLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement element)
+        {
+            var label = element.DataContext is SearchSuggestion entry
+                ? $"{Localization.UiStrings.TipDeleteFromHistory}: {entry.Query}"
+                : Localization.UiStrings.TipDeleteFromHistory;
+            A11y.Label(element, label);
+        }
     }
 
     /// <summary>The X on a history row: remove the entry and refresh the open suggestion list.</summary>
