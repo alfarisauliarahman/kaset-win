@@ -38,6 +38,20 @@ public class YouTubeMusicTimedLyricsClientTests
     }
     """;
 
+    // The same watch-next, plus the videoDetails the player's own metadata parse needs — one
+    // response really does serve both callers.
+    private const string NextWithLyricsTabAndVideoDetails = """
+    {
+      "videoDetails": { "videoId": "vid123", "title": "Test Song", "author": "Test Artist", "lengthSeconds": "200" },
+      "contents": { "singleColumnMusicWatchNextResultsRenderer": { "tabbedRenderer": {
+        "watchNextTabbedResultsRenderer": { "tabs": [
+          { "tabRenderer": { "title": "Up next", "selected": true } },
+          { "tabRenderer": { "title": "Lyrics",
+              "endpoint": { "browseEndpoint": { "browseId": "MPLYt_live_shape" } } } }
+        ] } } } }
+    }
+    """;
+
     private const string NextWithoutLyricsTab = """
     {
       "contents": { "singleColumnMusicWatchNextResultsRenderer": { "tabbedRenderer": {
@@ -226,6 +240,29 @@ public class YouTubeMusicTimedLyricsClientTests
         Assert.Equal(1, recorder.Count);
     }
 
+    [Fact]
+    public async Task The_lyrics_next_round_trip_is_shared_with_the_one_the_player_already_issues()
+    {
+        // The lyrics lookup needs `next` for the MPLYt… id, and the player issues `next` for the
+        // very same videoId (GetSongMetadataAsync / GetSongRelatedAsync). Those bodies are
+        // byte-identical and the cache key is the canonical body — so the second caller is served
+        // from ApiCache and the panel costs no extra watch-next request. Asserted rather than
+        // assumed: changing one body without the other would silently double the traffic.
+        var recorder = new RequestRecorder();
+        var client = ClientFor(recorder, (endpoint, clientName) => (endpoint, clientName) switch
+        {
+            ("next", _) => Ok(NextWithLyricsTabAndVideoDetails),
+            ("browse", InnerTubeSupport.ClientNameAndroidMusic) => Ok(AndroidTimedBrowse),
+            _ => Ok(WebPlainBrowse),
+        });
+
+        await client.GetSongMetadataAsync("vid123");
+        var lyrics = await client.GetYouTubeMusicLyricsAsync("vid123");
+
+        Assert.True(lyrics!.HasTimings);
+        Assert.Equal(1, recorder.CountFor("next"));
+    }
+
     // ── harness ─────────────────────────────────────────────────────────────────────────
 
     private static HttpResponseMessage Ok(string json) =>
@@ -267,6 +304,8 @@ public class YouTubeMusicTimedLyricsClientTests
         private readonly List<(string Endpoint, JsonObject Client)> _requests = [];
 
         public int Count => _requests.Count;
+
+        public int CountFor(string endpoint) => _requests.Count(r => r.Endpoint == endpoint);
 
         public IReadOnlyList<string> BrowseClientNames =>
             _requests.Where(r => r.Endpoint == "browse")

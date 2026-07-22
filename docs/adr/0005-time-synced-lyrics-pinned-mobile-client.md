@@ -65,10 +65,20 @@ Dua temuan lain yang membentuk keputusan di bawah:
    biayanya paling banyak satu permintaan tambahan per lagu per sesi. Alternatif "cukup tulis
    *YouTube Music* saja" ditolak: kredit lisensor baru saja dirilis atas permintaan pemilik repo,
    dan menghapusnya diam-diam sambil "memperbaiki" lirik adalah pertukaran yang salah.
-3. **Nol `cueRange` = hasil polos, bukan hasil tersinkron yang rusak.** Parser mengembalikan
+3. **Permintaan `next` tidak ditambah — ia sudah dipakai bersama lewat `ApiCache`.** Badan permintaan
+   `next` di jalur lirik identik byte-per-byte dengan yang dipakai `GetSongMetadataAsync` /
+   `GetSongRelatedAsync` (`videoId`, `enablePersistentPlaylistPanel`, `isAudioOnly`,
+   `tunerSettingValue`) dan TTL-nya sama (`ApiCacheTtl.SongMetadata`); kunci cache adalah badan yang
+   dikanonkan, dan TTL bukan bagian dari kunci. Jadi `next` untuk lirik dilayani dari cache yang
+   sudah diisi pemutar — tidak ada round trip tambahan, dan **tidak perlu** menyalurkan respons
+   `next` antar-layanan (yang justru akan mengikat panel lirik ke siklus hidup pemutar). Yang
+   dilakukan hanyalah mengunci fakta itu dengan tes
+   (`The_lyrics_next_round_trip_is_shared_with_the_one_the_player_already_issues`), karena mengubah
+   salah satu badan permintaan saja akan diam-diam menggandakan trafik.
+4. **Nol `cueRange` = hasil polos, bukan hasil tersinkron yang rusak.** Parser mengembalikan
    `Text` gabungan bila tidak ada satu pun cue; hasil `Synced` hanya dibentuk bila minimal satu baris
    ber-cue.
-4. **Setiap mode gagal turun kelas, tidak pernah melempar.** Rantainya:
+5. **Setiap mode gagal turun kelas, tidak pernah melempar.** Rantainya:
    `Synced → Plain → Unavailable`.
 
 ### Kegagalan yang harus ditanggung (versi yang di-pin PASTI basi)
