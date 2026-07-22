@@ -63,6 +63,24 @@ internal static class AppHost
     private static void ConfigureServices(IServiceCollection services)
     {
         // ── Shared infrastructure ────────────────────────────────────────────────────────
+        // Escape hatch for the pinned Android Music client version that unlocks time-synced lyrics
+        // (ADR 0005). YouTube will retire it eventually, and the symptom is silent — lyrics quietly
+        // stop highlighting. Reading it from settings means the fix is a value someone can change,
+        // not a release everyone waits for. Absent (the normal case) leaves the verified pin in
+        // place; the diagnostic log says when it looks retired and how to find the working version.
+        try
+        {
+            if (KasetWin.Platform.Storage.AppData.Settings["lyrics.androidClientVersion"] is string pinned
+                && !string.IsNullOrWhiteSpace(pinned))
+            {
+                InnerTubeSupport.AndroidMusicClientVersionOverride = pinned;
+            }
+        }
+        catch
+        {
+            // An unreadable setting must never stop the app starting; the pin still applies.
+        }
+
         // System clock seam consumed by ApiCache / YTMusicClient (deterministic in tests).
         services.AddSingleton(TimeProvider.System);
 

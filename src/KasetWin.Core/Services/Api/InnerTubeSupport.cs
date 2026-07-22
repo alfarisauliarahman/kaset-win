@@ -75,6 +75,25 @@ public static class InnerTubeSupport
     public const string ClientVersionAndroidMusic = "7.21.50";
 
     /// <summary>
+    /// Replaces <see cref="ClientVersionAndroidMusic"/> at runtime when set to a non-blank value.
+    /// </summary>
+    /// <remarks>
+    /// Exists so a stale pin can be fixed <b>without shipping a build</b>. When YouTube eventually
+    /// retires the pinned version the symptom is silent — synced lyrics quietly become plain text —
+    /// and the fix is a single version string. Wiring it to a setting means that fix is a value the
+    /// user (or a maintainer over chat) can change, instead of a release everyone has to wait for.
+    /// Find the working version with <c>ApiExplorer lyrics &lt;videoId&gt;</c>, which reports which
+    /// client identities return timings.
+    /// </remarks>
+    public static string? AndroidMusicClientVersionOverride { get; set; }
+
+    /// <summary>The Android Music client version actually used: the override when set, else the pin.</summary>
+    public static string EffectiveAndroidMusicClientVersion =>
+        string.IsNullOrWhiteSpace(AndroidMusicClientVersionOverride)
+            ? ClientVersionAndroidMusic
+            : AndroidMusicClientVersionOverride!.Trim();
+
+    /// <summary>
     /// The <c>context.client</c> fields that turn a music request into an Android Music request.
     /// Merged over the standard music context by the request core, so cookies, origin, and
     /// <c>SAPISIDHASH</c> handling stay exactly as they are for every other endpoint.

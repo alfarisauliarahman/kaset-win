@@ -86,14 +86,64 @@ public sealed partial class YTMusicClient
                 : timed;
 
             Diag.Write($"ytm-lyrics videoId={videoId} timed lines={credited.TimedLines!.Count} credit={credited.Attribution ?? "<none>"}");
+            s_androidTimedMisses = 0;
             return credited;
         }
+
+        NoteAndroidTimedMiss(plain is not null);
 
         // Reached when the Android attempt errored (stale pinned version), when it silently
         // downgraded to plain, or when the track simply has no synced lyrics.
         var result = plain ?? timed;
         Diag.Write($"ytm-lyrics videoId={videoId} plain chars={result?.Text?.Length ?? 0}");
         return result;
+    }
+
+    /// <summary>
+    /// Consecutive tracks that had lyrics but no timings from the Android client. Reset by any
+    /// timed hit.
+    /// </summary>
+    private static int s_androidTimedMisses;
+
+    /// <summary>Whether the "pin looks retired" warning has already been written this session.</summary>
+    private static bool s_androidPinWarned;
+
+    /// <summary>
+    /// How many consecutive misses before the pinned client version is presumed retired. Some tracks
+    /// genuinely have no synced version (verified: a Musixmatch track returned 34 lines, zero cue
+    /// ranges), so a handful of misses is normal and must not cry wolf. A long unbroken run is not.
+    /// </summary>
+    private const int AndroidPinSuspectThreshold = 12;
+
+    /// <summary>
+    /// Records a track that came back without timings, and warns once when the run gets long enough
+    /// to look like a retired client version rather than ordinary unsynced tracks.
+    /// </summary>
+    /// <remarks>
+    /// This exists because the failure is otherwise <b>silent</b>: when YouTube retires the pinned
+    /// version the app keeps working and simply stops highlighting lyrics, which nobody reports as a
+    /// bug for months. Only counts tracks that DID have lyrics, so a library of instrumentals cannot
+    /// trigger it.
+    /// </remarks>
+    private static void NoteAndroidTimedMiss(bool trackHadLyrics)
+    {
+        if (!trackHadLyrics || s_androidPinWarned)
+        {
+            return;
+        }
+
+        if (++s_androidTimedMisses < AndroidPinSuspectThreshold)
+        {
+            return;
+        }
+
+        s_androidPinWarned = true;
+        Diag.Write(
+            $"ytm-lyrics WARNING: {AndroidPinSuspectThreshold} consecutive tracks had lyrics but no " +
+            $"timings from ANDROID_MUSIC {InnerTubeSupport.EffectiveAndroidMusicClientVersion}. The " +
+            "pinned client version has probably been retired — synced lyrics have degraded to plain " +
+            "text. Find a working version with: dotnet run --project src/KasetWin.ApiExplorer -- " +
+            "lyrics t82Q3f4pNUY   (then set it via InnerTubeSupport.AndroidMusicClientVersionOverride).");
     }
 
     /// <summary>
@@ -109,7 +159,7 @@ public sealed partial class YTMusicClient
                 new JsonObject { ["browseId"] = browseId },
                 ApiCacheTtl.Lyrics, // Lyrics rarely change. The payload differs per client and cache
                 ct,                 // keys include the payload, so the two clients never collide.
-                clientVersionOverride: android ? InnerTubeSupport.ClientVersionAndroidMusic : null,
+                clientVersionOverride: android ? InnerTubeSupport.EffectiveAndroidMusicClientVersion : null,
                 clientNameOverride: android ? InnerTubeSupport.ClientNameAndroidMusic : null,
                 clientExtras: android ? InnerTubeSupport.AndroidMusicClientExtras : null)
                 .ConfigureAwait(false);
