@@ -31,6 +31,28 @@ public partial class App : Application
     {
         this.InitializeComponent();
 
+        // Record what actually killed the app.
+        //
+        // Without this, an unhandled exception on a background thread surfaces only as WinUI's
+        // stowed-exception code 0xc000027b in the Windows event log — the same opaque signature for
+        // every possible cause, with no type, message, or stack. Diagnosing a crash then means
+        // bisecting commits blind. Two sinks because they fail independently: the structured log,
+        // and a plain crash file that survives the logger itself being the thing that broke.
+        UnhandledException += (_, e) =>
+        {
+            try
+            {
+                var text = $"[{DateTimeOffset.Now:O}] UNHANDLED: {e.Exception}";
+                var path = System.IO.Path.Combine(
+                    KasetWin.Platform.Storage.AppData.LocalFolder, "crash.log");
+                System.IO.File.AppendAllText(path, text + Environment.NewLine + Environment.NewLine);
+            }
+            catch
+            {
+                // Never let the crash reporter turn a crash into a worse crash.
+            }
+        };
+
         // The content-language pin must be in place before the first API request goes out,
         // otherwise the first page load (and its cache entries) use the account language.
         try

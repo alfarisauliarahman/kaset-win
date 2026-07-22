@@ -292,29 +292,38 @@ internal static class MainWindowLayout
     /// against restoring onto a monitor that is no longer attached, which would open the window
     /// somewhere the user cannot see or reach.
     /// </summary>
+    /// <remarks>
+    /// Uses <see cref="DisplayArea.GetFromRect"/> rather than iterating <c>DisplayArea.FindAll()</c>.
+    /// Enumerating that collection threw <see cref="InvalidCastException"/> from the CsWinRT
+    /// projection (<c>IReadOnlyListImpl&lt;T&gt;.GetEnumerator</c>) and took the whole app down on
+    /// launch — and because it ran inside the MainWindow constructor, the only trace was WinUI's
+    /// opaque 0xc000027b stowed-exception code. Asking for the display nearest the frame answers the
+    /// same question with one call and no collection projection.
+    ///
+    /// The catch is deliberately broad: this is a convenience check on the startup path, and no
+    /// failure inside it is worth more than the window opening at its default size.
+    /// </remarks>
     private static bool IsFrameVisibleOnAnyDisplay(RectInt32 frame)
     {
         try
         {
-            foreach (var area in DisplayArea.FindAll())
+            var area = DisplayArea.GetFromRect(frame, DisplayAreaFallback.Nearest);
+            if (area is null)
             {
-                var bounds = area.OuterBounds;
-                var overlapX = Math.Min(frame.X + frame.Width, bounds.X + bounds.Width) - Math.Max(frame.X, bounds.X);
-                var overlapY = Math.Min(frame.Y + frame.Height, bounds.Y + bounds.Height) - Math.Max(frame.Y, bounds.Y);
-
-                // Require a real patch of title bar on screen, not a single overlapping pixel.
-                if (overlapX >= 200 && overlapY >= 80)
-                {
-                    return true;
-                }
+                return false;
             }
+
+            var bounds = area.OuterBounds;
+            var overlapX = Math.Min(frame.X + frame.Width, bounds.X + bounds.Width) - Math.Max(frame.X, bounds.X);
+            var overlapY = Math.Min(frame.Y + frame.Height, bounds.Y + bounds.Height) - Math.Max(frame.Y, bounds.Y);
+
+            // Require a real patch of title bar on screen, not a single overlapping pixel.
+            return overlapX >= 200 && overlapY >= 80;
         }
-        catch (Exception ex) when (ex is COMException or InvalidOperationException)
+        catch (Exception)
         {
             return false;
         }
-
-        return false;
     }
 
     /// <summary>
