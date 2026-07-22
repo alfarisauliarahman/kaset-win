@@ -83,6 +83,8 @@ vpk pack --packId Kaset --packVersion 0.2.1 --mainExe KasetWin.App.exe --packTit
 > Tip: if a parallel build hits an XamlCompiler file lock, run `dotnet build-server shutdown` and add `-p:UseSharedCompilation=false`.
 
 > Tests cover the headless core only. Anything involving a real WebView2, a signed-in session, window presenters or SMTC has to be exercised by hand — see [`docs/manual-test-checklist.md`](docs/manual-test-checklist.md).
+>
+> When something misbehaves at runtime, start at [`docs/troubleshooting.md`](docs/troubleshooting.md) — a green build and a green suite do not mean the app runs. Known trade-offs and already-decided questions live in [`docs/known-issues.md`](docs/known-issues.md).
 
 ## Project layout
 

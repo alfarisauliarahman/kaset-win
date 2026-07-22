@@ -44,6 +44,10 @@ dotnet build src/KasetWin.App/KasetWin.App.csproj -c Debug           # XAML comp
   — a crash on launch, a player bar with the like button marooned mid-bar, synced lyrics that never
   once worked — passed both gates. Launch it before claiming a UI or playback change works.
 
+- **Start at `docs/troubleshooting.md`** when anything misbehaves at runtime, and check
+  `docs/known-issues.md` before "fixing" something — several entries there are deliberate trade-offs
+  whose reversal reintroduces a different bug.
+
 - **When it crashes, read `crash.log` first.** WinUI reports every unhandled exception as the same
   opaque `0xc000027b` in the Windows event log, with no type, message, or stack. The handler in
   `App.xaml.cs` writes the real exception to

@@ -83,6 +83,8 @@ vpk pack --packId Kaset --packVersion 0.2.1 --mainExe KasetWin.App.exe --packTit
 > Tips: jika build paralel kena file lock XamlCompiler, jalankan `dotnet build-server shutdown` dan tambahkan `-p:UseSharedCompilation=false`.
 
 > Test hanya mencakup core headless. Apa pun yang melibatkan WebView2 sungguhan, sesi login, presenter jendela, atau SMTC harus diuji manual — lihat [`docs/manual-test-checklist.md`](docs/manual-test-checklist.md).
+>
+> Kalau ada yang aneh saat aplikasinya jalan, mulai dari [`docs/troubleshooting.md`](docs/troubleshooting.md) — build hijau dan test hijau tidak berarti aplikasinya jalan. Cacat yang sudah diketahui dan keputusan yang sudah diambil ada di [`docs/known-issues.md`](docs/known-issues.md).
 
 ## Tata letak proyek
 
