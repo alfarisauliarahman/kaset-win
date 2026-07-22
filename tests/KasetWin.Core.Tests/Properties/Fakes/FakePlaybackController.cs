@@ -42,12 +42,13 @@ internal sealed class FakePlaybackController : IPlaybackController
     }
 
     /// <inheritdoc />
-    public Task LoadVideoAsync(string videoId)
+    public Task LoadVideoAsync(string videoId, bool forceReload = false)
     {
         // Idempotency (Req 1.2): loading the already-loaded videoId is a no-op — no pause,
-        // no navigation. A genuinely different videoId pauses current playback before loading
-        // (pause-before-load, Req 1.6).
-        if (string.Equals(videoId, CurrentVideoId, StringComparison.Ordinal))
+        // no navigation — unless the caller forces a reload (the user re-selecting the current
+        // track, checklist 111b). A genuinely different videoId pauses current playback before
+        // loading (pause-before-load, Req 1.6).
+        if (!forceReload && string.Equals(videoId, CurrentVideoId, StringComparison.Ordinal))
         {
             Operations.Add($"load-skip:{videoId}");
             return Task.CompletedTask;

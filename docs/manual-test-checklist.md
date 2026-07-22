@@ -47,9 +47,35 @@ dan diverifikasi. Langkah 2, 9, 16, 32, 53, 58b lulus.
 
 ---
 
+## G. Uji perbaikan putaran 5 (2026-07-23)
+
+Menutup sebagian besar seksi F. **Belum satu pun diuji dengan tangan** — build hijau dan 497 test
+lulus, tapi seksi F sendiri lahir dari hal-hal yang lolos kedua gerbang itu.
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 127 | Nyalakan Narrator, Tab ke daftar antrean / saran pencarian | Menyebut **"Judul — Artis"**. Tidak ada lagi dump `Id = …, VideoId = …` | |
+| 128 | Buka panel antrean sampai sidebar menyempit, Tab ke tombol sumber bundar | "Sumber: Musik — klik untuk pindah ke YouTube" (mengikuti sumber aktif) | |
+| 129 | `start "kaset://play?v=BEPSc8q6Bd8"` | Judul **dan album** muncul di player bar, dan kartu "Sedang diputar" di panel antrean **terisi** | |
+| 130 | Tekan **Next cepat 5–6 kali berturut-turut** | Selalu ada lagu yang jalan. Tidak pernah berhenti total | |
+| 131 | Matikan Wi-Fi saat memutar, nyalakan lagi, klik lagu **yang sama** | Lagu itu diputar ulang dari awal. (Dulu diam saja sampai kamu pilih lagu lain) | |
+| 132 | Klik lagu yang **sedang** diputar | Mengulang dari 0:00 — **perubahan perilaku yang disengaja**, konsekuensi dari #131 | |
+| 133 | Lihat thumbnail taskbar (hover ikon Kaset di taskbar) | Tiga tombol (prev/play/next) **tampak ikonnya**, tidak kosong | |
+| 134 | Ganti bahasa ke English, hover tombol thumbnail taskbar | Tooltipnya Inggris (dulu selalu Indonesia) | |
+| 135 | Buka panel antrean setelah memutar beberapa lagu dari satu album | Ada bagian **"Sudah diputar"** yang redup di atas lagu yang sedang diputar | |
+| 136 | Klik salah satu lagu di bagian "Sudah diputar" | Lagu itu diputar lagi. Antrean tetap utuh | |
+| 137 | Set timer tidur **"Akhir lagu ini"**, biarkan lagunya habis | Musik berhenti, **toast muncul, DAN terdengar bunyi**. Dulu mode ini diam total | |
+| 138 | Set timer 1 menit (ubah `SleepTimerPresets` jadi `[1]`), biarkan habis | Toast + bunyi yang sama | |
+| 139 | Set timer lalu **batalkan** | Tidak ada bunyi sama sekali | |
+| 140 | Suka sebuah lagu dari player bar, lalu buka halaman albumnya | Baris lagu itu ikut tampil sebagai disukai **seketika**, tanpa menunggu | |
+| 141 | Pengaturan → Sumber lirik | Keterangannya sekarang dua baris pendek | |
+
 ## F. Cacat terbuka dari putaran 4 (2026-07-23)
 
-Belum diperbaiki. Dicatat di sini supaya tidak hilang di antara langkah yang lulus.
+> **Status per putaran 5:** F1 (aksesibilitas), F2 (`kaset://`), F3 (nyangkut), dan bagian F4 (ikon
+> taskbar, like/love, keterangan Settings) sudah ditangani — uji lewat seksi G di atas. Yang **masih
+> terbuka**: contekan pintasan memenuhi layar, sidebar tidak menyempit, sampul berkedip di mini
+> player, dan klik kanan mati di beberapa halaman (nomor 4–7 dalam triase, sengaja dilewati kali ini).
 
 ### F1. Aksesibilitas masih rusak — perbaikan glyph tidak menyelesaikannya
 

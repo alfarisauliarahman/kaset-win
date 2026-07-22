@@ -797,6 +797,72 @@ muncul begitu aplikasinya benar-benar dibuka dan dipakai.
   dari LyricFind/Musixmatch (YouTube yang menentukan per lagu) dan **tidak semua lagu tersinkron**.
   "Otomatis" tetap default: memaksa ke YouTube Music akan menghapus cadangan LRCLib/NetEase diam-diam.
 
+### PERBAIKAN PUTARAN UJI 5 (2026-07-23)
+
+Dari seksi F `docs/manual-test-checklist.md`. Dikerjakan paralel oleh tiga subagent + integrasi.
+
+- [x] 52. **Narrator membacakan dump properti** (#20/23/28/91/92)
+  - **SEBAB**: `Song` dan `SearchSuggestion` adalah `record` tanpa `ToString()` sendiri. `ToString()`
+    bawaan record mencetak SEMUA properti — dan itulah yang dibacakan Narrator setiap kali sebuah
+    objek sampai ke nama aksesibilitas tanpa nama miliknya sendiri. Terdengar sebagai "track id,
+    song id, dsb".
+  - **PERBAIKAN**: `ToString()` manusiawi ("Judul — Artis"). Satu perubahan menutup seluruh kelas
+    masalah, alih-alih menambal tiap list dan template satu per satu.
+  - **CATATAN**: menandai `FontIcon` dekoratif (putaran 3) hanya menghilangkan bunyi kode glyph;
+    ia justru membuka fallback ini. Dua gejala, satu rantai.
+  - _Requirements: 38.1_
+
+- [x] 53. **Tombol sumber ringkas tidak menyebut sumber aktif** (#29)
+  - Tombol bundar itu `Button`, bukan `ToggleButton`, jadi tidak ada on/off untuk dibacakan. Namanya
+    kini menyebut sumber aktif + apa yang terjadi bila diklik, dan diperbarui lewat callback
+    `IsChecked` sehingga ikut berubah, bukan hanya saat ganti bahasa. Dua tombol segmennya ternyata
+    sudah benar sejak awal.
+
+- [x] 54. **`kaset://` tidak melengkapi metadata** (#73/90) — dua sebab terpisah
+  - Panel antrean merender `queue.Tracks[CurrentIndex]`, bukan `CurrentTrack`; pengayaan hanya
+    mengisi album/artis/thumbnail dan **tidak pernah judul**, dan hasil resolusi halaman hanya masuk
+    ke `CurrentTrack`. Kini `TryEnrichTrack` juga mengisi judul & durasi **yang kosong** (tidak
+    pernah menimpa yang sudah ada) dan `HandleStateUpdate` menulis balik ke entri antrean.
+  - Baris album hilang karena `AlbumFromRenderer` hanya mendapat browse id tanpa judul. Ditambal
+    lewat `TrackMetadataEnricher` headless yang menyusulkan judul album.
+  - _Requirements: 33.1, 2.6_
+
+- [x] 55. **Next cepat menghentikan pemutaran** (#77b) — lihat ADR 0006
+  - `LoadTrackAsync` tidak diserialisasi; pemuatan lama bisa menyelesaikan `finally`-nya setelah yang
+    baru memasang penjaga, meninggalkan penjaga menunjuk track mati. Kini pakai tiket generasi, dan
+    kegagalan pemuatan yang tersalip **tidak** melepas penjaga.
+
+- [x] 56. **Lagu yang sama tidak mau diputar setelah internet kembali** (#111b) — lihat ADR 0006
+  - `LoadVideoAsync` keluar lebih awal saat videoId sama. Idempotensi itu benar untuk event otomatis,
+    salah untuk niat pengguna. Ditambah `forceReload`, hanya dipakai jalur yang berasal dari klik
+    pengguna. **Konsekuensi disengaja**: mengklik lagu yang sedang diputar kini mengulanginya.
+  - **TIDAK diselesaikan**: pemutaran tidak melanjut *otomatis* saat Wi-Fi kembali.
+
+- [x] 57. **Ikon tombol thumbnail taskbar kosong** (#88c)
+  - **SEBAB**: konstanta `THUMBBUTTONMASK` salah nilai — `THB_ICON` ditulis `0x8` (itu `THB_FLAGS`),
+    `THB_TOOLTIP` `0x20` (bukan bit yang terdefinisi). `dwMask` jadi `0x2C`, yang tidak pernah
+    menyalakan `THB_ICON`: shell diberi tahu field ikonnya tidak valid. Diperbaiki ke nilai
+    `shobjidl_core.h`. Berkas `kaset.ico` terbukti sudah ter-deploy — tidak ada kode yang ditambahkan
+    untuk itu.
+  - Sekalian: tooltip tombolnya tadinya literal bahasa Indonesia, kini lewat `UiStrings`.
+
+- [x] 58. **Like/love tidak sinkron** (parsial, jujur dicatat)
+  - Player bar menulis ke `ILikeStateStore` **setelah** round-trip server, sedangkan permukaan lain
+    menulis optimistis lebih dulu — jendela nyata di mana kedua tampilan berbeda. Kini optimistis
+    juga, dan mengembalikan nilai lama ke store bila gagal. Langganan `Changed` juga dipasang ulang
+    di `OnLoaded`. **Belum terbukti** ini penyebab yang dialami pemilik repo.
+
+- [x] 59. **Antrean menampilkan "Sudah diputar"** (#78)
+  - Core tidak diubah sama sekali: `QueueService` tidak pernah membuang track yang sudah diputar dan
+    `QueueViewModel` sudah punya `History`/`NowPlaying`/`UpNext`. Yang hilang murni render.
+
+- [x] 60. **Bunyi + toast timer tidur untuk KEDUA mode**
+  - `SleepTimer` dapat event `Expired` yang hanya menyala saat benar-benar habis (tidak saat
+    dibatalkan). Sebelumnya mode "akhir lagu ini" dieksekusi di `PlayerService`, jauh dari UI, jadi
+    mode itu berhenti tanpa toast maupun bunyi. Pengumumannya kini hidup di satu tempat.
+
+- [x] 61. **Keterangan sumber lirik dipangkas** (#121) — lisensornya sudah tampil di tiap lirik.
+
 ## Notes
 
 - Sub-tugas bertanda `*` bersifat opsional (test atau fitur fase lanjutan) dan **tidak** diimplementasikan otomatis; dapat dilewati untuk MVP yang lebih cepat.

@@ -57,6 +57,15 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
     private SynchronizationContext? _uiContext;
     private bool _isDrmAvailable = true; // Evergreen runtime ships Widevine; probe may flip to false (Req 1.7).
     private string? _currentVideoId;
+
+    /// <summary>
+    /// Whether the most recent navigation completed with a failure (offline, DNS, aborted load).
+    /// A failed page keeps its videoId in <see cref="_currentVideoId"/>, so without this flag the
+    /// idempotent-load shortcut in <see cref="LoadVideoAsync"/> refuses to re-navigate to the very
+    /// track the user is asking for — the "connectivity came back, clicking the same song does
+    /// nothing" defect. Reset on every real load attempt.
+    /// </summary>
+    private volatile bool _currentVideoNavigationFailed;
     private int _targetVolume = 100; // 0..100
     private bool _isMuted;
     private string? _pendingAudioQualityValue;
@@ -185,13 +194,19 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
     }
 
     /// <inheritdoc />
-    public async Task LoadVideoAsync(string videoId)
+    public async Task LoadVideoAsync(string videoId, bool forceReload = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(videoId);
         var core = RequireCore();
 
-        // Idempotent: re-loading the currently loaded video is a no-op (Req 1.2 / Property 6).
-        if (string.Equals(_currentVideoId, videoId, StringComparison.Ordinal))
+        // Idempotent: re-loading the currently loaded video is a no-op (Req 1.2 / Property 6) —
+        // unless the caller explicitly asks for a reload, or the last navigation for this videoId
+        // failed. Both exceptions exist because "already loaded" is not the same as "still alive":
+        // after the network drops, the page is dead while _currentVideoId still names it, and the
+        // no-op made re-selecting that very song do nothing (checklist 111b).
+        if (!forceReload
+            && !_currentVideoNavigationFailed
+            && string.Equals(_currentVideoId, videoId, StringComparison.Ordinal))
         {
             return;
         }
@@ -199,6 +214,7 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
         // Pause-before-load: pause current audio and prime the target volume before navigating
         // to the new videoId (Req 1.6).
         _currentVideoId = videoId;
+        _currentVideoNavigationFailed = false;
         var url = string.Format(CultureInfo.InvariantCulture, WatchUrlFormat, Uri.EscapeDataString(videoId));
 
         await InvokeOnUiAsync(async () =>
@@ -435,6 +451,16 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
+        // Remember a failed navigation so a later request for the same videoId re-navigates instead
+        // of being swallowed by the idempotent-load shortcut (checklist 111b).
+        _currentVideoNavigationFailed = !e.IsSuccess;
+        if (!e.IsSuccess)
+        {
+            _logger.LogInformation(
+                "Playback navigation did not complete successfully ({Status}); the loaded page is treated as dead.",
+                e.WebErrorStatus);
+        }
+
         try
         {
             await ApplyPlaybackPreferencesAsync().ConfigureAwait(true);

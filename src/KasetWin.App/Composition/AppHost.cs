@@ -211,20 +211,22 @@ internal static class AppHost
             sp.GetRequiredService<IPlaybackController>(),
             sp.GetRequiredService<IJsBridge>(),
             sp.GetRequiredService<InfiniteMixCoordinator>(),
-            async (videoId, ct) =>
-            {
-                // Enrich the now-playing track with its album/metadata so it is complete no matter
-                // which surface playback started from (e.g. a Home card without album data).
-                try
+            // Enrich the now-playing track with its album/metadata so it is complete no matter which
+            // surface playback started from (a Home card, a bare `kaset://play?v=…` launch). The
+            // watch-next response names the album only by its browse id, so the enricher resolves
+            // the title through the album browse — otherwise the player bar has an album it cannot
+            // print and simply shows nothing.
+            new TrackMetadataEnricher(
+                async (videoId, ct) =>
                 {
                     var meta = await sp.GetRequiredService<IYTMusicClient>().GetSongMetadataAsync(videoId, ct);
                     return meta.Song;
-                }
-                catch
+                },
+                async (albumBrowseId, ct) =>
                 {
-                    return null;
-                }
-            },
+                    var detail = await sp.GetRequiredService<IYTMusicClient>().GetPlaylistAsync(albumBrowseId, ct);
+                    return detail.Playlist.Title;
+                }).FetchAsync,
             sp.GetRequiredService<SleepTimer>()));
 
         // ── Core: full YouTube mode — parallel client + parsers (task 25.1, Req 32) ──────

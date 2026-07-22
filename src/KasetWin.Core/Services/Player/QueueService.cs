@@ -148,6 +148,12 @@ public sealed class QueueService : ObservableObject, IQueueService
                 Artists = existing.Artists is { Count: > 0 } ? existing.Artists : metadata.Artists,
                 VideoType = existing.VideoType ?? metadata.VideoType,
                 ThumbnailUrl = existing.ThumbnailUrl ?? metadata.ThumbnailUrl,
+                // A track queued from nothing but a videoId (a `kaset://play?v=…` launch) has no
+                // title and no duration either, and the queue is what the queue panel renders — so
+                // leaving those blank showed an empty "Now playing" row. Gaps only: a queue entry
+                // that already has a title keeps it.
+                Title = string.IsNullOrEmpty(existing.Title) ? metadata.Title : existing.Title,
+                Duration = existing.Duration ?? metadata.Duration,
             };
 
             if (merged == existing)

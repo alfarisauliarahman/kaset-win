@@ -133,6 +133,15 @@ public sealed record SearchSuggestion(
     /// <summary>InnerTube page type of <see cref="BrowseId"/> (e.g. <c>MUSIC_PAGE_TYPE_ARTIST</c>).</summary>
     public string? PageType { get; init; }
 
+    /// <summary>The query, optionally with its subtitle — what a screen reader should say.</summary>
+    /// <remarks>
+    /// Same reason as <see cref="Song.ToString"/>: the record-generated version prints every
+    /// property, and suggestion rows are exactly the kind of list item whose automation name falls
+    /// back to <c>ToString()</c>.
+    /// </remarks>
+    public override string ToString() =>
+        string.IsNullOrWhiteSpace(Subtitle) ? Query : $"{Query} — {Subtitle}";
+
     /// <summary>Video id for a rich song row, when present.</summary>
     public string? VideoId { get; init; }
 

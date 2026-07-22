@@ -126,6 +126,31 @@
                 Padding="12,0,12,16"
                 Visibility="{x:Bind ShowUpNext, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                 <StackPanel Spacing="4">
+                    <!-- Sudah diputar: the part of the queue behind the current track. Kept in the
+                         list (dimmed) instead of only living in the Riwayat tab, so the queue reads
+                         as one continuous strip — played → now playing → up next — and an earlier
+                         track can be clicked to play again. -->
+                    <TextBlock
+                        x:Name="PlayedHeaderText"
+                        Margin="8,8,0,0"
+                        Opacity="0.6"
+                        Text="Played"
+                        Visibility="{x:Bind Queue.HasHistory, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                        Style="{StaticResource CaptionTextBlockStyle}" />
+                    <ListView
+                        x:Name="PlayedList"
+                        AutomationProperties.Name="Already played tracks"
+                        IsItemClickEnabled="True"
+                        ItemClick="OnTrackClick"
+                        ItemTemplate="{StaticResource PanelRowTemplate}"
+                        ItemsSource="{x:Bind Queue.History, Mode=OneWay}"
+                        Opacity="0.5"
+                        PointerWheelChanged="OnUpNextWheel"
+                        ScrollViewer.VerticalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        SelectionMode="None"
+                        Visibility="{x:Bind Queue.HasHistory, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+
                     <TextBlock
                         x:Name="NowPlayingHeaderText"
                         Margin="8,8,0,0"
@@ -134,6 +159,7 @@
                         Visibility="{x:Bind Queue.HasNowPlaying, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
                         Style="{StaticResource CaptionTextBlockStyle}" />
                     <Grid
+                        x:Name="NowPlayingCard"
                         Padding="8"
                         Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                         CornerRadius="8"

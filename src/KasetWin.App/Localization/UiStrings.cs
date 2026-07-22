@@ -108,12 +108,15 @@ internal static class UiStrings
     internal static string SettingsRememberCaption => IsIndonesian ? "Pulihkan acak dan ulangi saat diluncurkan lagi." : "Restore shuffle and repeat on next launch.";
     internal static string SettingsLyricsHeader => IsIndonesian ? "Lirik" : "Lyrics";
     internal static string SettingsLyricsSourceLabel => IsIndonesian ? "Sumber lirik" : "Lyrics source";
+    // Two short lines beat one accurate paragraph: the old caption explained the whole provider
+    // chain and the licensing model, which nobody reads in a settings pane. The licensor is already
+    // named on every lyric ("Sumber: YouTube Music — LyricFind"), so it does not need repeating here.
     internal static string SettingsLyricsSourceCaption => IsIndonesian
-        ? "Pilih penyedia lirik yang diutamakan. YouTube Music dicoba lebih dulu karena mencocokkan lewat videoId; NetEase bagus untuk lagu Asia/K-pop."
-        : "Pick the preferred lyrics provider. YouTube Music is tried first because it matches by videoId; NetEase covers Asian/K-pop songs well.";
+        ? "Penyedia lirik yang diutamakan."
+        : "Preferred lyrics provider.";
     internal static string SettingsLyricsSourceAttribution => IsIndonesian
-        ? "Lirik YouTube Music adalah salinan resmi berlisensi dari label, dikreditkan per lagu ke LyricFind atau Musixmatch — YouTube yang menentukan yang mana, bukan Kaset. Tidak semua lagu tersedia dengan lirik sinkron-waktu."
-        : "YouTube Music's lyrics are the licensed label copy, credited per track to either LyricFind or Musixmatch — YouTube decides which one, not Kaset. Not every track comes with time-synced lines.";
+        ? "Lirik YouTube Music berasal dari label (LyricFind/Musixmatch). Tidak semua lagu punya versi tersinkron."
+        : "YouTube Music lyrics come from the label (LyricFind/Musixmatch). Not every track has a synced version.";
     internal static string SettingsSyncedLabel => IsIndonesian ? "Lirik sinkron" : "Synced lyrics";
     internal static string SettingsSyncedCaption => IsIndonesian ? "Utamakan lirik sinkron-waktu, fallback ke lirik biasa." : "Prefer time-synced lyrics, falling back to plain lyrics.";
     internal static string SettingsEqualizerHeader => IsIndonesian ? "Ekualiser" : "Equalizer";
@@ -246,12 +249,22 @@ internal static class UiStrings
     internal static string A11ySeekSlider => IsIndonesian ? "Posisi pemutaran" : "Playback position";
     internal static string A11yVolumeSlider => IsIndonesian ? "Volume" : "Volume";
     internal static string A11ySourceToggle => IsIndonesian ? "Sumber: Musik atau YouTube" : "Source: Music or YouTube";
+
+    /// <summary>
+    /// Name for the icon-only source button, which unlike the two-segment pill has no visible label
+    /// and no toggle state to announce — so the name has to carry both which source is active and
+    /// what clicking will do.
+    /// </summary>
+    internal static string A11ySourceCompact(bool youTubeActive) => IsIndonesian
+        ? (youTubeActive ? "Sumber: YouTube — klik untuk pindah ke Musik" : "Sumber: Musik — klik untuk pindah ke YouTube")
+        : (youTubeActive ? "Source: YouTube — click to switch to Music" : "Source: Music — click to switch to YouTube");
     internal static string A11ySourceMusic => IsIndonesian ? "Sumber Musik" : "Music source";
     internal static string A11ySourceYouTube => IsIndonesian ? "Sumber YouTube" : "YouTube source";
     internal static string A11ySourceActiveMusic => IsIndonesian ? "Sumber: Musik — ganti ke YouTube" : "Source: Music — switch to YouTube";
     internal static string A11ySourceActiveYouTube => IsIndonesian ? "Sumber: YouTube — ganti ke Musik" : "Source: YouTube — switch to Music";
     internal static string A11yQueueList => IsIndonesian ? "Antrean pemutaran" : "Playback queue";
     internal static string A11yHistoryList => IsIndonesian ? "Riwayat pemutaran" : "Playback history";
+    internal static string A11yPlayedList => IsIndonesian ? "Lagu yang sudah diputar" : "Already played tracks";
     internal static string A11yLyricsList => IsIndonesian ? "Lirik" : "Lyrics";
     internal static string A11yEqBand(string label) => IsIndonesian ? $"Penguatan {label}" : $"{label} gain";
 
@@ -260,6 +273,7 @@ internal static class UiStrings
     internal static string QueueTabUpNext => IsIndonesian ? "Berikutnya" : "Up next";
     internal static string QueueTabHistory => IsIndonesian ? "Riwayat" : "History";
     internal static string QueueTabRelated => IsIndonesian ? "Terkait" : "Related";
+    internal static string QueuePlayedHeader => IsIndonesian ? "Sudah diputar" : "Played";
     internal static string QueueNowPlaying => IsIndonesian ? "Sedang diputar" : "Now playing";
     internal static string QueueUpNextHeader => IsIndonesian ? "Selanjutnya" : "Up next";
     internal static string QueueEmpty => IsIndonesian ? "Tidak ada lagu berikutnya." : "No upcoming songs.";

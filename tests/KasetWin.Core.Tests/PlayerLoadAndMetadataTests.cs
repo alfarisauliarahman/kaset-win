@@ -1,0 +1,378 @@
+using KasetWin.Core.Abstractions;
+using KasetWin.Core.Models;
+using KasetWin.Core.Services.Player;
+using KasetWin.Core.Tests.Properties.Fakes;
+using Xunit;
+
+namespace KasetWin.Core.Tests;
+
+/// <summary>
+/// Regression tests for the four playback defects found by running the app (manual-test checklist
+/// 73/90, 77b, 88b, 111b): overlapping track loads, the load guard being disarmed by a superseded
+/// load, re-selecting a track whose page is dead, and a queue entry that stays empty when playback
+/// started from nothing but a videoId.
+/// </summary>
+/// <remarks>
+/// The interleaving is real, not simulated: <see cref="GatedPlaybackController"/> holds each
+/// <c>LoadVideoAsync</c> open on a <see cref="TaskCompletionSource"/> so several
+/// <c>NextAsync</c> calls are genuinely in flight at once, exactly as they are when the user hammers
+/// the Next button or the media key.
+/// </remarks>
+public class PlayerLoadAndMetadataTests
+{
+    private static IReadOnlyList<Song> MakeSongs(int count) =>
+        [.. Enumerable.Range(0, count).Select(i => new Song
+        {
+            Id = $"q{i}",
+            VideoId = $"q{i}",
+            Title = $"Song {i}",
+        })];
+
+    private static PlaybackStateMessage Report(string videoId, string title = "T", bool playing = true) =>
+        new(playing, 0, 100, videoId, title, string.Empty, true, null, null);
+
+    // ── 77b / 88b: rapid Next must leave the newest track playing ────────────────────
+
+    [Fact]
+    public async Task RapidNext_LeavesTheNewestTrackLoadedAndPlaying()
+    {
+        var queue = new QueueService(bound => 0);
+        var controller = new GatedPlaybackController();
+        var player = new PlayerService(queue, controller, new FakeJsBridge());
+
+        await player.PlayCollectionAsync(MakeSongs(5), startIndex: 0);
+        player.HandleStateUpdate(Report("q0", "Song 0"));
+
+        // Three Next presses in a row, none of which has finished loading yet.
+        controller.HoldLoads = true;
+        Task first = player.NextAsync();
+        Task second = player.NextAsync();
+        Task third = player.NextAsync();
+
+        Assert.Equal(3, queue.CurrentIndex); // the queue advanced synchronously, as it always did
+
+        controller.ReleaseHeldLoads();
+        await Task.WhenAll(first, second, third);
+
+        // The middle load was superseded before it ever reached the controller, and the newest one
+        // is the one that ends up loaded and playing. Before the generation guard, an older load
+        // could finish last and leave the player pointing at a track nobody asked for — or, when it
+        // failed, disarm the guard and leave nothing playing at all.
+        Assert.Equal("q3", controller.CurrentVideoId);
+        Assert.DoesNotContain("q2", controller.LoadedVideoIds);
+        Assert.Equal("q3", player.CurrentTrack?.VideoId);
+        Assert.True(player.IsPlaying);
+
+        // The load guard belongs to the newest load: q3's own report releases it.
+        player.HandleStateUpdate(Report("q3", "Song 3"));
+        player.HandleStateUpdate(Report("autoplay-pick", "Something else"));
+        Assert.Equal("autoplay-pick", player.CurrentTrack?.VideoId);
+    }
+
+    [Fact]
+    public async Task SupersededLoadThatFails_DoesNotDisarmTheNewestLoadsGuard()
+    {
+        var queue = new QueueService(bound => 0);
+        var controller = new GatedPlaybackController { FailingVideoId = "q1" };
+        var player = new PlayerService(queue, controller, new FakeJsBridge());
+
+        await player.PlayCollectionAsync(MakeSongs(3), startIndex: 0);
+        player.HandleStateUpdate(Report("q0", "Song 0"));
+
+        controller.HoldLoads = true;
+        Task first = player.NextAsync();  // q1 — will fail once released
+        Task second = player.NextAsync(); // q2 — the load the user actually wants
+
+        controller.ReleaseHeldLoads();
+        await Task.WhenAll(first, second); // the superseded failure must not surface either
+
+        Assert.Equal("q2", controller.CurrentVideoId);
+
+        // The guard must still be armed for q2: the outgoing page keeps reporting for seconds, and
+        // adopting those reports is what turned the queue into a mix.
+        player.HandleStateUpdate(Report("drift", "Outgoing page"));
+        Assert.Equal(3, queue.Tracks.Count);
+        Assert.Equal("q2", player.CurrentTrack?.VideoId);
+    }
+
+    // ── 111b: re-selecting a track whose page died must really reload it ─────────────
+
+    [Fact]
+    public async Task PlayingTheTrackThatIsAlreadyLoaded_ReloadsIt()
+    {
+        var queue = new QueueService(bound => 0);
+        var controller = new FakePlaybackController();
+        var player = new PlayerService(queue, controller, new FakeJsBridge());
+
+        var song = MakeSongs(1)[0];
+        await player.PlayCollectionAsync([song], startIndex: 0);
+        await player.PlayCollectionAsync([song], startIndex: 0);
+
+        // Both plays navigate. Without this, the connection dropping mid-song left the page dead
+        // while its videoId was still "loaded", so clicking that same song did nothing whatsoever
+        // and the user had to pick a different song first.
+        Assert.Equal(["q0", "q0"], controller.LoadedVideoIds);
+    }
+
+    [Fact]
+    public async Task AutomaticAdvance_StillTreatsAnAlreadyLoadedTrackAsANoOp()
+    {
+        var queue = new QueueService(bound => 0);
+        var controller = new FakePlaybackController();
+        var player = new PlayerService(queue, controller, new FakeJsBridge());
+
+        await player.PlayCollectionAsync(MakeSongs(2), startIndex: 0);
+        player.HandleStateUpdate(Report("q0", "Song 0"));
+
+        // A stale TRACK_ENDED for another video replays the expected track. That path relies on the
+        // idempotent no-op: it must not restart the song the user is listening to.
+        await player.HandleTrackEndedAsync("some-other-video");
+
+        Assert.Equal(["q0"], controller.LoadedVideoIds);
+    }
+
+    // ── 73/90: a track played from nothing but a videoId must still fill the queue ───
+
+    [Fact]
+    public async Task ProtocolLaunch_EnrichesTheQueueEntry_NotJustTheCurrentTrack()
+    {
+        var queue = new QueueService(bound => 0);
+        var controller = new FakePlaybackController();
+        var enriched = new Song
+        {
+            Id = "proto1",
+            VideoId = "proto1",
+            Title = "i hate u, i love u",
+            Artists = [new Artist { Id = "UC1", Name = "gnash" }],
+            Album = new Album { Id = "MPREb_x", Title = "us" },
+            Duration = TimeSpan.FromSeconds(211),
+        };
+        var player = new PlayerService(
+            queue,
+            controller,
+            new FakeJsBridge(),
+            metadataFetcher: (_, _) => Task.FromResult<Song?>(enriched));
+
+        // What `kaset://play?v=…` produces: a Song with an id and nothing else.
+        await player.PlayAsync("proto1");
+
+        // Let the background enrichment settle (it is deliberately fire-and-forget).
+        await WaitUntilAsync(() => queue.CurrentTrack?.Album is not null);
+
+        // The queue — not CurrentTrack — is what the queue panel's "Now playing" row renders, so an
+        // enrichment that only touched CurrentTrack left that row blank for the whole song.
+        Song queued = Assert.Single(queue.Tracks);
+        Assert.Equal("i hate u, i love u", queued.Title);
+        Assert.Equal("us", queued.Album?.Title);
+        Assert.Equal("gnash", queued.Artists.SingleOrDefault()?.Name);
+        Assert.Equal(TimeSpan.FromSeconds(211), queued.Duration);
+        Assert.Equal("i hate u, i love u", player.CurrentTrack?.Title);
+    }
+
+    [Fact]
+    public async Task StateUpdate_FillsTheQueueEntryOfATrackQueuedFromNothingButAVideoId()
+    {
+        var queue = new QueueService(bound => 0);
+        var player = new PlayerService(queue, new FakePlaybackController(), new FakeJsBridge());
+
+        await player.PlayAsync("proto1");
+
+        player.HandleStateUpdate(new PlaybackStateMessage(
+            IsPlaying: true, Progress: 1, Duration: 100, VideoId: "proto1",
+            Title: "i hate u, i love u", Artist: "gnash", TrackChanged: true,
+            HasVideo: null, VideoType: null,
+            ThumbnailUrl: new Uri("https://example.invalid/art.jpg")));
+
+        Song queued = Assert.Single(queue.Tracks);
+        Assert.Equal("i hate u, i love u", queued.Title);
+        Assert.Equal("gnash", queued.Artists.SingleOrDefault()?.Name);
+        Assert.Equal(new Uri("https://example.invalid/art.jpg"), queued.ThumbnailUrl);
+    }
+
+    [Fact]
+    public void TryEnrichTrack_NeverOverwritesATitleTheQueueEntryAlreadyHas()
+    {
+        var queue = new QueueService(bound => 0);
+        queue.SetQueue(MakeSongs(2), startIndex: 0);
+
+        bool changed = queue.TryEnrichTrack(
+            "q0",
+            new Song { Id = "q0", VideoId = "q0", Title = "Something the page made up" });
+
+        Assert.False(changed);
+        Assert.Equal("Song 0", queue.Tracks[0].Title);
+    }
+
+    // ── The album line: an album with an id but no name cannot be rendered ───────────
+
+    [Fact]
+    public async Task Enricher_NamesAnAlbumThatArrivedWithOnlyABrowseId()
+    {
+        var enricher = new TrackMetadataEnricher(
+            (videoId, _) => Task.FromResult<Song?>(new Song
+            {
+                Id = videoId,
+                VideoId = videoId,
+                Title = "Track",
+                // What the watch-next response carries: the album's browse id and no title at all.
+                Album = new Album { Id = "MPREb_x", Title = string.Empty },
+            }),
+            (_, _) => Task.FromResult<string?>("us"));
+
+        Song? song = await enricher.FetchAsync("proto1");
+
+        Assert.Equal("us", song?.Album?.Title);
+    }
+
+    [Fact]
+    public async Task Enricher_LeavesANamedAlbumAlone_AndSwallowsLookupFailures()
+    {
+        var albumLookups = 0;
+        var enricher = new TrackMetadataEnricher(
+            (videoId, _) => Task.FromResult<Song?>(new Song
+            {
+                Id = videoId,
+                VideoId = videoId,
+                Title = "Track",
+                Album = new Album { Id = "MPREb_x", Title = "Already named" },
+            }),
+            (_, _) =>
+            {
+                albumLookups++;
+                return Task.FromResult<string?>("Should not be used");
+            });
+
+        Song? song = await enricher.FetchAsync("proto1");
+
+        Assert.Equal("Already named", song?.Album?.Title);
+        Assert.Equal(0, albumLookups);
+
+        // A failing album lookup must not cost the song metadata that was already fetched.
+        var failing = new TrackMetadataEnricher(
+            (videoId, _) => Task.FromResult<Song?>(new Song
+            {
+                Id = videoId,
+                VideoId = videoId,
+                Title = "Track",
+                Album = new Album { Id = "MPREb_x", Title = string.Empty },
+            }),
+            (_, _) => throw new InvalidOperationException("offline"));
+
+        Song? degraded = await failing.FetchAsync("proto1");
+
+        Assert.Equal("Track", degraded?.Title);
+        Assert.Equal("MPREb_x", degraded?.Album?.Id);
+    }
+
+    [Fact]
+    public async Task Enricher_ReturnsNull_WhenTheSongLookupFails()
+    {
+        var enricher = new TrackMetadataEnricher((_, _) => throw new InvalidOperationException("offline"));
+
+        Assert.Null(await enricher.FetchAsync("proto1"));
+    }
+
+    // ── helpers ─────────────────────────────────────────────────────────────────────
+
+    /// <summary>Polls <paramref name="condition"/> briefly; fails the test if it never holds.</summary>
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        for (var i = 0; i < 200 && !condition(); i++)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.True(condition(), "The awaited condition never became true.");
+    }
+
+    /// <summary>
+    /// A playback controller whose loads can be held open, so several <c>LoadTrackAsync</c> calls
+    /// are genuinely in flight at the same time.
+    /// </summary>
+    private sealed class GatedPlaybackController : IPlaybackController
+    {
+        private readonly List<TaskCompletionSource> _held = [];
+
+        public List<string> LoadedVideoIds { get; } = [];
+
+        /// <summary>When set, a load of this videoId throws once it is released.</summary>
+        public string? FailingVideoId { get; init; }
+
+        /// <summary>While true, every real load stays pending until <see cref="ReleaseHeldLoads"/>.</summary>
+        public bool HoldLoads { get; set; }
+
+        public bool IsDrmAvailable => true;
+
+        public string? CurrentVideoId { get; private set; }
+
+        public Task EnsureInitializedAsync() => Task.CompletedTask;
+
+        public Task LoadVideoAsync(string videoId, bool forceReload = false)
+        {
+            if (!forceReload && string.Equals(videoId, CurrentVideoId, StringComparison.Ordinal))
+            {
+                return Task.CompletedTask;
+            }
+
+            LoadedVideoIds.Add(videoId);
+            bool fails = string.Equals(videoId, FailingVideoId, StringComparison.Ordinal);
+            if (!fails)
+            {
+                CurrentVideoId = videoId;
+            }
+
+            if (!HoldLoads)
+            {
+                return fails
+                    ? Task.FromException(new InvalidOperationException("load failed"))
+                    : Task.CompletedTask;
+            }
+
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _held.Add(tcs);
+            return fails
+                ? tcs.Task.ContinueWith(
+                    _ => throw new InvalidOperationException("load failed"),
+                    TaskScheduler.Default)
+                : tcs.Task;
+        }
+
+        /// <summary>Completes every held load, in the order they were requested.</summary>
+        public void ReleaseHeldLoads()
+        {
+            HoldLoads = false;
+            foreach (TaskCompletionSource tcs in _held)
+            {
+                tcs.TrySetResult();
+            }
+
+            _held.Clear();
+        }
+
+        public Task PlayAsync() => Task.CompletedTask;
+
+        public Task PauseAsync() => Task.CompletedTask;
+
+        public Task SkipToNextAsync() => Task.CompletedTask;
+
+        public Task SkipToPreviousAsync() => Task.CompletedTask;
+
+        public Task SeekAsync(double positionSeconds) => Task.CompletedTask;
+
+        public Task SetVolumeAsync(int volume0to100) => Task.CompletedTask;
+
+        public Task SetMutedAsync(bool muted) => Task.CompletedTask;
+
+        public Task SetAudioQualityAsync(AudioQuality quality) => Task.CompletedTask;
+
+        public Task SetEqualizerAsync(bool enabled, IReadOnlyList<int> gainsDb) => Task.CompletedTask;
+
+        public Task SetPlaybackRateAsync(double rate) => Task.CompletedTask;
+
+        public Task SetRepeatOneAsync(bool enabled) => Task.CompletedTask;
+
+        public Task SetDisplayModeAsync(PlaybackDisplayMode mode) => Task.CompletedTask;
+
+        public Task ReleaseAsync() => Task.CompletedTask;
+    }
+}

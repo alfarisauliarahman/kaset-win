@@ -52,6 +52,18 @@ public sealed class SleepTimer
     /// <summary>Raised whenever the observable state changes (armed, cancelled, ticked, expired).</summary>
     public event EventHandler<SleepTimerState>? StateChanged;
 
+    /// <summary>
+    /// Raised the moment the timer actually runs out — never when it is merely cancelled.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="StateChanged"/> cannot answer "did it fire or did the user turn it off?": both end
+    /// at <see cref="SleepTimerMode.Off"/>. That ambiguity is why the "end of this track" mode ended
+    /// up with no toast and no sound — it stops playback inside the player, far from the UI that
+    /// announces it, and there was no signal a listener could trust. This event is that signal, and
+    /// it fires for BOTH ways of expiring so the announcement lives in exactly one place.
+    /// </remarks>
+    public event EventHandler? Expired;
+
     /// <summary>The current state.</summary>
     public SleepTimerState State => new(_mode, _remaining);
 
@@ -117,6 +129,7 @@ public sealed class SleepTimer
         _mode = SleepTimerMode.Off;
         _remaining = TimeSpan.Zero;
         RaiseChanged();
+        Expired?.Invoke(this, EventArgs.Empty);
         return true;
     }
 
@@ -138,6 +151,7 @@ public sealed class SleepTimer
         _mode = SleepTimerMode.Off;
         _remaining = TimeSpan.Zero;
         RaiseChanged();
+        Expired?.Invoke(this, EventArgs.Empty);
         return true;
     }
 

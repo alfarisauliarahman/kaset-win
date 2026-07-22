@@ -24,9 +24,13 @@ public sealed class TaskbarMediaControls : IDisposable
 
     private const uint WM_COMMAND = 0x0111;
     private const int THBN_CLICKED = 0x1800;
-    private const uint THB_ICON = 0x8;
-    private const uint THB_TOOLTIP = 0x20;
-    private const uint THB_FLAGS = 0x4;
+    // THUMBBUTTONMASK, exactly as declared in shobjidl_core.h. These were previously 0x8 / 0x20 /
+    // 0x4, which meant the mask never had THB_ICON (0x2) set: the shell was told the hIcon field was
+    // not valid and drew the three buttons with no image at all, leaving the thumbnail toolbar
+    // looking blank. 0x20 is not a defined mask bit either.
+    private const uint THB_ICON = 0x2;
+    private const uint THB_TOOLTIP = 0x4;
+    private const uint THB_FLAGS = 0x8;
     private const uint THBF_ENABLED = 0x0;
 
     private readonly IntPtr _hwnd;
@@ -95,9 +99,9 @@ public sealed class TaskbarMediaControls : IDisposable
         {
             var buttons = new[]
             {
-                MakeButton(BtnPrev, _iconPrev, "Sebelumnya"),
-                MakeButton(BtnPlayPause, _player.IsPlaying ? _iconPause : _iconPlay, _player.IsPlaying ? "Jeda" : "Putar"),
-                MakeButton(BtnNext, _iconNext, "Berikutnya"),
+                MakeButton(BtnPrev, _iconPrev, Localization.UiStrings.TipPrevious),
+                MakeButton(BtnPlayPause, _player.IsPlaying ? _iconPause : _iconPlay, Localization.UiStrings.TipPlayPause),
+                MakeButton(BtnNext, _iconNext, Localization.UiStrings.TipNext),
             };
 
             var hr = _taskbar.ThumbBarAddButtons(_hwnd, (uint)buttons.Length, buttons);
@@ -126,7 +130,7 @@ public sealed class TaskbarMediaControls : IDisposable
         try
         {
             var playing = _player.IsPlaying;
-            var button = MakeButton(BtnPlayPause, playing ? _iconPause : _iconPlay, playing ? "Jeda" : "Putar");
+            var button = MakeButton(BtnPlayPause, playing ? _iconPause : _iconPlay, Localization.UiStrings.TipPlayPause);
             _taskbar.ThumbBarUpdateButtons(_hwnd, 1, new[] { button });
         }
         catch

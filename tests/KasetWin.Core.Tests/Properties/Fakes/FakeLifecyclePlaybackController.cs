@@ -70,7 +70,7 @@ internal sealed class FakeLifecyclePlaybackController : IPlaybackController
     }
 
     /// <inheritdoc />
-    public Task LoadVideoAsync(string videoId)
+    public Task LoadVideoAsync(string videoId, bool forceReload = false)
     {
         CurrentVideoId = videoId;
         return Task.CompletedTask;

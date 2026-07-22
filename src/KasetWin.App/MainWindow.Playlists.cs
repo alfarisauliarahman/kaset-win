@@ -198,6 +198,16 @@ public sealed partial class MainWindow
         }
     }
 
+    /// <summary>Guard so the source-change callback is registered exactly once.</summary>
+    private bool _compactSourceLabelHooked;
+
+    /// <summary>Names the icon-only source button after the source that is currently active.</summary>
+    private void ApplyCompactSourceLabel() =>
+        A11y.Label(
+            SourceToggleCompact,
+            Localization.UiStrings.A11ySourceCompact(YouTubeSourceItem.IsChecked == true));
+
+
     /// <summary>
     /// Applies the app's content-language setting to the shell's own labels (sidebar items,
     /// search placeholder). The page/server content is localised by the API's <c>hl</c> pin;
@@ -222,7 +232,19 @@ public sealed partial class MainWindow
         // announce which source they select.
         A11y.Name(MusicSourceItem, Localization.UiStrings.A11ySourceMusic);
         A11y.Name(YouTubeSourceItem, Localization.UiStrings.A11ySourceYouTube);
-        A11y.Label(SourceToggleCompact, Localization.UiStrings.A11ySourceToggle);
+
+        // The compact button is icon-only AND stateless to a screen reader — it is a Button, not a
+        // ToggleButton, so there is no on/off for Narrator to announce. Its name therefore has to
+        // say which source is active and what a click does, and has to be refreshed whenever the
+        // source changes rather than only on a language change.
+        ApplyCompactSourceLabel();
+        if (!_compactSourceLabelHooked)
+        {
+            _compactSourceLabelHooked = true;
+            YouTubeSourceItem.RegisterPropertyChangedCallback(
+                Microsoft.UI.Xaml.Controls.Primitives.ToggleButton.IsCheckedProperty,
+                (_, _) => ApplyCompactSourceLabel());
+        }
 
         // These controls live for the window's lifetime (pages are recreated on navigation and
         // re-read their labels in the ctor, but these persist), so relabel them on every language change.

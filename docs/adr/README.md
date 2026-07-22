@@ -35,6 +35,7 @@ Apa yang jadi lebih mudah atau lebih sulit karena keputusan ini?
 | [0003](0003-mini-player-and-sleep-timer.md) | Mini player (CompactOverlay) dan timer tidur | Accepted |
 | [0004](0004-discord-presence-hotkeys-geometry.md) | Discord Rich Presence, pintasan global, geometri jendela | Accepted |
 | [0005](0005-time-synced-lyrics-pinned-mobile-client.md) | Lirik tersinkron via klien InnerTube seluler yang di-pin | Accepted |
+| [0006](0006-serialized-track-loads-and-forced-reload.md) | Pemuatan track diserialisasi + pemuatan paksa untuk pilihan pengguna | Accepted |
 
 ## Padanan platform (ringkas)
 

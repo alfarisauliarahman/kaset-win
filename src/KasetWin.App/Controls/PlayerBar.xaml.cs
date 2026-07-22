@@ -110,6 +110,7 @@ public sealed partial class PlayerBar : UserControl
 
         // The flyout is built by ApplyLanguage (called above), so only the subscription is needed here.
         _sleepTimer.StateChanged += OnSleepTimerStateChanged;
+        _sleepTimer.Expired += OnSleepTimerExpired;
 
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -218,6 +219,9 @@ public sealed partial class PlayerBar : UserControl
         var ticker = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         ticker.Tick += (_, _) =>
         {
+            // Announcing is NOT done here: Advance() raises Expired, and the handler announces.
+            // The end-of-track mode expires inside PlayerService and never reaches this ticker, so
+            // anything announced here would be missing for that half of the feature.
             if (_sleepTimer.Advance(TimeSpan.FromSeconds(1)))
             {
                 _ = PauseForSleepTimerAsync();
@@ -226,23 +230,91 @@ public sealed partial class PlayerBar : UserControl
         return ticker;
     }
 
-    /// <summary>Pauses playback because the sleep timer expired, and says so.</summary>
+    /// <summary>Pauses playback because a duration timer ran out. Announcing is the Expired handler's job.</summary>
     private async Task PauseForSleepTimerAsync()
     {
         try
         {
-            if (_player is { IsPlaying: true })
+            if (_player is { IsPlaying: true } playing)
             {
-                await _player.PauseAsync();
+                await playing.PauseAsync();
             }
-
-            _notifier?.Show(Localization.UiStrings.ToastSleepTimerFired);
         }
         catch (Exception)
         {
             // A failed pause must not take the shell down; the timer has already disarmed itself.
         }
     }
+
+    /// <summary>
+    /// Announces an expiry — toast plus chime — for BOTH ways the timer can run out.
+    /// </summary>
+    /// <remarks>
+    /// The two modes stop playback in different places: a duration timer is paused by the ticker
+    /// here, while "end of this track" is enforced deep in <c>PlayerService</c> at the real
+    /// track-end event. Hanging the announcement off the timer's own <c>Expired</c> event is what
+    /// makes both modes behave the same — previously the end-of-track mode silently stopped the
+    /// music with no toast and no sound at all. Cancelling never raises Expired, so cancelling
+    /// stays silent.
+    /// </remarks>
+    private void OnSleepTimerExpired(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(() =>
+    {
+        try
+        {
+            // The chime only makes sense if the timer actually took music away; a sound in an
+            // already-silent room startles rather than informs. The toast reports it either way.
+            if (_player is { IsPlaying: true })
+            {
+                PlaySleepTimerChime();
+            }
+
+            _notifier?.Show(Localization.UiStrings.ToastSleepTimerFired);
+        }
+        catch (Exception)
+        {
+            // Never let an announcement failure surface as a crash.
+        }
+    });
+
+    /// <summary>
+    /// Plays a short system sound to mark the sleep timer expiring. Deliberately a registered
+    /// Windows sound event rather than a bundled asset: it follows the user's sound scheme, is
+    /// silent when they have muted system sounds, and adds no binary to the package.
+    /// </summary>
+    /// <remarks>
+    /// <c>Notification.Default</c> is the shell's generic notification event; when the scheme has no
+    /// wave assigned to it, <c>SND_NODEFAULT</c> makes <c>PlaySound</c> return false instead of
+    /// falling back to the loud default beep, and <c>MessageBeep</c> then plays the Asterisk event.
+    /// Everything is best-effort — a machine with no audio device must not turn a sleep timer into
+    /// an exception on the UI thread.
+    /// </remarks>
+    private static void PlaySleepTimerChime()
+    {
+        try
+        {
+            if (!PlaySound("Notification.Default", IntPtr.Zero, SND_ALIAS | SND_ASYNC | SND_NODEFAULT))
+            {
+                MessageBeep(MB_ICONASTERISK);
+            }
+        }
+        catch (Exception)
+        {
+            // No audio device, no winmm, no sound scheme — none of it is worth a crash.
+        }
+    }
+
+    private const uint SND_ASYNC = 0x0001;
+    private const uint SND_NODEFAULT = 0x0002;
+    private const uint SND_ALIAS = 0x00010000;
+    private const uint MB_ICONASTERISK = 0x00000040;
+
+    [System.Runtime.InteropServices.DllImport("winmm.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, EntryPoint = "PlaySoundW")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool PlaySound(string? pszSound, IntPtr hmod, uint fdwSound);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool MessageBeep(uint uType);
 
     /// <summary>Shrinks the shell to the compact always-on-top mini player.</summary>
     private void OnMiniPlayerClick(object sender, RoutedEventArgs e) =>
@@ -276,6 +348,34 @@ public sealed partial class PlayerBar : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        // Everything below is subscribed in the constructor and torn down in OnUnloaded. Loaded /
+        // Unloaded are not a one-shot pair in WinUI — a control can leave and re-enter the live tree
+        // — and after the first Unloaded nothing re-attached these, so the bar (the like heart in
+        // particular) stopped hearing about state changes made on other surfaces and drifted apart.
+        // Re-attaching here is idempotent: -= on an unsubscribed method-group handler is a no-op,
+        // and the two handlers compare equal, so this can never subscribe twice.
+        if (_player is not null)
+        {
+            _player.PropertyChanged -= OnPlayerPropertyChanged;
+            _player.PropertyChanged += OnPlayerPropertyChanged;
+        }
+
+        if (_likeStore is not null)
+        {
+            _likeStore.Changed -= OnLikeStoreChanged;
+            _likeStore.Changed += OnLikeStoreChanged;
+        }
+
+        if (_sidePanel is not null)
+        {
+            _sidePanel.Changed -= OnSidePanelChanged;
+            _sidePanel.Changed += OnSidePanelChanged;
+        }
+
+        _sleepTimer.StateChanged -= OnSleepTimerStateChanged;
+        _sleepTimer.Expired -= OnSleepTimerExpired;
+        _sleepTimer.StateChanged += OnSleepTimerStateChanged;
+
         // Seed the volume slider from the player once the control is live. The volume is driven from
         // code rather than a OneWay binding because that binding did not apply the initial value
         // reliably â€” the slider showed 0% at launch while audio actually played at full volume.
@@ -284,6 +384,9 @@ public sealed partial class PlayerBar : UserControl
             VolumeSlider.Value = _player.Volume;
             SeekSlider.Value = _player.Progress;
         }
+
+        // Re-read the like state from the store: while detached, Changed events were missed.
+        UpdateLikeAvailability();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -477,13 +580,18 @@ public sealed partial class PlayerBar : UserControl
         // Toggle: a liked track becomes indifferent (removelike); anything else becomes liked.
         LikeStatus next = previous == LikeStatus.Like ? LikeStatus.Indifferent : LikeStatus.Like;
 
+        // Write through the shared store *before* the network call, not after it. Every other
+        // surface (album/playlist rows via PlaylistDetailViewModel) mutates the store optimistically
+        // and reverts on failure; deferring this one until the round-trip returned left the heart
+        // here and the thumb on the track row disagreeing for the whole duration of the request —
+        // and permanently if the app was closed or the track changed before it completed.
         _currentLike = next;
+        _likeStore?.Set(videoId, next);
         ApplyLikeVisual();
 
         try
         {
             await _music.RateSongAsync(videoId, next);
-            _likeStore?.Set(videoId, next);
             var title = _player?.CurrentTrack?.Title ?? Localization.UiStrings.ThisSongFallback;
             _notifier?.Show(next == LikeStatus.Like
                 ? Localization.UiStrings.ToastLiked(title)
@@ -491,8 +599,10 @@ public sealed partial class PlayerBar : UserControl
         }
         catch (Exception)
         {
-            // Persisting the rating failed â€” revert the optimistic visual so it matches the server.
+            // Persisting the rating failed — revert the optimistic state everywhere, not just here,
+            // so the store (the single source of truth) matches the server again.
             _currentLike = previous;
+            _likeStore?.Set(videoId, previous ?? LikeStatus.Indifferent);
             ApplyLikeVisual();
             _notifier?.Show(Localization.UiStrings.ToastLikeFailed);
         }
@@ -571,18 +681,20 @@ public sealed partial class PlayerBar : UserControl
         LikeStatus? previous = _currentLike;
         LikeStatus next = previous == LikeStatus.Dislike ? LikeStatus.Indifferent : LikeStatus.Dislike;
 
+        // Optimistic through the shared store, same contract as the like button above.
         _currentLike = next;
+        _likeStore?.Set(videoId, next);
         ApplyLikeVisual();
         ApplyDislikeVisual();
 
         try
         {
             await _music.RateSongAsync(videoId, next);
-            _likeStore?.Set(videoId, next);
         }
         catch (Exception)
         {
             _currentLike = previous;
+            _likeStore?.Set(videoId, previous ?? LikeStatus.Indifferent);
             ApplyLikeVisual();
             ApplyDislikeVisual();
             _notifier?.Show(Localization.UiStrings.ToastRateFailed);

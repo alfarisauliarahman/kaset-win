@@ -92,6 +92,20 @@ public sealed record Song
         VideoType == MusicVideoType.PodcastEpisode
         || (Album?.Id?.StartsWith("MPSP", StringComparison.Ordinal) ?? false)
         || (PrimaryArtistId?.StartsWith("MPSP", StringComparison.Ordinal) ?? false);
+
+    /// <summary>"Title — Artist", the way a person would say it.</summary>
+    /// <remarks>
+    /// Overridden because this is a <c>record</c>, and a record's generated <c>ToString</c> prints
+    /// every property in sequence. That string is not merely ugly in logs — it is what a screen
+    /// reader announces whenever a Song reaches an automation name without one of its own, which is
+    /// exactly what Narrator was reading out: "Id = …, VideoId = …, Title = …" and onwards through
+    /// the whole record. A human-shaped fallback makes that failure mode harmless everywhere at
+    /// once, instead of needing every list and template to remember to set a name.
+    /// </remarks>
+    public override string ToString() =>
+        Artists.Count > 0
+            ? $"{Title} — {string.Join(", ", Artists.Select(a => a.Name))}"
+            : Title;
 }
 
 /// <summary>

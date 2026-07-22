@@ -111,6 +111,7 @@ public sealed partial class NowPlayingPanel : UserControl
         UpNextTab.Text = Localization.UiStrings.QueueTabUpNext;
         HistoryTab.Text = Localization.UiStrings.QueueTabHistory;
         RelatedTab.Text = Localization.UiStrings.QueueTabRelated;
+        PlayedHeaderText.Text = Localization.UiStrings.QueuePlayedHeader;
         NowPlayingHeaderText.Text = Localization.UiStrings.QueueNowPlaying;
         UpNextHeaderText.Text = Localization.UiStrings.QueueUpNextHeader;
         QueueEmptyText.Text = Localization.UiStrings.QueueEmpty;
@@ -121,6 +122,7 @@ public sealed partial class NowPlayingPanel : UserControl
 
         // The three list panes carry no visible heading of their own once a tab is active, so name
         // them for screen readers (no tooltip — hovering a long list to read a label is noise).
+        A11y.Name(PlayedList, Localization.UiStrings.A11yPlayedList);
         A11y.Name(UpNextList, Localization.UiStrings.A11yQueueList);
         A11y.Name(HistoryList, Localization.UiStrings.A11yHistoryList);
         A11y.Name(LyricsList, Localization.UiStrings.A11yLyricsList);
@@ -167,6 +169,7 @@ public sealed partial class NowPlayingPanel : UserControl
         }
         else if (IsQueue)
         {
+            ScrollToNowPlaying();
             await EnsureUpNextFilledAsync();
         }
     }
@@ -183,6 +186,7 @@ public sealed partial class NowPlayingPanel : UserControl
     {
         if (e.PropertyName == nameof(QueueViewModel.NowPlaying) && IsQueue)
         {
+            ScrollToNowPlaying();
             await EnsureUpNextFilledAsync();
         }
     }
@@ -226,6 +230,10 @@ public sealed partial class NowPlayingPanel : UserControl
         if (_queueTab == 2)
         {
             _ = LoadRelatedAsync();
+        }
+        else if (_queueTab == 0)
+        {
+            ScrollToNowPlaying();
         }
     }
 
@@ -400,6 +408,30 @@ public sealed partial class NowPlayingPanel : UserControl
         {
             Queue.PlayTrackCommand.Execute(song);
         }
+    }
+
+    /// <summary>
+    /// Brings the "Sedang diputar" card to the top of the queue scroller. With the already-played
+    /// tracks now rendered above it, a long session would otherwise open the panel on a wall of
+    /// dimmed rows with the current track below the fold. Queued at low priority so the played list
+    /// has been measured before the offset is read; a no-op while the layout is still unmeasured.
+    /// </summary>
+    private void ScrollToNowPlaying()
+    {
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            if (!ShowUpNext || UpNextScroller.Content is not FrameworkElement content
+                || NowPlayingCard.Visibility != Visibility.Visible
+                || NowPlayingCard.ActualHeight <= 0)
+            {
+                return;
+            }
+
+            // Offset inside the scrolled CONTENT (not the viewport), minus room for the "Sudah
+            // diputar" heading so the previous track stays hinted at above the card.
+            var y = NowPlayingCard.TransformToVisual(content).TransformPoint(default).Y - 28;
+            UpNextScroller.ChangeView(null, System.Math.Max(0, y), null, disableAnimation: true);
+        });
     }
 
     private void OnUpNextWheel(object sender, PointerRoutedEventArgs e)

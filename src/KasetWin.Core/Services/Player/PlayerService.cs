@@ -83,6 +83,29 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     private int _ignoredUpdatesDuringLoad;
 
     /// <summary>
+    /// Serializes <see cref="LoadTrackAsync"/> so two loads cannot interleave their controller
+    /// calls. Nothing awaits it while holding another lock, and it is only ever held across the
+    /// controller's own asynchronous calls.
+    /// </summary>
+    private readonly SemaphoreSlim _loadGate = new(1, 1);
+
+    /// <summary>
+    /// Monotonic id of the newest requested load. Every <see cref="LoadTrackAsync"/> call takes a
+    /// ticket; a call whose ticket is no longer the newest has been superseded and becomes a no-op
+    /// (it neither touches the controller nor releases the load guard).
+    /// </summary>
+    /// <remarks>
+    /// Pressing Next several times quickly starts several loads. Without this, the older ones kept
+    /// running: their queued controller calls landed <em>after</em> the newest navigation (loading a
+    /// track the user had already skipped past, or issuing play() at a moment the page had nothing
+    /// to play), and a failing older load cleared <see cref="_expectedVideoId"/> — the guard the
+    /// newest load had just armed — so the player ended up with nothing playing at all
+    /// (checklist 77b, and the silent media-key skip 88b). Same shape as
+    /// <c>LyricsService</c>'s generation counter: newest wins, older ones become no-ops.
+    /// </remarks>
+    private int _loadGeneration;
+
+    /// <summary>
     /// Foreign reports tolerated before the load guard gives up. The observer ticks roughly once a
     /// second, so this is about half a minute — comfortably longer than a normal navigation, and short
     /// enough that a genuinely failed load recovers on its own.
@@ -290,7 +313,9 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         Song? track = _queue.CurrentTrack;
         if (track is not null)
         {
-            await LoadTrackAsync(track).ConfigureAwait(false);
+            // The user picked this track: reload it even when it is the one already loaded, so a
+            // page that died (network drop) is replaced instead of the request being swallowed.
+            await LoadTrackAsync(track, forceReload: true).ConfigureAwait(false);
         }
     }
 
@@ -319,7 +344,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         Song? track = _queue.CurrentTrack;
         if (track is not null)
         {
-            await LoadTrackAsync(track).ConfigureAwait(false);
+            await LoadTrackAsync(track, forceReload: true).ConfigureAwait(false);
         }
     }
 
@@ -342,7 +367,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         Song? track = _queue.CurrentTrack;
         if (track is not null)
         {
-            await LoadTrackAsync(track).ConfigureAwait(false);
+            await LoadTrackAsync(track, forceReload: true).ConfigureAwait(false);
         }
     }
 
@@ -538,6 +563,9 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
                 // the repeated track (the "repeat jumps to another song" bug).
                 if (string.Equals(next.VideoId, expected, StringComparison.Ordinal))
                 {
+                    // Take a load ticket for the replay too, so a Next pressed during it wins and
+                    // this replay does not clear the guard the newer load armed.
+                    int replayGeneration = Interlocked.Increment(ref _loadGeneration);
                     _expectedVideoId = next.VideoId;
                     try
                     {
@@ -549,7 +577,10 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
                     }
                     finally
                     {
-                        _expectedVideoId = null;
+                        if (!IsSuperseded(replayGeneration))
+                        {
+                            _expectedVideoId = null;
+                        }
                     }
                 }
                 else
@@ -642,6 +673,15 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
             {
                 _queue.AppendDeduplicated([resolved]);
                 _queue.TrySetCurrentByVideoId(message.VideoId);
+            }
+            else
+            {
+                // Push what the page reported back into the queue entry. A track queued from
+                // nothing but a videoId (`kaset://play?v=…`) is a Song with no title, artist or
+                // artwork, and the queue — not CurrentTrack — is what the queue panel renders, so
+                // its "Now playing" row stayed blank for the whole song. TryEnrichTrack only fills
+                // genuine gaps, so a rich queue entry is left exactly as it is.
+                _queue.TryEnrichTrack(message.VideoId, resolved);
             }
 
             CurrentTrack = resolved;
@@ -738,8 +778,17 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// performs pause-before-load via <see cref="IPlaybackController.LoadVideoAsync"/> (Req 1.6),
     /// re-applies the audio-quality preference (Req 7), and resumes playback.
     /// </summary>
-    private async Task LoadTrackAsync(Song track)
+    /// <param name="track">The track to load.</param>
+    /// <param name="forceReload">
+    /// Passed through to <see cref="IPlaybackController.LoadVideoAsync"/>. <c>true</c> for loads the
+    /// user asked for explicitly, so re-selecting the track that is already loaded really reloads it
+    /// instead of hitting the idempotent no-op (checklist 111b).
+    /// </param>
+    private async Task LoadTrackAsync(Song track, bool forceReload = false)
     {
+        // Take a load ticket. Anything started after this one supersedes it (see _loadGeneration).
+        int generation = Interlocked.Increment(ref _loadGeneration);
+
         // Guard the load window: transient STATE_UPDATEs for other videos (autoplay/drift) that
         // arrive while the controller is switching tracks must not hijack the queue (see
         // <see cref="_expectedVideoId"/>). The guard stays armed until the new track actually
@@ -756,23 +805,54 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         IsLive = false;
         Progress = 0;
 
+        // One load at a time: overlapping loads used to interleave their controller calls, so an
+        // older navigation could land after a newer one.
+        await _loadGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            await _controller.LoadVideoAsync(track.VideoId).ConfigureAwait(false);
+            if (IsSuperseded(generation))
+            {
+                // A newer load was requested while this one waited — drop it entirely. The newer
+                // load owns _expectedVideoId and will drive the controller.
+                return;
+            }
+
+            await _controller.LoadVideoAsync(track.VideoId, forceReload).ConfigureAwait(false);
+            if (IsSuperseded(generation))
+            {
+                return;
+            }
+
             await _controller.SetAudioQualityAsync(_audioQuality).ConfigureAwait(false);
             // A freshly loaded <video> defaults to full volume, so re-apply the user's volume/mute
             // state - otherwise volume jumps back to 100% on every track change.
             await _controller.SetVolumeAsync(_isMuted ? 0 : _volume).ConfigureAwait(false);
+            if (IsSuperseded(generation))
+            {
+                return;
+            }
+
             await _controller.PlayAsync().ConfigureAwait(false);
             IsPlaying = true;
         }
         catch
         {
+            // A superseded load's failure is not the current load's problem: swallow it rather than
+            // disarming the guard the newer load just armed.
+            if (IsSuperseded(generation))
+            {
+                return;
+            }
+
             // Only a *failed* load releases the guard here. A successful one keeps it armed until
             // HandleStateUpdate sees the track report, which is the whole point of the guard.
             _expectedVideoId = null;
             _ignoredUpdatesDuringLoad = 0;
             throw;
+        }
+        finally
+        {
+            _loadGate.Release();
         }
 
         // Background: pull the album (and any missing metadata) so the now-playing UI is complete even
@@ -782,6 +862,11 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
             _ = EnrichTrackMetadataAsync(track.VideoId);
         }
     }
+
+    /// <summary>
+    /// Whether a newer load has been requested since <paramref name="generation"/> was issued.
+    /// </summary>
+    private bool IsSuperseded(int generation) => Volatile.Read(ref _loadGeneration) != generation;
 
     /// <summary>
     /// Fetches full metadata for <paramref name="videoId"/> and merges the album/artists/etc. into the
@@ -831,6 +916,11 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     }
 
     /// <summary>Unsubscribes from the JS bridge events.</summary>
+    /// <remarks>
+    /// <see cref="_loadGate"/> is deliberately not disposed: a load can still be in flight at
+    /// shutdown, and its <c>Release</c> on a disposed semaphore would throw on a fire-and-forget
+    /// task. It holds no wait handle (nothing calls the blocking <c>Wait</c>), so the GC reclaims it.
+    /// </remarks>
     public void Dispose()
     {
         _bridge.StateUpdated -= _stateHandler;

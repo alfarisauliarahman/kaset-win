@@ -78,7 +78,13 @@ public sealed partial class QueueViewModel : ViewModelBase, IDisposable
     /// <summary>The queued tracks, in order. Mirrors <see cref="IQueueService.Tracks"/>.</summary>
     public ObservableCollection<Song> Tracks { get; } = [];
 
-    /// <summary>Apple-Music "Sebelumnya" section: tracks before the current one (already played).</summary>
+    /// <summary>
+    /// Tracks before the current one (already played). Feeds two surfaces: the "Riwayat" sub-tab and
+    /// — since the queue should read as one continuous strip, played → now playing → up next — the
+    /// dimmed "Sudah diputar" section rendered above the now-playing card in the "Berikutnya" tab.
+    /// The rows stay clickable there so an earlier track can be played again (<see cref="PlayTrackCommand"/>
+    /// resolves the click against <see cref="Tracks"/>, so a played track works exactly like an upcoming one).
+    /// </summary>
     public ObservableCollection<Song> History { get; } = [];
 
     /// <summary>Apple-Music "Selanjutnya" section: tracks after the current one (reorderable).</summary>

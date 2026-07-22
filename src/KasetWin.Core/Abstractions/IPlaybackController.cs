@@ -47,7 +47,17 @@ public interface IPlaybackController
     /// Loads <c>https://music.youtube.com/watch?v={videoId}</c> into the WebView2, pausing
     /// the current audio before navigating to the new videoId (pause-before-load, Req 1.2/1.6).
     /// </summary>
-    Task LoadVideoAsync(string videoId);
+    /// <param name="videoId">The video to load.</param>
+    /// <param name="forceReload">
+    /// When <see langword="false"/> (the default) loading the already-loaded videoId is an idempotent
+    /// no-op — that is what lets a stale <c>TRACK_ENDED</c> "replay the expected track" without
+    /// restarting it. When <see langword="true"/> the page is navigated again even if
+    /// <see cref="CurrentVideoId"/> already matches. The user re-selecting the current track passes
+    /// <see langword="true"/>: after the network dropped, the loaded page is dead but its videoId is
+    /// still the current one, and the idempotent no-op meant clicking that same song did nothing at
+    /// all (checklist 111b).
+    /// </param>
+    Task LoadVideoAsync(string videoId, bool forceReload = false);
 
     /// <summary>Resumes playback of the loaded video.</summary>
     Task PlayAsync();
