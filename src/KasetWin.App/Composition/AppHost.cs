@@ -149,18 +149,26 @@ internal static class AppHost
 
         // ── Core: lyrics (task 6.2) ──────────────────────────────────────────────────────
         // LyricsService consumes every registered ILyricsProvider (IEnumerable<ILyricsProvider>).
-        services.AddSingleton<ILyricsProvider>(static sp => new LRCLibProvider(
-            new HttpClient(),
-            sp.GetService<ILogger<LRCLibProvider>>()));
-        services.AddSingleton<ILyricsProvider>(static sp => new NetEaseLyricsProvider(
-            new HttpClient(),
-            sp.GetService<ILogger<NetEaseLyricsProvider>>()));
-        // FALLBACK (must stay after the synced providers above): YouTube Music's own lyrics tab.
-        // Keyed on the videoId, so it covers tracks LRCLib/NetEase miss — but the payload is plain
-        // text with no line timings, so it may only ever fill the "plain" tier.
+        // REGISTRATION ORDER IS PRIORITY ORDER within a tier (synced beats plain regardless).
+        //
+        // 1) YouTube Music first. It is the only provider that identifies the track by its exact
+        //    videoId, so it cannot return another recording's lyrics the way a fuzzy title/artist
+        //    search can; the text is the licensed label copy (Musixmatch / LyricFind); and via the
+        //    Android Music client it returns per-line timings, so it competes in the synced tier
+        //    rather than only in the plain one. It degrades to plain text on its own (see
+        //    YTMusicClient.Lyrics.cs), so putting it first cannot cost us synced lyrics: when it
+        //    has none, LRCLib's or NetEase's synced result still wins the tier.
         services.AddSingleton<ILyricsProvider>(static sp => new YouTubeMusicLyricsProvider(
             sp.GetRequiredService<IYTMusicClient>(),
             sp.GetService<ILogger<YouTubeMusicLyricsProvider>>()));
+        // 2) LRCLib — community synced lyrics; broad Western catalogue.
+        services.AddSingleton<ILyricsProvider>(static sp => new LRCLibProvider(
+            new HttpClient(),
+            sp.GetService<ILogger<LRCLibProvider>>()));
+        // 3) NetEase — synced lyrics for the Asian catalogues the other two miss.
+        services.AddSingleton<ILyricsProvider>(static sp => new NetEaseLyricsProvider(
+            new HttpClient(),
+            sp.GetService<ILogger<NetEaseLyricsProvider>>()));
         // Podcast episodes: YouTube captions (CC) as synced "lyrics" (creator subs > auto/ASR).
         // Registered as its concrete type too: the lyrics panel talks to it directly for the
         // caption-track picker (list tracks / select / off).

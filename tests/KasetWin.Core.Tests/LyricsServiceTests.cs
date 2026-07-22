@@ -51,6 +51,103 @@ public class LyricsServiceTests
     }
 
     [Fact]
+    public async Task LoadForTrackAsync_resolves_the_synced_tier_by_registration_priority()
+    {
+        // Two providers both return synced lyrics and the SECOND one answers first. Registration
+        // order must still decide, otherwise "which provider produced this" is a coin toss decided
+        // by network latency and the source line in the panel flaps between tracks.
+        var preferred = new FakeProvider("first", Synced("first"), delayMs: 60);
+        var faster = new FakeProvider("second", Synced("second"));
+        var service = new LyricsService(new ILyricsProvider[] { preferred, faster });
+
+        await service.LoadForTrackAsync(Info());
+
+        Assert.Equal("first", service.ActiveProvider);
+        Assert.Equal("first", Assert.IsType<LyricResult.Synced>(service.CurrentLyrics).Lyrics.Source);
+    }
+
+    [Fact]
+    public async Task LoadForTrackAsync_does_not_wait_for_lower_priority_providers()
+    {
+        // The mirror image: when the HIGHEST-priority provider answers, the lookup returns without
+        // waiting for the slower ones (a hit must not pay the slowest provider's latency).
+        var fastest = new FakeProvider("first", Synced("first"));
+        var slow = new FakeProvider("second", Synced("second"), delayMs: 5_000);
+        var service = new LyricsService(new ILyricsProvider[] { fastest, slow });
+
+        var started = DateTimeOffset.UtcNow;
+        await service.LoadForTrackAsync(Info());
+
+        Assert.Equal("first", service.ActiveProvider);
+        Assert.True(DateTimeOffset.UtcNow - started < TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
+    public async Task LoadForTrackAsync_preferred_provider_wins_over_registration_order()
+    {
+        var service = new LyricsService(new ILyricsProvider[]
+        {
+            new FakeProvider("first", Synced("first")),
+            new FakeProvider("second", Synced("second"), delayMs: 40),
+        })
+        {
+            PreferredProvider = "second",
+        };
+
+        await service.LoadForTrackAsync(Info());
+
+        Assert.Equal("second", service.ActiveProvider);
+    }
+
+    // ── The shipped registration order: YouTube Music, then LRCLib, then NetEase (ADR 0005) ─────
+
+    [Fact]
+    public async Task A_plain_result_from_the_first_provider_never_outranks_a_synced_one_behind_it()
+    {
+        // YouTube Music is registered first, but a track it has no SYNCED lyrics for (timed-shaped
+        // payload with zero cueRange) must not demote a genuinely synced LRCLib result. Being first
+        // only breaks ties INSIDE a tier; the tier itself still decides.
+        var youtubeMusic = new FakeProvider("YouTube Music", Plain("YouTube Music"));
+        var lrclib = new FakeProvider("LRCLib", Synced("LRCLib"), delayMs: 40);
+        var service = new LyricsService(new ILyricsProvider[] { youtubeMusic, lrclib });
+
+        await service.LoadForTrackAsync(Info());
+
+        Assert.Equal("LRCLib", service.ActiveProvider);
+        Assert.Equal("LRCLib", Assert.IsType<LyricResult.Synced>(service.CurrentLyrics).Lyrics.Source);
+    }
+
+    [Fact]
+    public async Task An_empty_first_provider_falls_through_to_the_ones_behind_it()
+    {
+        // The load-bearing path of the reordering: when YouTube Music has nothing (no lyrics tab,
+        // stale pinned client, transport fault), the chain must continue to LRCLib and NetEase
+        // rather than short-circuit on the empty answer of the highest-priority provider.
+        var youtubeMusic = new FakeProvider("YouTube Music", new LyricResult.Unavailable());
+        var lrclib = new FakeProvider("LRCLib", new LyricResult.Unavailable());
+        var netease = new FakeProvider("NetEase", Synced("NetEase"));
+        var service = new LyricsService(new ILyricsProvider[] { youtubeMusic, lrclib, netease });
+
+        await service.LoadForTrackAsync(Info());
+
+        Assert.Equal("NetEase", service.ActiveProvider);
+        Assert.Equal(1, lrclib.CallCount);
+        Assert.Equal(1, netease.CallCount);
+    }
+
+    [Fact]
+    public async Task A_throwing_first_provider_does_not_take_the_chain_down_with_it()
+    {
+        var exploding = new FakeProvider("YouTube Music", Synced("never"), throws: true);
+        var lrclib = new FakeProvider("LRCLib", Plain("LRCLib"));
+        var service = new LyricsService(new ILyricsProvider[] { exploding, lrclib });
+
+        await service.LoadForTrackAsync(Info());
+
+        Assert.Equal("LRCLib", service.ActiveProvider);
+    }
+
+    [Fact]
     public async Task LoadForTrackAsync_caches_by_videoId()
     {
         var provider = new FakeProvider("p", Synced());
@@ -97,13 +194,15 @@ public class LyricsServiceTests
     {
         private readonly LyricResult _result;
         private readonly int _delayMs;
+        private readonly bool _throws;
         private int _callCount;
 
-        public FakeProvider(string name, LyricResult result, int delayMs = 0)
+        public FakeProvider(string name, LyricResult result, int delayMs = 0, bool throws = false)
         {
             Name = name;
             _result = result;
             _delayMs = delayMs;
+            _throws = throws;
         }
 
         public string Name { get; }
@@ -118,7 +217,7 @@ public class LyricsServiceTests
                 await Task.Delay(_delayMs, ct);
             }
 
-            return _result;
+            return _throws ? throw new HttpRequestException("provider exploded") : _result;
         }
     }
 }

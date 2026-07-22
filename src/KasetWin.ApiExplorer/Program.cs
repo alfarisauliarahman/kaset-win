@@ -45,6 +45,7 @@ internal static class ApiExplorerCli
                 "list" => RunList(),
                 "browse" => await RunBrowseAsync(options).ConfigureAwait(false),
                 "lyrics" => await RunLyricsAsync(options).ConfigureAwait(false),
+                "search" => await RunSearchAsync(options).ConfigureAwait(false),
                 "-h" or "--help" or "help" => PrintUsageAndOk(),
                 _ => UnknownCommand(command),
             };
@@ -155,6 +156,50 @@ internal static class ApiExplorerCli
         else
         {
             Console.WriteLine("  (pass -v for the renderer histogram and a redacted JSON preview)");
+        }
+
+        return 0;
+    }
+
+    // ── search ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Searches YouTube Music and prints the song hits as <c>videoId — title — artist</c>.
+    /// <para>
+    /// Exists to feed <c>lyrics &lt;videoId&gt;</c>: a music-video id (the sort a human copies out of
+    /// a youtube.com URL) usually has <i>no</i> lyrics tab at all, so verifying the lyrics surface
+    /// needs real YouTube Music <i>song</i> ids — which only search can hand you.
+    /// </para>
+    /// </summary>
+    private static async Task<int> RunSearchAsync(CliOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(options.Positional))
+        {
+            Console.Error.WriteLine("Error: 'search' requires a query. Example: search \"billie eilish birds\"");
+            return 1;
+        }
+
+        var cookieSource = CliCookieSource.FromRuntime(options.CookiePath, options.AuthUser, options.Brand);
+
+        using var http = YTMusicClient.CreateConfiguredHttpClient();
+        var client = new YTMusicClient(http, cookieSource, new ApiCache(), new ExponentialBackoffRetryPolicy());
+
+        Console.WriteLine($"search {Redactor.Redact(options.Positional)}");
+        Console.WriteLine($"  auth: {(cookieSource.CanResolveSapisid ? "yes" : "no (public)")}");
+        Console.WriteLine();
+
+        var response = await client.SearchAsync(options.Positional).ConfigureAwait(false);
+
+        if (response.Songs.Count == 0)
+        {
+            Console.WriteLine("  no song results");
+            return 0;
+        }
+
+        foreach (var song in response.Songs)
+        {
+            var artists = string.Join(", ", song.Artists.Select(a => a.Name));
+            Console.WriteLine($"  {song.VideoId}  {Truncate(Redactor.Redact(song.Title), 44),-44}  {Truncate(Redactor.Redact(artists), 30)}");
         }
 
         return 0;
@@ -567,6 +612,8 @@ internal static class ApiExplorerCli
         Console.WriteLine("  auth   [--cookies <path>] [--authuser <n>] [--brand <id>]");
         Console.WriteLine("  list");
         Console.WriteLine("  browse <id> [-v] [--cookies <path>] [--authuser <n>] [--brand <id>]");
+        Console.WriteLine("  search <query> [--cookies <path>]");
+        Console.WriteLine("         Lists song hits as videoId + title + artist (feeds 'lyrics').");
         Console.WriteLine("  lyrics <videoId> [-v] [--cookies <path>]");
         Console.WriteLine("         Resolves the Lyrics tab for a track and browses it once per");
         Console.WriteLine("         InnerTube client, reporting which (if any) return timings.");

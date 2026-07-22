@@ -136,48 +136,71 @@ public sealed partial class LyricsService : ObservableObject, ILyricsService
             return new LyricResult.Unavailable();
         }
 
-        var pending = new List<Task<LyricResult>>(_providers.Count);
-        foreach (var provider in _providers)
+        // Registration order IS the priority order within a tier: index 0 is the most trusted
+        // provider. Racing alone used to make "which provider won" a coin toss decided by network
+        // latency, which is exactly why nobody could tell where a given lyric came from.
+        var pending = new List<(int Priority, Task<LyricResult> Task)>(_providers.Count);
+        for (var i = 0; i < _providers.Count; i++)
         {
-            pending.Add(SafeSearchAsync(provider, info));
+            pending.Add((i, SafeSearchAsync(_providers[i], info)));
         }
 
         // Race the providers instead of waiting for ALL of them (one slow provider used to delay
         // every lyric by its full latency). Results are published PROGRESSIVELY: the first hit
         // (plain or synced) shows immediately and is upgraded when a better one lands, so the
-        // panel never sits empty waiting for the slowest provider.
+        // panel never sits empty waiting for the slowest provider. The final answer, however, is
+        // deterministic: it is the best tier, then the highest-priority provider inside that tier.
         LyricResult? bestSynced = null;
+        var bestSyncedPriority = int.MaxValue;
         LyricResult? bestPlain = null;
+        var bestPlainPriority = int.MaxValue;
+
         while (pending.Count > 0)
         {
-            var done = await Task.WhenAny(pending).ConfigureAwait(false);
-            pending.Remove(done);
+            var done = await Task.WhenAny(pending.ConvertAll(static p => p.Task)).ConfigureAwait(false);
+            var entry = pending.Find(p => ReferenceEquals(p.Task, done));
+            pending.Remove(entry);
             var result = await done.ConfigureAwait(false);
 
             if (result is LyricResult.Synced)
             {
-                if (string.IsNullOrEmpty(PreferredProvider) || ResultSource(result) == PreferredProvider)
+                // An explicit user preference always wins outright.
+                if (ResultSource(result) == PreferredProvider)
                 {
                     return result;
                 }
 
-                bestSynced ??= result;
-                PublishInterim(info.VideoId, bestSynced);
+                if (entry.Priority < bestSyncedPriority)
+                {
+                    bestSynced = result;
+                    bestSyncedPriority = entry.Priority;
+                    PublishInterim(info.VideoId, bestSynced);
+                }
+
+                // Stop as soon as no higher-priority provider can still improve on this, and no
+                // preferred provider is still outstanding.
+                if (string.IsNullOrEmpty(PreferredProvider)
+                    && !pending.Exists(p => p.Priority < bestSyncedPriority))
+                {
+                    return bestSynced!;
+                }
             }
             else if (result is LyricResult.Plain)
             {
                 if (ResultSource(result) == PreferredProvider)
                 {
                     bestPlain = result;
+                    bestPlainPriority = -1;
                 }
-                else
+                else if (entry.Priority < bestPlainPriority)
                 {
-                    bestPlain ??= result;
+                    bestPlain = result;
+                    bestPlainPriority = entry.Priority;
                 }
 
-                if (bestSynced is null)
+                if (bestSynced is null && bestPlain is not null)
                 {
-                    PublishInterim(info.VideoId, bestPlain!);
+                    PublishInterim(info.VideoId, bestPlain);
                 }
             }
         }

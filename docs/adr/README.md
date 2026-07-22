@@ -34,6 +34,7 @@ Apa yang jadi lebih mudah atau lebih sulit karena keputusan ini?
 | [0002](0002-now-playing-side-panel.md) | Panel now-playing berlabuh (antrean / lirik / terkait) | Accepted |
 | [0003](0003-mini-player-and-sleep-timer.md) | Mini player (CompactOverlay) dan timer tidur | Accepted |
 | [0004](0004-discord-presence-hotkeys-geometry.md) | Discord Rich Presence, pintasan global, geometri jendela | Accepted |
+| [0005](0005-time-synced-lyrics-pinned-mobile-client.md) | Lirik tersinkron via klien InnerTube seluler yang di-pin | Accepted |
 
 ## Padanan platform (ringkas)
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json.Nodes;
 using CsCheck;
 using KasetWin.Core.Models;
@@ -162,6 +163,128 @@ public class YouTubeMusicLyricsTests
         Assert.Equal("a\nb", YouTubeMusicLyricsParser.ParseLyrics(node)!.Text);
     }
 
+    // ── Parser: timed lyrics (Android Music client) ─────────────────────────────────────
+
+    // Trimmed verbatim from a live ANDROID_MUSIC browse of MPLYt_Y8THSupSgRO-1 (2026-07-22).
+    // Note the cue times are decimal STRINGS, not numbers — that is the real wire shape.
+    private const string AndroidTimedLyrics = """
+    {
+      "contents": { "elementRenderer": { "newElement": { "type": { "componentType": { "model": {
+        "timedLyricsModel": { "lyricsData": {
+          "timedLyricsData": [
+            { "lyricLine": "♪", "cueRange": { "startTimeMilliseconds": "0", "endTimeMilliseconds": "11180", "metadata": { "id": "0" } } },
+            { "lyricLine": "The club isn't the best place to find a lover", "cueRange": { "startTimeMilliseconds": "11180", "endTimeMilliseconds": "13300", "metadata": { "id": "1" } } },
+            { "lyricLine": "So the bar is where I go, mm", "cueRange": { "startTimeMilliseconds": "13300", "endTimeMilliseconds": "15890", "metadata": { "id": "2" } } }
+          ],
+          "sourceMessage": "Source: Musixmatch"
+        } }
+      } } } } } }
+    }
+    """;
+
+    [Fact]
+    public void ParseTimedLyrics_reads_cue_ranges_and_the_source_message()
+    {
+        var lyrics = YouTubeMusicLyricsParser.ParseTimedLyrics(JsonNode.Parse(AndroidTimedLyrics));
+
+        Assert.NotNull(lyrics);
+        Assert.True(lyrics!.HasTimings);
+        Assert.Equal("Source: Musixmatch", lyrics.Attribution);
+        Assert.Null(lyrics.Text);
+
+        var lines = lyrics.TimedLines!;
+        Assert.Equal(3, lines.Count);
+        Assert.Equal(0, lines[0].TimeInMs);
+        Assert.Equal(11_180, lines[0].Duration);
+        Assert.Equal(11_180, lines[1].TimeInMs);
+        Assert.Equal(2_120, lines[1].Duration);
+        Assert.Equal("The club isn't the best place to find a lover", lines[1].Text);
+    }
+
+    [Fact]
+    public void ParseTimedLyrics_returns_null_for_a_desktop_client_response()
+    {
+        // The WEB_REMIX payload carries no timedLyricsModel — that is exactly the silent downgrade
+        // a stale pinned Android clientVersion produces, and it must not look like a parse failure.
+        Assert.Null(YouTubeMusicLyricsParser.ParseTimedLyrics(JsonNode.Parse(BrowseWithLyrics)));
+        Assert.Null(YouTubeMusicLyricsParser.ParseTimedLyrics(null));
+        Assert.Null(YouTubeMusicLyricsParser.ParseTimedLyrics(JsonNode.Parse("{}")));
+    }
+
+    [Fact]
+    public void ParseTimedLyrics_falls_back_to_plain_text_when_no_line_carries_a_cue()
+    {
+        // Verified live (BiQIc7fG9pA, 2026-07-22): the Android client answers a track that has no
+        // synced version with a FULL timedLyricsData array and not one cueRange in it. That is a
+        // plain lyric, not a synced one — a "Synced" result built from zero cues would render as
+        // lyrics that never advance.
+        var node = JsonNode.Parse("""
+        { "timedLyricsModel": { "lyricsData": {
+            "timedLyricsData": [ { "lyricLine": "first" }, { "lyricLine": "second" } ],
+            "sourceMessage": "Source: Musixmatch"
+        } } }
+        """);
+
+        var lyrics = YouTubeMusicLyricsParser.ParseTimedLyrics(node);
+
+        Assert.NotNull(lyrics);
+        Assert.False(lyrics!.HasTimings);
+        Assert.False(lyrics.IsEmpty);
+        Assert.Equal("first\nsecond", lyrics.Text);
+        Assert.Equal("Source: Musixmatch", lyrics.Attribution);
+    }
+
+    [Fact]
+    public void ParseTimedLyrics_accepts_cue_times_sent_as_json_numbers()
+    {
+        // The wire shape is decimal strings today. Accepting numbers too means a future shape
+        // change costs us nothing rather than silently dropping every line.
+        var node = JsonNode.Parse("""
+        { "timedLyricsModel": { "lyricsData": { "timedLyricsData": [
+            { "lyricLine": "numeric", "cueRange": { "startTimeMilliseconds": 1980, "endTimeMilliseconds": 3750 } }
+        ] } } }
+        """);
+
+        var lines = YouTubeMusicLyricsParser.ParseTimedLyrics(node)!.TimedLines!;
+
+        Assert.Equal(1_980, lines[0].TimeInMs);
+        Assert.Equal(1_770, lines[0].Duration);
+    }
+
+    [Fact]
+    public void ParseTimedLyrics_skips_entries_with_no_text_or_no_cue()
+    {
+        var node = JsonNode.Parse("""
+        { "timedLyricsModel": { "lyricsData": { "timedLyricsData": [
+            { "lyricLine": "", "cueRange": { "startTimeMilliseconds": "10" } },
+            { "lyricLine": "no cue at all" },
+            { "lyricLine": "kept", "cueRange": { "startTimeMilliseconds": "500", "endTimeMilliseconds": "900" } }
+        ] } } }
+        """);
+
+        var lines = YouTubeMusicLyricsParser.ParseTimedLyrics(node)!.TimedLines!;
+
+        Assert.Single(lines);
+        Assert.Equal("kept", lines[0].Text);
+        Assert.Equal(500, lines[0].TimeInMs);
+    }
+
+    [Fact]
+    public void Parse_prefers_timed_over_plain_and_falls_back_to_plain()
+    {
+        Assert.True(YouTubeMusicLyricsParser.Parse(JsonNode.Parse(AndroidTimedLyrics))!.HasTimings);
+
+        var plain = YouTubeMusicLyricsParser.Parse(JsonNode.Parse(BrowseWithLyrics));
+        Assert.NotNull(plain);
+        Assert.False(plain!.HasTimings);
+        Assert.False(plain.IsEmpty);
+
+        // YouTube's own "Lyrics not available" message payload is neither.
+        Assert.Null(YouTubeMusicLyricsParser.Parse(JsonNode.Parse("""
+        { "contents": { "messageRenderer": { "text": { "runs": [ { "text": "Lyrics not available" } ] } } } }
+        """)));
+    }
+
     // ── Provider ────────────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -182,16 +305,59 @@ public class YouTubeMusicLyricsTests
     }
 
     [Fact]
-    public async Task Provider_never_returns_synced_lyrics()
+    public async Task Provider_stays_plain_when_the_payload_carries_no_timings()
     {
-        // The YouTube Music payload has no line timings, so this provider must stay in the plain
-        // tier — that is what keeps it a fallback behind LRCLib/NetEase.
+        // Text that merely LOOKS timed is still plain — only real cue ranges promote a result to
+        // the synced tier.
         var client = new FakeYTMusicClient { YouTubeMusicLyrics = _ => new YouTubeMusicLyrics("[00:01.00] not really timed", null) };
 
         var result = await new YouTubeMusicLyricsProvider(client).SearchAsync(Info);
 
         Assert.IsNotType<LyricResult.Synced>(result);
         Assert.IsType<LyricResult.Plain>(result);
+    }
+
+    [Fact]
+    public async Task Provider_returns_synced_lyrics_when_the_payload_is_timed()
+    {
+        var timed = new YouTubeMusicLyrics(
+            Text: null,
+            TimedLines: new[]
+            {
+                new SyncedLyricLine { TimeInMs = 11_180, Duration = 2_120, Text = "first line" },
+                new SyncedLyricLine { TimeInMs = 13_300, Duration = 2_590, Text = "second line" },
+            },
+            Attribution: "Source: Musixmatch");
+        var client = new FakeYTMusicClient { YouTubeMusicLyrics = _ => timed };
+
+        var result = await new YouTubeMusicLyricsProvider(client).SearchAsync(Info);
+
+        var synced = Assert.IsType<LyricResult.Synced>(result);
+        Assert.Equal(YouTubeMusicLyricsProvider.ProviderName, synced.Lyrics.Source);
+
+        // The licensor credit is kept as the last line, timed strictly after the final lyric so it
+        // can never take the highlight from a line that is still being sung.
+        Assert.Equal(3, synced.Lyrics.Lines.Count);
+        Assert.Equal("Source: Musixmatch", synced.Lyrics.Lines[^1].Text);
+        Assert.True(synced.Lyrics.Lines[^1].TimeInMs > synced.Lyrics.Lines[^2].TimeInMs);
+    }
+
+    [Fact]
+    public async Task Provider_labels_synced_lyrics_even_when_the_payload_carries_no_attribution()
+    {
+        // The timed payload has no footer of its own; when the desktop browse that normally supplies
+        // the licensor credit is unavailable too, the result must STILL carry a source, because
+        // LyricsService.ActiveProvider and the panel's "Sumber: …" line both read it.
+        var timed = new YouTubeMusicLyrics(
+            Text: null,
+            TimedLines: new[] { new SyncedLyricLine { TimeInMs = 0, Duration = 900, Text = "only line" } },
+            Attribution: null);
+        var client = new FakeYTMusicClient { YouTubeMusicLyrics = _ => timed };
+
+        var synced = Assert.IsType<LyricResult.Synced>(await new YouTubeMusicLyricsProvider(client).SearchAsync(Info));
+
+        Assert.Equal(YouTubeMusicLyricsProvider.ProviderName, synced.Lyrics.Source);
+        Assert.Single(synced.Lyrics.Lines);
     }
 
     [Fact]
@@ -288,6 +454,68 @@ public class YouTubeMusicLyricsTests
 
                         // An existing label is never overwritten by the service.
                         Assert.Equal(source ?? providerName, stampedSource);
+                    }
+                },
+                iter: 100);
+    }
+
+    // Feature: kaset-winui3, Property 46: payload lirik ber-timing tidak pernah hilang isinya
+    // Validates: Requirements 17.1, 17.2
+    [Fact]
+    public void Property46_a_timed_payload_never_loses_its_lines_whatever_the_cues_look_like()
+    {
+        // For ANY mix of cued and uncued lines the Android client may send, parsing it must:
+        //  - never throw and never return null while there is at least one line of text;
+        //  - claim timings if and only if at least one line actually carried a cueRange;
+        //  - keep every cued line, with a non-negative start time.
+        // This is the invariant that keeps a partially-synced or fully-unsynced track from
+        // degrading to "no lyrics" instead of to plain text.
+        Gen.Select(Gen.String[Gen.Char.AlphaNumeric, 1, 8], Gen.Bool, Gen.Int[0, 300_000])
+            .List[1, 20]
+            .Sample(
+                entries =>
+                {
+                    var data = new JsonArray();
+                    foreach (var (text, cued, startMs) in entries)
+                    {
+                        var entry = new JsonObject { ["lyricLine"] = text };
+                        if (cued)
+                        {
+                            // Cue times go on the wire as decimal strings, so generate them as such.
+                            entry["cueRange"] = new JsonObject
+                            {
+                                ["startTimeMilliseconds"] = startMs.ToString(CultureInfo.InvariantCulture),
+                                ["endTimeMilliseconds"] = (startMs + 1_000).ToString(CultureInfo.InvariantCulture),
+                            };
+                        }
+
+                        data.Add(entry);
+                    }
+
+                    var node = new JsonObject
+                    {
+                        ["timedLyricsModel"] = new JsonObject
+                        {
+                            ["lyricsData"] = new JsonObject { ["timedLyricsData"] = data },
+                        },
+                    };
+
+                    var lyrics = YouTubeMusicLyricsParser.ParseTimedLyrics(node);
+
+                    Assert.NotNull(lyrics);
+                    Assert.False(lyrics!.IsEmpty);
+
+                    var cuedCount = entries.Count(e => e.Item2);
+                    Assert.Equal(cuedCount > 0, lyrics.HasTimings);
+
+                    if (cuedCount > 0)
+                    {
+                        Assert.Equal(cuedCount, lyrics.TimedLines!.Count);
+                        Assert.All(lyrics.TimedLines, line => Assert.True(line.TimeInMs >= 0));
+                    }
+                    else
+                    {
+                        Assert.False(string.IsNullOrWhiteSpace(lyrics.Text));
                     }
                 },
                 iter: 100);

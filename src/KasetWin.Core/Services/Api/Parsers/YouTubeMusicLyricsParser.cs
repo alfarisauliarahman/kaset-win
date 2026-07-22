@@ -133,10 +133,15 @@ public static class YouTubeMusicLyricsParser
         ParseTimedLyrics(browseResponse) ?? ParseLyrics(browseResponse);
 
     /// <summary>
-    /// Extracts per-line timed lyrics from an <b>Android Music client</b> lyrics <c>browse</c>
-    /// response, or <c>null</c> when the response carries no <c>timedLyricsModel</c> (which is what
-    /// a desktop-client response, a stale pinned client version, or a track without synced lyrics
-    /// all look like).
+    /// Extracts lyrics from an <b>Android Music client</b> (<c>timedLyricsModel</c>) lyrics
+    /// <c>browse</c> response at the fidelity it actually carries:
+    /// <list type="bullet">
+    ///   <item>at least one <c>cueRange</c> → timed lines (<see cref="YouTubeMusicLyrics.TimedLines"/>);</item>
+    ///   <item>lines but no <c>cueRange</c> anywhere → the same lines as plain
+    ///   <see cref="YouTubeMusicLyrics.Text"/>, because the track has no synced version;</item>
+    ///   <item>no <c>timedLyricsModel</c> at all → <c>null</c> (a desktop-client response or a stale
+    ///   pinned client version both look like this).</item>
+    /// </list>
     /// </summary>
     /// <param name="browseResponse">The parsed <c>browse</c> response root.</param>
     public static YouTubeMusicLyrics? ParseTimedLyrics(JsonNode? browseResponse)
@@ -159,6 +164,7 @@ public static class YouTubeMusicLyricsParser
         }
 
         var lines = new List<SyncedLyricLine>(entries.Count);
+        var body = new List<string>(entries.Count);
         foreach (var entry in entries)
         {
             if (entry is not JsonObject e)
@@ -172,7 +178,10 @@ public static class YouTubeMusicLyricsParser
                 continue;
             }
 
-            // Cue times arrive as decimal STRINGS ("11180"), not numbers.
+            body.Add(text.Trim());
+
+            // Cue times arrive as decimal STRINGS ("11180"), not numbers. Verified live 2026-07-22:
+            // cueRange = { startTimeMilliseconds, endTimeMilliseconds, metadata: { id } }.
             var cue = e["cueRange"] as JsonObject;
             var start = ReadMilliseconds(cue, "startTimeMilliseconds");
             if (start is null)
@@ -189,16 +198,27 @@ public static class YouTubeMusicLyricsParser
             });
         }
 
-        if (lines.Count == 0)
+        if (body.Count == 0)
         {
             return null;
         }
 
         var attribution = ReadString(lyricsData as JsonObject, "sourceMessage");
+        attribution = string.IsNullOrWhiteSpace(attribution) ? null : attribution.Trim();
+
+        // A timed-SHAPED response is not necessarily a SYNCED one: verified live, a track can come
+        // back with a full timedLyricsData array and not one cueRange in it (BiQIc7fG9pA, 2026-07-22).
+        // Zero cues means the track has no synced version, and the honest result is plain text — a
+        // "Synced" result built from nothing would render as lyrics that never advance.
+        if (lines.Count == 0)
+        {
+            return new YouTubeMusicLyrics(string.Join('\n', body), attribution);
+        }
+
         return new YouTubeMusicLyrics(
             Text: null,
             TimedLines: lines,
-            Attribution: string.IsNullOrWhiteSpace(attribution) ? null : attribution.Trim());
+            Attribution: attribution);
     }
 
     /// <summary>

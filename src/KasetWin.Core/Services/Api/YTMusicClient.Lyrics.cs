@@ -67,17 +67,30 @@ public sealed partial class YTMusicClient
         }
 
         // 2) Preferred: the Android Music client, which is served per-line cue ranges.
-        var timed = await TryBrowseLyricsAsync(browseId, android: true, ct).ConfigureAwait(false);
+        var timed = await TryBrowseLyricsAsync(browseId, android: true, ct).ConfigureAwait(true);
+
+        // 3) The desktop browse. Always issued, for two different reasons:
+        //    - when the Android attempt produced nothing usable it IS the result (plain beats none);
+        //    - when it produced timings it is still needed for its FOOTER, because the timed payload
+        //      carries no attribution at all (verified live 2026-07-22 across 13 tracks: every plain
+        //      shape has "Source: Musixmatch"/"Source: LyricFind", no 7.21.50 response has any).
+        //      YouTube requires that licensor credit be displayed, so dropping it to save a request
+        //      was not an option. The browse is cached (ApiCacheTtl.Lyrics) and the provider memoizes
+        //      per videoId, so this costs one extra request per track per session at most.
+        var plain = await TryBrowseLyricsAsync(browseId, android: false, ct).ConfigureAwait(false);
+
         if (timed is { HasTimings: true })
         {
-            Diag.Write($"ytm-lyrics videoId={videoId} timed lines={timed.TimedLines!.Count}");
-            return timed;
+            var credited = string.IsNullOrWhiteSpace(timed.Attribution) && !string.IsNullOrWhiteSpace(plain?.Attribution)
+                ? timed with { Attribution = plain!.Attribution }
+                : timed;
+
+            Diag.Write($"ytm-lyrics videoId={videoId} timed lines={credited.TimedLines!.Count} credit={credited.Attribution ?? "<none>"}");
+            return credited;
         }
 
-        // 3) Fallback: the ordinary desktop client. Reached when the Android attempt errored (stale
-        // pinned version), when it silently downgraded to plain, or when the track simply has no
-        // synced lyrics. Whatever the reason, plain lyrics beat none.
-        var plain = await TryBrowseLyricsAsync(browseId, android: false, ct).ConfigureAwait(false);
+        // Reached when the Android attempt errored (stale pinned version), when it silently
+        // downgraded to plain, or when the track simply has no synced lyrics.
         var result = plain ?? timed;
         Diag.Write($"ytm-lyrics videoId={videoId} plain chars={result?.Text?.Length ?? 0}");
         return result;
