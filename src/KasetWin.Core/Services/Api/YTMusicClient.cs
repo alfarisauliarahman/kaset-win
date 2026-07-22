@@ -185,6 +185,7 @@ public sealed partial class YTMusicClient : IYTMusicClient
         string? clientVersionOverride = null,
         string? clientNameOverride = null,
         IReadOnlyDictionary<string, string>? clientExtras = null,
+        bool anonymous = false,
         Func<JsonNode, bool>? shouldCache = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(endpoint);
@@ -248,7 +249,13 @@ public sealed partial class YTMusicClient : IYTMusicClient
             return JsonNode.Parse(cached) ?? new JsonObject();
         }
 
-        var headers = BuildAuthHeaders(_options.Origin, snapshot);
+        // An anonymous request drops the cookies and the SAPISIDHASH. Only used where the signed-in
+        // identity is both unnecessary and actively harmful: a mobile client context (ANDROID_MUSIC)
+        // paired with a web-origin SAPISIDHASH is rejected outright by InnerTube, which is what made
+        // time-synced lyrics fail in the app while working unauthenticated from the API Explorer.
+        var headers = anonymous
+            ? new AuthHeaders(_options.Origin, null, null, null, null)
+            : BuildAuthHeaders(_options.Origin, snapshot);
 
         var responseBody = await _retryPolicy.ExecuteAsync(
             () => SendAsync(endpoint, payload, headers, ct),

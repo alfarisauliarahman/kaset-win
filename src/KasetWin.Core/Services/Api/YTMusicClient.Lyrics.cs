@@ -161,7 +161,14 @@ public sealed partial class YTMusicClient
                 ct,                 // keys include the payload, so the two clients never collide.
                 clientVersionOverride: android ? InnerTubeSupport.EffectiveAndroidMusicClientVersion : null,
                 clientNameOverride: android ? InnerTubeSupport.ClientNameAndroidMusic : null,
-                clientExtras: android ? InnerTubeSupport.AndroidMusicClientExtras : null)
+                clientExtras: android ? InnerTubeSupport.AndroidMusicClientExtras : null,
+                // Send the Android attempt signed OUT. InnerTube rejects a mobile client context
+                // carrying a web-origin SAPISIDHASH, which is why timed lyrics worked from the
+                // (unauthenticated) API Explorer and failed inside the signed-in app — every single
+                // request logged "browse android failed: ApiError" and silently fell back to plain
+                // text. Lyrics need no identity: they are the same for everyone, and the
+                // unauthenticated path is the one that was verified live.
+                anonymous: android)
                 .ConfigureAwait(false);
 
             return YouTubeMusicLyricsParser.Parse(node);

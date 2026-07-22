@@ -109,8 +109,11 @@ internal static class UiStrings
     internal static string SettingsLyricsHeader => IsIndonesian ? "Lirik" : "Lyrics";
     internal static string SettingsLyricsSourceLabel => IsIndonesian ? "Sumber lirik" : "Lyrics source";
     internal static string SettingsLyricsSourceCaption => IsIndonesian
-        ? "Pilih penyedia lirik yang diutamakan. NetEase bagus untuk lagu Asia/K-pop."
-        : "Pick the preferred lyrics provider. NetEase covers Asian/K-pop songs well.";
+        ? "Pilih penyedia lirik yang diutamakan. YouTube Music dicoba lebih dulu karena mencocokkan lewat videoId; NetEase bagus untuk lagu Asia/K-pop."
+        : "Pick the preferred lyrics provider. YouTube Music is tried first because it matches by videoId; NetEase covers Asian/K-pop songs well.";
+    internal static string SettingsLyricsSourceAttribution => IsIndonesian
+        ? "Lirik YouTube Music adalah salinan resmi berlisensi dari label, dikreditkan per lagu ke LyricFind atau Musixmatch — YouTube yang menentukan yang mana, bukan Kaset. Tidak semua lagu tersedia dengan lirik sinkron-waktu."
+        : "YouTube Music's lyrics are the licensed label copy, credited per track to either LyricFind or Musixmatch — YouTube decides which one, not Kaset. Not every track comes with time-synced lines.";
     internal static string SettingsSyncedLabel => IsIndonesian ? "Lirik sinkron" : "Synced lyrics";
     internal static string SettingsSyncedCaption => IsIndonesian ? "Utamakan lirik sinkron-waktu, fallback ke lirik biasa." : "Prefer time-synced lyrics, falling back to plain lyrics.";
     internal static string SettingsEqualizerHeader => IsIndonesian ? "Ekualiser" : "Equalizer";
@@ -430,9 +433,14 @@ internal static class UiStrings
         ? ["Ikuti sistem", "Terang", "Gelap"]
         : ["Follow system", "Light", "Dark"];
 
+    /// <summary>
+    /// Lyrics provider labels, index-aligned with <c>SettingsViewModel.ApplyLyricsProvider</c>
+    /// (0=Automatic, 1=YouTube Music, 2=LRCLib, 3=NetEase). "Automatic" keeps every provider in play
+    /// and already asks YouTube Music first, so it stays the default entry.
+    /// </summary>
     internal static string[] LyricsProviderOptions => IsIndonesian
-        ? ["Otomatis (semua sumber)", "LRCLib", "NetEase (cakupan Asia)"]
-        : ["Automatic (all sources)", "LRCLib", "NetEase (Asian coverage)"];
+        ? ["Otomatis (disarankan — YouTube Music dulu)", "YouTube Music", "LRCLib", "NetEase (cakupan Asia)"]
+        : ["Automatic (recommended — YouTube Music first)", "YouTube Music", "LRCLib", "NetEase (Asian coverage)"];
 
     /// <summary>Labels for <see cref="Core.Models.LaunchPage"/>, index-aligned with the enum.</summary>
     internal static string[] LaunchPageOptions => IsIndonesian

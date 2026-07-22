@@ -119,7 +119,7 @@ public class YouTubeMusicTimedLyricsClientTests
 
         // The timed payload has no attribution of its own; the licensor credit YouTube requires be
         // shown is carried over from the desktop browse instead of being dropped.
-        Assert.Equal("Source: LyricFind", lyrics.Attribution);
+        Assert.Equal("LyricFind", lyrics.Attribution);
 
         // The identity spoof is confined to the lyrics browse: `next` stays WEB_REMIX.
         Assert.Equal(InnerTubeSupport.ClientNameMusic, recorder.ClientNameFor("next"));
@@ -164,7 +164,7 @@ public class YouTubeMusicTimedLyricsClientTests
         Assert.NotNull(lyrics);
         Assert.False(lyrics!.HasTimings);
         Assert.Equal("web line one\nweb line two", lyrics.Text);
-        Assert.Equal("Source: LyricFind", lyrics.Attribution);
+        Assert.Equal("LyricFind", lyrics.Attribution);
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public class YouTubeMusicTimedLyricsClientTests
 
         Assert.NotNull(lyrics);
         Assert.False(lyrics!.HasTimings);
-        Assert.Equal("Source: LyricFind", lyrics.Attribution);
+        Assert.Equal("LyricFind", lyrics.Attribution);
     }
 
     [Fact]

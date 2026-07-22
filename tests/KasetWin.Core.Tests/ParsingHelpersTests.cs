@@ -193,6 +193,103 @@ public class ParsingHelpersTests
             ParsingHelpers.StableId("artist", "Justice"));
     }
 
+    // MARK: - Artist list conjunctions ("dan" / "and")
+
+    [Theory]
+    // The reported bug: the player page byline under hl=id, already bullet-joined by the
+    // observer script, glues the Indonesian conjunction to the last name.
+    [InlineData("Tenxi • Anangga • dan Suisei", new[] { "Tenxi", "Anangga", "Suisei" })]
+    // The same credit before the observer script bullets it, and its English equivalent.
+    [InlineData("Tenxi, Anangga dan Suisei", new[] { "Tenxi", "Anangga", "Suisei" })]
+    [InlineData("Tenxi, Anangga and Suisei", new[] { "Tenxi", "Anangga", "Suisei" })]
+    [InlineData("Tenxi • Anangga • and Suisei", new[] { "Tenxi", "Anangga", "Suisei" })]
+    // A conjunction that arrives as its own segment is a separator, not a name.
+    [InlineData("Tenxi • Anangga • dan • Suisei", new[] { "Tenxi", "Anangga", "Suisei" })]
+    public void SplitArtistNames_splits_localized_conjunction_lists(string line, string[] expected)
+    {
+        Assert.Equal(expected, ParsingHelpers.SplitArtistNames(line));
+    }
+
+    [Theory]
+    // False positives: the conjunction words are part of the name, and there is no other
+    // separator establishing a list — the line must survive untouched. A long artist line is
+    // always better than a fabricated artist.
+    [InlineData("Dan Auerbach")]
+    [InlineData("Simon and Garfunkel")]
+    [InlineData("Florence + The Machine")]
+    [InlineData("Danny Elfman")]
+    [InlineData("Sleep Token")]
+    public void SplitArtistNames_never_splits_a_name_that_merely_contains_a_conjunction(string name)
+    {
+        Assert.Equal(new[] { name }, ParsingHelpers.SplitArtistNames(name));
+    }
+
+    [Fact]
+    public void SplitArtistNames_keeps_capitalised_conjunctions_and_symbols_intact()
+    {
+        // "Dan"/"And" as a real (capitalised) name inside a genuine list must not be eaten, and
+        // "&" is never treated as a conjunction because it lives inside names too.
+        Assert.Equal(
+            new[] { "Tenxi", "Dan Auerbach" },
+            ParsingHelpers.SplitArtistNames("Tenxi • Dan Auerbach"));
+
+        Assert.Equal(
+            new[] { "Wind & Fire" },
+            ParsingHelpers.SplitArtistNames("Wind & Fire"));
+    }
+
+    [Fact]
+    public void SplitArtistNames_returns_empty_for_blank_input()
+    {
+        Assert.Empty(ParsingHelpers.SplitArtistNames(null));
+        Assert.Empty(ParsingHelpers.SplitArtistNames("   "));
+    }
+
+    [Fact]
+    public void ExtractArtistsFromFlexColumns_drops_the_conjunction_glued_to_the_last_artist()
+    {
+        // hl=id: "Tenxi, Anangga dan Suisei" — the last linked run carries the conjunction.
+        var row = JsonNode.Parse("""
+        {
+          "flexColumns": [
+            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "attached" } ] } } },
+            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [
+              { "text": "Tenxi", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCtenxi000000000000000" } } },
+              { "text": ", " },
+              { "text": "Anangga", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCanangga0000000000000" } } },
+              { "text": "dan Suisei", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCsuisei00000000000000" } } }
+            ] } } }
+          ]
+        }
+        """);
+
+        var artists = ParsingHelpers.ExtractArtistsFromFlexColumns(row);
+
+        Assert.Equal(new[] { "Tenxi", "Anangga", "Suisei" }, artists.Select(a => a.Name));
+    }
+
+    [Fact]
+    public void ExtractArtistsFromFlexColumns_keeps_a_leading_conjunction_that_is_a_real_name()
+    {
+        // "Dan Auerbach" is capitalised, so it is a name and never a glued conjunction.
+        var row = JsonNode.Parse("""
+        {
+          "flexColumns": [
+            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "Song" } ] } } },
+            { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [
+              { "text": "Tenxi", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCtenxi000000000000000" } } },
+              { "text": ", " },
+              { "text": "Dan Auerbach", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCauerbach000000000000" } } }
+            ] } } }
+          ]
+        }
+        """);
+
+        var artists = ParsingHelpers.ExtractArtistsFromFlexColumns(row);
+
+        Assert.Equal(new[] { "Tenxi", "Dan Auerbach" }, artists.Select(a => a.Name));
+    }
+
     [Fact]
     public void ResponseTreeSearch_finds_renderers_through_container_reshuffle()
     {

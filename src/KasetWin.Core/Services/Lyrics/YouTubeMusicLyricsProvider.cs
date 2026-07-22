@@ -51,6 +51,19 @@ public sealed class YouTubeMusicLyricsProvider : ILyricsProvider
     /// <inheritdoc />
     public string Name => ProviderName;
 
+    /// <summary>
+    /// Builds the source label: the provider, plus the upstream licensor when YouTube supplied one.
+    /// </summary>
+    /// <remarks>
+    /// Both halves earn their place. "YouTube Music" says which of Kaset's providers answered, which
+    /// is what the Settings picker talks about; "LyricFind" / "Musixmatch" says who actually licensed
+    /// the words, which is what YouTube requires be shown and what tells a user why two songs have
+    /// different lyric quality. Naming only one of them makes the other invisible — and the credit
+    /// varies per track, so it cannot be inferred.
+    /// </remarks>
+    private static string SourceLabel(string? attribution) =>
+        string.IsNullOrWhiteSpace(attribution) ? ProviderName : $"{ProviderName} — {attribution.Trim()}";
+
     /// <inheritdoc />
     public async Task<LyricResult> SearchAsync(LyricsSearchInfo info, CancellationToken ct = default)
     {
@@ -99,30 +112,21 @@ public sealed class YouTubeMusicLyricsProvider : ILyricsProvider
             return new LyricResult.Unavailable();
         }
 
+        // The licensor credit belongs in the source label, not in the lyrics themselves.
+        //
+        // It used to be appended to the text (plain) and added as an extra timed line after the last
+        // lyric (synced). Both hid it: you only saw it by scrolling to the very end, and the synced
+        // version was worse — a synthetic final "line" that the active-line highlight walks onto and,
+        // with the Apple-Music style scrolling, glides to the top of the panel as though the song
+        // ended with the word "LyricFind". Putting it in the label shows it the whole time, which is
+        // also what YouTube requires, and keeps the lyric list purely lyrics.
+        var source = SourceLabel(lyrics.Attribution);
+
         if (lyrics.TimedLines is { Count: > 0 } timed)
         {
-            var lines = new List<SyncedLyricLine>(timed.Count + 1);
-            lines.AddRange(timed);
-
-            // The credit is timed just past the final lyric, where YouTube itself shows it: it can
-            // never steal the highlight from a line that is still being sung.
-            if (!string.IsNullOrWhiteSpace(lyrics.Attribution))
-            {
-                var last = timed[^1];
-                lines.Add(new SyncedLyricLine
-                {
-                    TimeInMs = last.TimeInMs + Math.Max(last.Duration, 1),
-                    Text = lyrics.Attribution,
-                });
-            }
-
-            return new LyricResult.Synced(new SyncedLyrics(lines, ProviderName));
+            return new LyricResult.Synced(new SyncedLyrics(timed, source));
         }
 
-        var text = string.IsNullOrWhiteSpace(lyrics.Attribution)
-            ? lyrics.Text!
-            : lyrics.Text + "\n\n" + lyrics.Attribution;
-
-        return new LyricResult.Plain(new PlainLyrics(text, ProviderName));
+        return new LyricResult.Plain(new PlainLyrics(lyrics.Text!, source));
     }
 }

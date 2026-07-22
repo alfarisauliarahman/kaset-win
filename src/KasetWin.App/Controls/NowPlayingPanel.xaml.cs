@@ -409,6 +409,12 @@ public sealed partial class NowPlayingPanel : UserControl
         e.Handled = true;
     }
 
+    /// <summary>
+    /// Breathing room kept above the active lyric line so it never sits flush against the panel
+    /// header (Apple Music leaves a comparable gap).
+    /// </summary>
+    private const double LyricsActiveLineTopInset = 20;
+
     private void OnActiveLineChanged(object? sender, LyricLineItem? line)
     {
         if (line is null)
@@ -416,19 +422,43 @@ public sealed partial class NowPlayingPanel : UserControl
             return;
         }
 
-        // Apple-Music-style transition: animate the active line into the upper third of the panel
-        // instead of the jumpy ScrollIntoView-at-top. When the container is virtualized away
-        // (user seeked far), fall back to the instant jump.
+        // Apple-Music-style transition: the active line rides up to the TOP of the lyrics viewport
+        // and rests there while it plays, with the upcoming lines flowing underneath and the sung
+        // ones scrolling off above. Animated (not ScrollIntoView) so it glides instead of jumping.
+        // When the container is virtualized away (user seeked far), fall back to the instant jump.
         if (FindDescendant<ScrollViewer>(LyricsList) is { } scroller
             && LyricsList.ContainerFromItem(line) is UIElement container)
         {
+            // The tail of the song can only reach the top if there is empty space below it, so the
+            // list carries a spacer footer roughly one viewport tall.
+            UpdateLyricsTailSpacer(scroller);
+
             var y = container.TransformToVisual(scroller).TransformPoint(new Windows.Foundation.Point(0, 0)).Y;
-            var target = scroller.VerticalOffset + y - (scroller.ViewportHeight / 3);
+            var target = scroller.VerticalOffset + y - LyricsActiveLineTopInset;
             scroller.ChangeView(null, System.Math.Max(0, target), null, disableAnimation: false);
         }
         else
         {
             LyricsList.ScrollIntoView(line, ScrollIntoViewAlignment.Leading);
+        }
+    }
+
+    /// <summary>
+    /// Sizes the trailing spacer under the last lyric line to (almost) a full viewport, so the final
+    /// lines can still scroll up to the top of the panel. No-op while the viewport is unmeasured.
+    /// </summary>
+    private void UpdateLyricsTailSpacer(ScrollViewer scroller)
+    {
+        if (scroller.ViewportHeight <= 0)
+        {
+            return;
+        }
+
+        // Leave one line's worth of content visible at the very bottom of the scroll range.
+        var wanted = System.Math.Max(0, scroller.ViewportHeight - 96);
+        if (System.Math.Abs(LyricsTailSpacer.Height - wanted) > 1)
+        {
+            LyricsTailSpacer.Height = wanted;
         }
     }
 

@@ -203,7 +203,7 @@ public static class YouTubeMusicLyricsParser
             return null;
         }
 
-        var attribution = ReadString(lyricsData as JsonObject, "sourceMessage");
+        var attribution = StripSourcePrefix(ReadString(lyricsData as JsonObject, "sourceMessage"));
         attribution = string.IsNullOrWhiteSpace(attribution) ? null : attribution.Trim();
 
         // A timed-SHAPED response is not necessarily a SYNCED one: verified live, a track can come
@@ -219,6 +219,41 @@ public static class YouTubeMusicLyricsParser
             Text: null,
             TimedLines: lines,
             Attribution: attribution);
+    }
+
+    /// <summary>
+    /// Removes YouTube's own "Source: " / "Sumber: " lead-in from the credit footer, keeping just
+    /// the licensor name.
+    /// </summary>
+    /// <remarks>
+    /// The footer arrives already localized — the app pins the content language, so an Indonesian
+    /// session gets "Sumber: LyricFind" rather than "Source: LyricFind". The lyrics panel renders
+    /// its own "Sumber:" label around whatever it is given, so keeping the prefix produced
+    /// "Sumber: Sumber: LyricFind" on screen. Only the licensor name belongs in the value; the
+    /// wording around it is the UI's job and has to follow the app language, not the API's.
+    /// Anything that does not match a known prefix is returned untouched — a credit we do not
+    /// recognise is still a credit, and YouTube requires it be displayed.
+    /// </remarks>
+    private static string? StripSourcePrefix(string? footer)
+    {
+        if (string.IsNullOrWhiteSpace(footer))
+        {
+            return footer;
+        }
+
+        var separator = footer.IndexOf(':', StringComparison.Ordinal);
+        if (separator <= 0 || separator >= footer.Length - 1)
+        {
+            return footer.Trim();
+        }
+
+        // Only strip a lead-in that actually reads as "source", so a credit that legitimately
+        // contains a colon keeps all of its text.
+        var lead = footer[..separator].Trim();
+        string[] knownLeads = ["source", "sumber", "quelle", "fuente", "source(s)", "出典", "출처"];
+        return Array.Exists(knownLeads, l => string.Equals(l, lead, StringComparison.OrdinalIgnoreCase))
+            ? footer[(separator + 1)..].Trim()
+            : footer.Trim();
     }
 
     /// <summary>
@@ -245,7 +280,7 @@ public static class YouTubeMusicLyricsParser
             return null;
         }
 
-        var footer = ReadText(shelf, "footer");
+        var footer = StripSourcePrefix(ReadText(shelf, "footer"));
         return new YouTubeMusicLyrics(
             Normalize(text),
             TimedLines: null,

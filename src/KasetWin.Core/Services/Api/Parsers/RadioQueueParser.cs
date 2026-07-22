@@ -209,9 +209,13 @@ public static class RadioQueueParser
 
                 if (segment == 0)
                 {
+                    // hl=id glues the list conjunction to the last run (" dan Suisei") — strip it so
+                    // the queue never shows an artist called "dan Suisei".
+                    var name = artists.Count > 0 ? ParsingHelpers.StripLeadingConjunction(text) : text.Trim();
+
                     artists.Add(browseId is not null
-                        ? new Artist { Id = browseId, Name = text }
-                        : new Artist { Id = ParsingHelpers.StableId("artist", text), Name = text });
+                        ? new Artist { Id = browseId, Name = name }
+                        : new Artist { Id = ParsingHelpers.StableId("artist", name), Name = name });
                 }
             }
 
@@ -253,7 +257,9 @@ public static class RadioQueueParser
 
     // MARK: - Helpers
 
-    private static bool IsArtistSeparator(string text) => Array.IndexOf(ArtistSeparators, text) >= 0;
+    // A lone " dan " / " and " run is a localized separator, not an artist (see ParsingHelpers).
+    private static bool IsArtistSeparator(string text) =>
+        Array.IndexOf(ArtistSeparators, text) >= 0 || ParsingHelpers.IsConjunctionRun(text);
 
     private static string Capitalize(string text) =>
         string.IsNullOrEmpty(text) ? text : char.ToUpperInvariant(text[0]) + text[1..];

@@ -260,9 +260,14 @@ public static class SongMetadataParser
                 continue;
             }
 
+            // Under hl=id the list conjunction can arrive glued to the last run (" dan Suisei"),
+            // which would otherwise become an artist literally called "dan Suisei". Only strip it
+            // once at least one artist is in hand — see ParsingHelpers.StripLeadingConjunction.
+            var name = artists.Count > 0 ? ParsingHelpers.StripLeadingConjunction(text) : text.Trim();
+
             artists.Add(browseId is not null
-                ? new Artist { Id = browseId, Name = text }
-                : new Artist { Id = ParsingHelpers.StableId("artist", text), Name = text });
+                ? new Artist { Id = browseId, Name = name }
+                : new Artist { Id = ParsingHelpers.StableId("artist", name), Name = name });
         }
 
         return artists;
@@ -593,7 +598,9 @@ public static class SongMetadataParser
 
     // MARK: - Helpers
 
-    private static bool IsArtistSeparator(string text) => Array.IndexOf(ArtistSeparators, text) >= 0;
+    // A lone " dan " / " and " run is a localized separator, not an artist (see ParsingHelpers).
+    private static bool IsArtistSeparator(string text) =>
+        Array.IndexOf(ArtistSeparators, text) >= 0 || ParsingHelpers.IsConjunctionRun(text);
 
     private static JsonNode? Prop(JsonNode? node, string? key)
     {

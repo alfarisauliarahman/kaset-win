@@ -102,6 +102,8 @@ public sealed partial class SettingsPage : Page
         LyricsHeader.Text = Localization.UiStrings.SettingsLyricsHeader;
         LyricsSourceLabel.Text = Localization.UiStrings.SettingsLyricsSourceLabel;
         LyricsSourceCaption.Text = Localization.UiStrings.SettingsLyricsSourceCaption;
+        LyricsSourceAttribution.Text = Localization.UiStrings.SettingsLyricsSourceAttribution;
+        Accessibility.A11y.Name(LyricsSourceCombo, Localization.UiStrings.SettingsLyricsSourceLabel);
         SyncedLabel.Text = Localization.UiStrings.SettingsSyncedLabel;
         SyncedCaption.Text = Localization.UiStrings.SettingsSyncedCaption;
         EqualizerHeader.Text = Localization.UiStrings.SettingsEqualizerHeader;

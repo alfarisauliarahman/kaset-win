@@ -404,6 +404,12 @@
                         </StackPanel>
                     </DataTemplate>
                 </ListView.ItemTemplate>
+                <!-- Trailing spacer: lets the LAST lyric lines still scroll up to the top of the
+                     viewport (Apple Music behaviour). Height is set from the live viewport height in
+                     code-behind; 0 costs nothing when lyrics are short or absent. -->
+                <ListView.Footer>
+                    <Border x:Name="LyricsTailSpacer" Height="0" />
+                </ListView.Footer>
             </ListView>
 
             <ScrollViewer

@@ -130,22 +130,28 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Row 0: cover + title + like as ONE group above the progress bar (love sits right
-                     next to the title). Responsive by design: TrackInfo sits in the near-all-star
-                     column, so at the 980px minimum width it SHRINKS (and its marquee scrolls the
-                     title) instead of overflowing and clipping the like button — while the trailing
-                     hair-weight star column soaks up the surplus on a wide window so the group keeps
-                     hugging the cover instead of drifting apart. The column MaxWidth replaces the old
-                     fixed MaxWidth="340" on TrackInfo, which was the truncation culprit. -->
+                <!-- Row 0: cover + title + like as ONE group above the progress bar, with the heart
+                     sitting immediately after the text.
+
+                     HorizontalAlignment="Center" is what makes the group HUG its content: under a
+                     centred alignment a star column is measured against its content rather than the
+                     available width, so the row is only as wide as cover + text + heart and stays
+                     centred in the bar. Without it the star column stretched to its cap and the
+                     heart docked to the far edge of an empty 520px column, marooned halfway across
+                     the bar — which is exactly what shipped and had to be fixed.
+
+                     The column still has to be star (not Auto) so it can SHRINK at the 980px minimum
+                     width instead of overflowing and clipping the heart, which was the original
+                     truncation bug. MaxWidth caps how wide the text may get on a large window. -->
                 <Grid
                     Grid.Row="0"
+                    HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     ColumnSpacing="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="1000*" MaxWidth="520" />
+                        <ColumnDefinition Width="*" MaxWidth="520" />
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                         <!-- Rounded cover; aspect adapts to the track (16:9 for a video, square otherwise) -->
                         <Border

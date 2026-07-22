@@ -415,7 +415,13 @@ public static class ParsingHelpers
             var browseId = ExtractBrowseId(run);
             if (browseId is not null && IsNavigableArtistId(browseId))
             {
-                artists.Add(new Artist { Id = browseId, Name = name });
+                // "…, Anangga dan Suisei": under hl=id the conjunction can arrive glued to the last
+                // linked run, which would render a bogus artist called "dan Suisei".
+                artists.Add(new Artist
+                {
+                    Id = browseId,
+                    Name = artists.Count > 0 ? StripLeadingConjunction(name) : name,
+                });
             }
         }
 
@@ -505,10 +511,160 @@ public static class ParsingHelpers
         return null;
     }
 
+    // MARK: - Artist list conjunctions
+
+    /// <summary>
+    /// The list conjunctions YouTube emits in the languages the app pins (<c>hl=en</c>/<c>hl=id</c>).
+    /// Matched <b>case-sensitively, lowercase only</b> — that single rule is what keeps real names
+    /// ("Dan Auerbach", the band "And One") out of the conjunction logic, because YouTube renders a
+    /// name exactly as the artist spells it (capitalised) while its own generated conjunction is
+    /// always lowercase. Symbols (<c>&amp;</c>, <c>+</c>) are deliberately absent: they are far more
+    /// often part of a name ("Earth, Wind &amp; Fire", "Florence + The Machine") than a boundary we
+    /// could trust.
+    /// </summary>
+    private static readonly string[] ListConjunctions = { "dan", "and" };
+
+    /// <summary>
+    /// Whether a run is nothing but a list conjunction ("dan", "and"), i.e. the localized
+    /// equivalent of the "&amp;" separator run. Case-sensitive: a linked artist called "Dan" or the
+    /// band "And" keeps its run.
+    /// </summary>
+    public static bool IsConjunctionRun(string text) =>
+        Array.IndexOf(ListConjunctions, text.Trim()) >= 0;
+
+    /// <summary>
+    /// Removes a conjunction that YouTube glued to the front of the last item of an artist list
+    /// ("dan Suisei" → "Suisei", "and Suisei" → "Suisei"). Only ever call this for a run that is
+    /// <b>not</b> the first artist of the list — a leading conjunction is meaningless there and the
+    /// text is far more likely to be a real name.
+    /// </summary>
+    /// <remarks>
+    /// Safe against real names because the conjunction must be lowercase and followed by a space:
+    /// "Dan Auerbach" (capital D) and "Andrew Bird" (no space after "And") are both left alone.
+    /// </remarks>
+    public static string StripLeadingConjunction(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        var trimmed = name.Trim();
+        foreach (var conjunction in ListConjunctions)
+        {
+            if (trimmed.Length > conjunction.Length + 1
+                && trimmed.StartsWith(conjunction, StringComparison.Ordinal)
+                && trimmed[conjunction.Length] == ' ')
+            {
+                var rest = trimmed[(conjunction.Length + 1)..].Trim();
+                if (rest.Length > 0)
+                {
+                    return rest;
+                }
+            }
+        }
+
+        return trimmed;
+    }
+
+    /// <summary>
+    /// Splits a flat artist line — the one the player page reports, e.g.
+    /// <c>"Tenxi • Anangga • dan Suisei"</c> or <c>"Tenxi, Anangga dan Suisei"</c> — into individual
+    /// artist names. Returns a single-element list when the line carries no separator the helper
+    /// trusts: a slightly long artist line beats a fabricated artist.
+    /// </summary>
+    /// <remarks>
+    /// <para>Two rules, both deliberately narrow:</para>
+    /// <list type="number">
+    /// <item>Bullets and commas separate list items (the player-page byline is already built that
+    /// way). Every segment then has a glued leading conjunction removed ("dan Suisei" → "Suisei").</item>
+    /// <item>Only the <b>last</b> segment of an already-separated list may be split again on an
+    /// interior lowercase " dan " / " and " — the natural "A, B dan C" shape. A line with no other
+    /// separator is never split, so "Simon and Garfunkel", "Florence + The Machine" and
+    /// "Dan Auerbach" come back untouched.</item>
+    /// </list>
+    /// </remarks>
+    public static IReadOnlyList<string> SplitArtistNames(string? flat)
+    {
+        if (string.IsNullOrWhiteSpace(flat))
+        {
+            return Array.Empty<string>();
+        }
+
+        var segments = flat.Split(
+            new[] { '•', '·', ',' },
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (segments.Length == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var names = new List<string>(segments.Length + 1);
+        for (var i = 0; i < segments.Length; i++)
+        {
+            var segment = segments[i];
+
+            // A conjunction on its own ("dan") is a separator YouTube spelled out, not a name.
+            if (IsConjunctionRun(segment))
+            {
+                continue;
+            }
+
+            if (i > 0)
+            {
+                segment = StripLeadingConjunction(segment);
+            }
+
+            // "A, B dan C": the trailing conjunction only counts inside a list that some other
+            // separator already established, so a bare "Simon and Garfunkel" survives intact.
+            if (segments.Length > 1 && i == segments.Length - 1 && TrySplitOnConjunction(segment, out var left, out var right))
+            {
+                names.Add(left);
+                names.Add(right);
+                continue;
+            }
+
+            if (segment.Length > 0)
+            {
+                names.Add(segment);
+            }
+        }
+
+        return names.Count > 0 ? names : new[] { flat.Trim() };
+    }
+
+    /// <summary>
+    /// Splits "Anangga dan Suisei" into its two names. Requires a lowercase conjunction padded by
+    /// spaces on both sides and a non-empty name either side.
+    /// </summary>
+    private static bool TrySplitOnConjunction(string segment, out string left, out string right)
+    {
+        foreach (var conjunction in ListConjunctions)
+        {
+            var needle = $" {conjunction} ";
+            var index = segment.LastIndexOf(needle, StringComparison.Ordinal);
+            if (index <= 0)
+            {
+                continue;
+            }
+
+            var head = segment[..index].Trim();
+            var tail = segment[(index + needle.Length)..].Trim();
+            if (head.Length > 0 && tail.Length > 0)
+            {
+                left = head;
+                right = tail;
+                return true;
+            }
+        }
+
+        left = string.Empty;
+        right = string.Empty;
+        return false;
+    }
+
     // MARK: - Metadata classification
 
     private static bool IsArtistSeparator(string text) =>
-        Array.IndexOf(ArtistSeparators, text) >= 0;
+        Array.IndexOf(ArtistSeparators, text) >= 0 || IsConjunctionRun(text);
 
     private static bool IsMetadataText(string text)
     {

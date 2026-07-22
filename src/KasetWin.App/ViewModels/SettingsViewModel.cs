@@ -48,6 +48,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly IPlaybackController? _playback;
     private readonly KasetWin.Core.Services.Lyrics.ILyricsService? _lyrics;
     private const string LyricsProviderKey = "lyrics.provider";
+
+    /// <summary>Provider name of the YouTube Music lyrics source (matches <c>ILyricsProvider.Name</c>).</summary>
+    private const string YouTubeMusicProviderName =
+        KasetWin.Core.Services.Lyrics.YouTubeMusicLyricsProvider.ProviderName;
     private readonly bool _isInitializing;
     private bool _suppressBandApply;
 
@@ -77,7 +81,13 @@ public sealed partial class SettingsViewModel : ViewModelBase
         };
 
         var savedProvider = AppData.Settings[LyricsProviderKey] as string;
-        SelectedLyricsProviderIndex = savedProvider switch { "LRCLib" => 1, "NetEase" => 2, _ => 0 };
+        SelectedLyricsProviderIndex = savedProvider switch
+        {
+            YouTubeMusicProviderName => 1,
+            "LRCLib" => 2,
+            "NetEase" => 3,
+            _ => 0,
+        };
         ApplyLyricsProvider(SelectedLyricsProviderIndex);
 
         SelectedLanguageIndex = LoadLanguageSetting() == "en" ? 1 : 0;
@@ -154,7 +164,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private int _selectedThemeIndex;
 
-    /// <summary>Lyrics provider choices (0=Auto, 1=LRCLib, 2=NetEase).</summary>
+    /// <summary>Lyrics provider choices (0=Auto, 1=YouTube Music, 2=LRCLib, 3=NetEase).</summary>
     public IReadOnlyList<string> LyricsProviderOptions { get; } = Localization.UiStrings.LyricsProviderOptions;
 
     /// <summary>Selected lyrics provider; applied to the service + persisted.</summary>
@@ -173,7 +183,13 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     private void ApplyLyricsProvider(int index)
     {
-        var name = index switch { 1 => "LRCLib", 2 => "NetEase", _ => null };
+        var name = index switch
+        {
+            1 => YouTubeMusicProviderName,
+            2 => "LRCLib",
+            3 => "NetEase",
+            _ => null,
+        };
         if (_lyrics is not null)
         {
             _lyrics.PreferredProvider = name;

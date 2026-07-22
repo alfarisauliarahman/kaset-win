@@ -172,6 +172,91 @@ public class SongMetadataParserTests
         Assert.Equal("RADIO_TOKEN", metadata.RadioContinuationToken);
     }
 
+    [Theory]
+    // hl=id: the conjunction rides on the last run ("dan Suisei") …
+    [InlineData("dan Suisei")]
+    // … and its English equivalent.
+    [InlineData("and Suisei")]
+    public void Byline_conjunction_glued_to_the_last_artist_is_stripped(string lastRun)
+    {
+        var node = JsonNode.Parse($$"""
+        {
+          "playlistPanelRenderer": { "contents": [
+            { "playlistPanelVideoRenderer": {
+              "videoId": "video0000001",
+              "title": { "runs": [ { "text": "attached" } ] },
+              "longBylineText": { "runs": [
+                { "text": "Tenxi", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCtenxi000000000000000" } } },
+                { "text": ", " },
+                { "text": "Anangga", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCanangga0000000000000" } } },
+                { "text": "{{lastRun}}", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCsuisei00000000000000" } } }
+              ] }
+            } }
+          ] }
+        }
+        """);
+
+        var metadata = SongMetadataParser.Parse(node, "video0000001");
+
+        // Exactly three artists, none of them called "dan Suisei".
+        Assert.Equal(new[] { "Tenxi", "Anangga", "Suisei" }, metadata.Song.Artists.Select(a => a.Name));
+    }
+
+    [Fact]
+    public void Byline_conjunction_on_its_own_run_is_a_separator_not_an_artist()
+    {
+        var node = JsonNode.Parse("""
+        {
+          "playlistPanelRenderer": { "contents": [
+            { "playlistPanelVideoRenderer": {
+              "videoId": "video0000001",
+              "title": { "runs": [ { "text": "attached" } ] },
+              "longBylineText": { "runs": [
+                { "text": "Tenxi", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCtenxi000000000000000" } } },
+                { "text": ", " },
+                { "text": "Anangga", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCanangga0000000000000" } } },
+                { "text": " dan " },
+                { "text": "Suisei", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCsuisei00000000000000" } } }
+              ] }
+            } }
+          ] }
+        }
+        """);
+
+        var metadata = SongMetadataParser.Parse(node, "video0000001");
+
+        Assert.Equal(new[] { "Tenxi", "Anangga", "Suisei" }, metadata.Song.Artists.Select(a => a.Name));
+    }
+
+    [Fact]
+    public void Byline_keeps_artists_whose_names_start_with_a_conjunction_word()
+    {
+        // "Dan Auerbach" / "And One" are real names: capitalised, so never treated as glue.
+        var node = JsonNode.Parse("""
+        {
+          "playlistPanelRenderer": { "contents": [
+            { "playlistPanelVideoRenderer": {
+              "videoId": "video0000001",
+              "title": { "runs": [ { "text": "Song" } ] },
+              "longBylineText": { "runs": [
+                { "text": "The Black Keys", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCkeys0000000000000000" } } },
+                { "text": ", " },
+                { "text": "Dan Auerbach", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCauerbach000000000000" } } },
+                { "text": ", " },
+                { "text": "And One", "navigationEndpoint": { "browseEndpoint": { "browseId": "UCandone00000000000000" } } }
+              ] }
+            } }
+          ] }
+        }
+        """);
+
+        var metadata = SongMetadataParser.Parse(node, "video0000001");
+
+        Assert.Equal(
+            new[] { "The Black Keys", "Dan Auerbach", "And One" },
+            metadata.Song.Artists.Select(a => a.Name));
+    }
+
     [Fact]
     public void Library_remove_toggle_marks_in_library_and_swaps_tokens()
     {

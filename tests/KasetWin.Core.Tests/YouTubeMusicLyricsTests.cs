@@ -119,7 +119,7 @@ public class YouTubeMusicLyricsTests
 
         Assert.NotNull(lyrics);
         Assert.Equal("line one\nline two\nline three", lyrics!.Text);
-        Assert.Equal("Source: Musixmatch", lyrics.Attribution);
+        Assert.Equal("Musixmatch", lyrics.Attribution);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class YouTubeMusicLyricsTests
 
         var parsedSimple = YouTubeMusicLyricsParser.ParseLyrics(simple);
         Assert.Equal("plain body", parsedSimple!.Text);
-        Assert.Equal("Source: LyricFind", parsedSimple.Attribution);
+        Assert.Equal("LyricFind", parsedSimple.Attribution);
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public class YouTubeMusicLyricsTests
 
         Assert.NotNull(lyrics);
         Assert.True(lyrics!.HasTimings);
-        Assert.Equal("Source: Musixmatch", lyrics.Attribution);
+        Assert.Equal("Musixmatch", lyrics.Attribution);
         Assert.Null(lyrics.Text);
 
         var lines = lyrics.TimedLines!;
@@ -231,7 +231,7 @@ public class YouTubeMusicLyricsTests
         Assert.False(lyrics!.HasTimings);
         Assert.False(lyrics.IsEmpty);
         Assert.Equal("first\nsecond", lyrics.Text);
-        Assert.Equal("Source: Musixmatch", lyrics.Attribution);
+        Assert.Equal("Musixmatch", lyrics.Attribution);
     }
 
     [Fact]
@@ -292,16 +292,17 @@ public class YouTubeMusicLyricsTests
     {
         var client = new FakeYTMusicClient
         {
-            YouTubeMusicLyrics = _ => new YouTubeMusicLyrics("body", "Source: Musixmatch"),
+            YouTubeMusicLyrics = _ => new YouTubeMusicLyrics("body", "Musixmatch"),
         };
         var provider = new YouTubeMusicLyricsProvider(client);
 
         var result = await provider.SearchAsync(Info);
 
         var plain = Assert.IsType<LyricResult.Plain>(result);
-        Assert.Equal(YouTubeMusicLyricsProvider.ProviderName, plain.Lyrics.Source);
-        // YouTube's own attribution footer is preserved at the end of the text.
-        Assert.Equal("body\n\nSource: Musixmatch", plain.Lyrics.Text);
+        // The licensor rides in the SOURCE label, not inside the lyric text: appended to the text it
+        // was only visible after scrolling to the very end.
+        Assert.Equal("YouTube Music — Musixmatch", plain.Lyrics.Source);
+        Assert.Equal("body", plain.Lyrics.Text);
     }
 
     [Fact]
@@ -327,19 +328,19 @@ public class YouTubeMusicLyricsTests
                 new SyncedLyricLine { TimeInMs = 11_180, Duration = 2_120, Text = "first line" },
                 new SyncedLyricLine { TimeInMs = 13_300, Duration = 2_590, Text = "second line" },
             },
-            Attribution: "Source: Musixmatch");
+            Attribution: "Musixmatch");
         var client = new FakeYTMusicClient { YouTubeMusicLyrics = _ => timed };
 
         var result = await new YouTubeMusicLyricsProvider(client).SearchAsync(Info);
 
         var synced = Assert.IsType<LyricResult.Synced>(result);
-        Assert.Equal(YouTubeMusicLyricsProvider.ProviderName, synced.Lyrics.Source);
+        Assert.Equal("YouTube Music — Musixmatch", synced.Lyrics.Source);
 
-        // The licensor credit is kept as the last line, timed strictly after the final lyric so it
-        // can never take the highlight from a line that is still being sung.
-        Assert.Equal(3, synced.Lyrics.Lines.Count);
-        Assert.Equal("Source: Musixmatch", synced.Lyrics.Lines[^1].Text);
-        Assert.True(synced.Lyrics.Lines[^1].TimeInMs > synced.Lyrics.Lines[^2].TimeInMs);
+        // The lyric list stays PURELY lyrics. The credit used to be appended as an extra timed line,
+        // which the active-line highlight walked onto — and with the Apple-Music style scrolling it
+        // glided to the top of the panel as though the song ended with the word "Musixmatch".
+        Assert.Equal(2, synced.Lyrics.Lines.Count);
+        Assert.Equal("second line", synced.Lyrics.Lines[^1].Text);
     }
 
     [Fact]

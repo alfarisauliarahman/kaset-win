@@ -2,6 +2,7 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using KasetWin.Core.Abstractions;
 using KasetWin.Core.Models;
+using KasetWin.Core.Services.Api.Parsers;
 
 namespace KasetWin.Core.Services.Player;
 
@@ -670,7 +671,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
             return queued with
             {
                 Artists = queued.Artists.Count == 0 && hasArtist
-                    ? [new Artist { Id = string.Empty, Name = message.Artist }]
+                    ? ArtistsFromFlatLine(message.Artist)
                     : queued.Artists,
                 Title = hasTitle ? message.Title : queued.Title,
                 ThumbnailUrl = queued.ThumbnailUrl ?? message.ThumbnailUrl ?? queued.FallbackThumbnailUrl,
@@ -686,13 +687,35 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
             Id = message.VideoId,
             VideoId = message.VideoId,
             Title = message.Title,
-            Artists = string.IsNullOrWhiteSpace(message.Artist)
-                ? []
-                : [new Artist { Id = string.Empty, Name = message.Artist }],
+            Artists = ArtistsFromFlatLine(message.Artist),
             ThumbnailUrl = message.ThumbnailUrl ?? FallbackThumbnailUrl(message.VideoId),
             HasVideo = message.HasVideo,
             VideoType = message.VideoType,
         };
+    }
+
+    /// <summary>
+    /// Turns the player page's flat artist line ("Tenxi • Anangga • dan Suisei") into artist
+    /// entries. The page byline is already bullet/comma separated, and the localized conjunction
+    /// ("dan"/"and") rides along on the last item — <see cref="ParsingHelpers.SplitArtistNames"/>
+    /// undoes both, and leaves any line it cannot confidently split as a single artist.
+    /// Ids stay empty: the page reports no browse target, so none is fabricated.
+    /// </summary>
+    private static IReadOnlyList<Artist> ArtistsFromFlatLine(string? line)
+    {
+        var names = ParsingHelpers.SplitArtistNames(line);
+        if (names.Count == 0)
+        {
+            return Array.Empty<Artist>();
+        }
+
+        var artists = new Artist[names.Count];
+        for (var i = 0; i < names.Count; i++)
+        {
+            artists[i] = new Artist { Id = string.Empty, Name = names[i] };
+        }
+
+        return artists;
     }
 
     private Song? FindQueuedByVideoId(string videoId)
