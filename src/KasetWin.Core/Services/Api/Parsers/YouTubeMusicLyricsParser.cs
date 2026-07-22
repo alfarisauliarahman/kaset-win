@@ -1,17 +1,39 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json.Nodes;
+using KasetWin.Core.Models;
 
 namespace KasetWin.Core.Services.Api.Parsers;
 
 /// <summary>
-/// Plain-text lyrics as YouTube Music itself serves them: the description body plus the
-/// attribution footer YouTube returns alongside it (e.g. <c>"Source: Musixmatch"</c>).
+/// Lyrics as YouTube Music itself serves them, in whichever fidelity the response carried:
+/// per-line timed lines (<see cref="TimedLines"/>, Android Music client) or a plain text body
+/// (<see cref="Text"/>, desktop client), plus the attribution footer YouTube returns alongside
+/// either of them (e.g. <c>"Source: Musixmatch"</c>).
 /// </summary>
-/// <param name="Text">The lyric body, newline separated. Never empty when a value is produced.</param>
+/// <param name="Text">The plain lyric body, newline separated, or <c>null</c>.</param>
+/// <param name="TimedLines">Timed lines when the response carried cue ranges, else <c>null</c>.</param>
 /// <param name="Attribution">
-/// YouTube's own footer line (the licensor credit), or <c>null</c> when the response carried none.
+/// YouTube's own footer / <c>sourceMessage</c> (the licensor credit YouTube requires be shown), or
+/// <c>null</c> when the response carried none.
 /// </param>
-public sealed record YouTubeMusicLyrics(string Text, string? Attribution);
+public sealed record YouTubeMusicLyrics(
+    string? Text,
+    IReadOnlyList<SyncedLyricLine>? TimedLines,
+    string? Attribution)
+{
+    /// <summary>Convenience ctor for the plain-text (desktop client) shape.</summary>
+    public YouTubeMusicLyrics(string? text, string? attribution)
+        : this(text, null, attribution)
+    {
+    }
+
+    /// <summary>Whether the payload carries per-line timings (karaoke-capable).</summary>
+    public bool HasTimings => TimedLines is { Count: > 0 };
+
+    /// <summary>Whether the payload carries nothing usable at all.</summary>
+    public bool IsEmpty => !HasTimings && string.IsNullOrWhiteSpace(Text);
+}
 
 /// <summary>
 /// Pure parsers for the YouTube Music (InnerTube) lyrics surface, which is a two-step lookup:
@@ -21,8 +43,14 @@ public sealed record YouTubeMusicLyrics(string Text, string? Attribution);
 ///   <item><c>browse</c> on that id returns a <c>musicDescriptionShelfRenderer</c> whose
 ///   <c>description</c> holds the plain lyric text and whose <c>footer</c> holds the source credit.</item>
 /// </list>
-/// These lyrics are <b>plain text</b> — YouTube Music does not expose line timings here — so they
-/// only ever feed the plain (fallback) lyric path.
+/// The fidelity of step 2 depends on which InnerTube client asks:
+/// <list type="bullet">
+///   <item><b>WEB_REMIX</b> (desktop) → <c>musicDescriptionShelfRenderer</c>, plain untimed text.</item>
+///   <item><b>ANDROID_MUSIC</b> → <c>timedLyricsModel.lyricsData.timedLyricsData</c>, one entry per
+///   line with a <c>cueRange</c> carrying <c>startTimeMilliseconds</c>/<c>endTimeMilliseconds</c>.</item>
+/// </list>
+/// Both shapes were captured from live responses on 2026-07-22 (browseId <c>MPLYt…</c>); the
+/// parsers below are written against those captures, not against guesses.
 /// </summary>
 /// <remarks>
 /// Every method is <c>static</c>, deterministic, and resilient: a reshuffled, partial, or entirely
@@ -95,6 +123,85 @@ public static class YouTubeMusicLyricsParser
     }
 
     /// <summary>
+    /// Parses a lyrics <c>browse</c> response at the best fidelity it carries: timed lines when
+    /// present (Android Music client), otherwise the plain description shelf (desktop client).
+    /// Returns <c>null</c> when the response carries neither — including YouTube's own
+    /// "Lyrics not available" message payload.
+    /// </summary>
+    /// <param name="browseResponse">The parsed <c>browse</c> response root.</param>
+    public static YouTubeMusicLyrics? Parse(JsonNode? browseResponse) =>
+        ParseTimedLyrics(browseResponse) ?? ParseLyrics(browseResponse);
+
+    /// <summary>
+    /// Extracts per-line timed lyrics from an <b>Android Music client</b> lyrics <c>browse</c>
+    /// response, or <c>null</c> when the response carries no <c>timedLyricsModel</c> (which is what
+    /// a desktop-client response, a stale pinned client version, or a track without synced lyrics
+    /// all look like).
+    /// </summary>
+    /// <param name="browseResponse">The parsed <c>browse</c> response root.</param>
+    public static YouTubeMusicLyrics? ParseTimedLyrics(JsonNode? browseResponse)
+    {
+        if (browseResponse is null)
+        {
+            return null;
+        }
+
+        // Live shape: contents.elementRenderer.newElement.type.componentType.model.timedLyricsModel
+        //             .lyricsData.{ timedLyricsData[], sourceMessage }
+        // Searched by key rather than by path so the element wrapper chain can be reshuffled.
+        var lyricsData = ResponseTreeSearch.FindFirst(browseResponse, "timedLyricsModel") is { } model
+            ? ResponseTreeSearch.FindFirst(model, "lyricsData")
+            : null;
+
+        if (lyricsData is null || ResponseTreeSearch.FindFirst(lyricsData, "timedLyricsData") is not JsonArray entries)
+        {
+            return null;
+        }
+
+        var lines = new List<SyncedLyricLine>(entries.Count);
+        foreach (var entry in entries)
+        {
+            if (entry is not JsonObject e)
+            {
+                continue;
+            }
+
+            var text = ReadString(e, "lyricLine");
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                continue;
+            }
+
+            // Cue times arrive as decimal STRINGS ("11180"), not numbers.
+            var cue = e["cueRange"] as JsonObject;
+            var start = ReadMilliseconds(cue, "startTimeMilliseconds");
+            if (start is null)
+            {
+                continue;
+            }
+
+            var end = ReadMilliseconds(cue, "endTimeMilliseconds");
+            lines.Add(new SyncedLyricLine
+            {
+                TimeInMs = start.Value,
+                Duration = end is { } e2 && e2 > start.Value ? e2 - start.Value : 0,
+                Text = text.Trim(),
+            });
+        }
+
+        if (lines.Count == 0)
+        {
+            return null;
+        }
+
+        var attribution = ReadString(lyricsData as JsonObject, "sourceMessage");
+        return new YouTubeMusicLyrics(
+            Text: null,
+            TimedLines: lines,
+            Attribution: string.IsNullOrWhiteSpace(attribution) ? null : attribution.Trim());
+    }
+
+    /// <summary>
     /// Extracts the plain lyric text (and YouTube's own attribution footer) from a lyrics
     /// <c>browse</c> response, or <c>null</c> when the response carries no usable lyric text.
     /// </summary>
@@ -121,7 +228,32 @@ public static class YouTubeMusicLyricsParser
         var footer = ReadText(shelf, "footer");
         return new YouTubeMusicLyrics(
             Normalize(text),
+            TimedLines: null,
             string.IsNullOrWhiteSpace(footer) ? null : footer.Trim());
+    }
+
+    /// <summary>Reads <c>node[key]</c> as a plain JSON string, or <c>null</c>.</summary>
+    private static string? ReadString(JsonObject? node, string key) =>
+        node?[key] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+
+    /// <summary>
+    /// Reads a cue timestamp. YouTube sends these as decimal strings; a numeric value is accepted
+    /// too so a future shape change to real numbers does not silently drop every line.
+    /// </summary>
+    private static int? ReadMilliseconds(JsonObject? cue, string key)
+    {
+        if (cue?[key] is not JsonValue value)
+        {
+            return null;
+        }
+
+        if (value.TryGetValue<string>(out var text)
+            && long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return (int)Math.Clamp(parsed, 0, int.MaxValue);
+        }
+
+        return value.TryGetValue<long>(out var number) ? (int)Math.Clamp(number, 0, int.MaxValue) : null;
     }
 
     // ── internals ───────────────────────────────────────────────────────────────────────

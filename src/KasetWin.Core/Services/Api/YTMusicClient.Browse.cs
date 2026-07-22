@@ -445,6 +445,70 @@ public sealed partial class YTMusicClient
         return RequestAsync("browse", BrowseBody(browseId), ttl: null, ct);
     }
 
+    /// <summary>
+    /// Raw <c>browse</c> with an explicit InnerTube client identity, for exploring surfaces that only
+    /// one client is served — time-synced lyrics being the reason this exists. Uncached, like
+    /// <see cref="BrowseRawAsync(string, CancellationToken)"/>.
+    /// </summary>
+    /// <param name="browseId">The InnerTube browse id.</param>
+    /// <param name="clientName">InnerTube <c>clientName</c>, e.g. <c>ANDROID_MUSIC</c>.</param>
+    /// <param name="clientVersion">The <c>clientVersion</c> that goes with it; a mismatch is rejected.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public Task<JsonNode> BrowseRawAsync(
+        string browseId,
+        string clientName,
+        string clientVersion,
+        IReadOnlyDictionary<string, string>? clientExtras = null,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(browseId);
+        ArgumentException.ThrowIfNullOrEmpty(clientName);
+        ArgumentException.ThrowIfNullOrEmpty(clientVersion);
+        return RequestAsync(
+            "browse",
+            BrowseBody(browseId),
+            ttl: null,
+            ct,
+            clientVersionOverride: clientVersion,
+            clientNameOverride: clientName,
+            clientExtras: clientExtras);
+    }
+
+    /// <summary>
+    /// Raw <c>next</c> for a videoId — the watch-page response that carries the tab list (including
+    /// the Lyrics tab and its browse id). Uncached; for the API Explorer.
+    /// </summary>
+    public Task<JsonNode> NextRawAsync(string videoId, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(videoId);
+        return RequestAsync("next", new JsonObject { ["videoId"] = videoId }, ttl: null, ct);
+    }
+
+    /// <summary>
+    /// Raw <c>next</c> under an explicit client identity. The client matters beyond formatting: the
+    /// lyrics browse id handed out by <c>next</c> differs per client, and only the one issued to a
+    /// mobile music client can serve time-synced lyrics. Uncached; for the API Explorer.
+    /// </summary>
+    public Task<JsonNode> NextRawAsync(
+        string videoId,
+        string clientName,
+        string clientVersion,
+        IReadOnlyDictionary<string, string>? clientExtras = null,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(videoId);
+        ArgumentException.ThrowIfNullOrEmpty(clientName);
+        ArgumentException.ThrowIfNullOrEmpty(clientVersion);
+        return RequestAsync(
+            "next",
+            new JsonObject { ["videoId"] = videoId },
+            ttl: null,
+            ct,
+            clientVersionOverride: clientVersion,
+            clientNameOverride: clientName,
+            clientExtras: clientExtras);
+    }
+
     // ── Body helpers ────────────────────────────────────────────────────────────────────
 
     /// <summary>Builds a <c>{ "browseId": ... }</c> request body.</summary>

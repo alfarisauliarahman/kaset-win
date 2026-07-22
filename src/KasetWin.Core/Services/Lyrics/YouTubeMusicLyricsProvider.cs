@@ -15,15 +15,18 @@ namespace KasetWin.Core.Services.Lyrics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// These lyrics are <b>plain text</b>: YouTube Music exposes no line timings here. The provider
-/// therefore always returns <see cref="LyricResult.Plain"/>, never <see cref="LyricResult.Synced"/>,
-/// and must be registered <b>after</b> the synced providers so the
-/// <c>synced → plain</c> priority in <see cref="LyricsService"/> keeps karaoke-style lyrics winning.
+/// Returns <see cref="LyricResult.Synced"/> when YouTube Music serves per-line cue ranges (the
+/// Android Music client path in <c>YTMusicClient.Lyrics.cs</c>) and <see cref="LyricResult.Plain"/>
+/// when only untimed text is available. Because it can produce synced lyrics it is registered
+/// <b>first</b> among the lyric providers: the lookup is keyed on the exact <c>videoId</c>, so it
+/// cannot mismatch the way a fuzzy title/artist search against LRCLib or NetEase can, and the text
+/// is the licensed label copy.
 /// </para>
 /// <para>
-/// YouTube returns its own attribution footer ("Source: …"); it is appended to the text so the
-/// licensor credit YouTube requires stays visible. Any miss, transport fault, or unparsable payload
-/// maps to <see cref="LyricResult.Unavailable"/> — the provider never throws for "no lyrics".
+/// YouTube returns its own attribution ("Source: Musixmatch" / "Source: LyricFind"); it is kept as
+/// the last line so the licensor credit YouTube requires stays visible. Any miss, transport fault,
+/// or unparsable payload maps to <see cref="LyricResult.Unavailable"/> — the provider never throws
+/// for "no lyrics".
 /// </para>
 /// </remarks>
 public sealed class YouTubeMusicLyricsProvider : ILyricsProvider
@@ -85,18 +88,39 @@ public sealed class YouTubeMusicLyricsProvider : ILyricsProvider
     }
 
     /// <summary>
-    /// Maps the raw InnerTube payload onto a <see cref="LyricResult"/>: plain text plus YouTube's
-    /// own attribution footer, or unavailable when there is no usable text.
+    /// Maps the raw InnerTube payload onto a <see cref="LyricResult"/>: synced when the response
+    /// carried cue ranges, plain when it carried only text, unavailable when it carried neither.
+    /// YouTube's attribution is kept as the trailing line in both shapes.
     /// </summary>
     internal static LyricResult Map(YouTubeMusicLyrics? lyrics)
     {
-        if (lyrics is null || string.IsNullOrWhiteSpace(lyrics.Text))
+        if (lyrics is null || lyrics.IsEmpty)
         {
             return new LyricResult.Unavailable();
         }
 
+        if (lyrics.TimedLines is { Count: > 0 } timed)
+        {
+            var lines = new List<SyncedLyricLine>(timed.Count + 1);
+            lines.AddRange(timed);
+
+            // The credit is timed just past the final lyric, where YouTube itself shows it: it can
+            // never steal the highlight from a line that is still being sung.
+            if (!string.IsNullOrWhiteSpace(lyrics.Attribution))
+            {
+                var last = timed[^1];
+                lines.Add(new SyncedLyricLine
+                {
+                    TimeInMs = last.TimeInMs + Math.Max(last.Duration, 1),
+                    Text = lyrics.Attribution,
+                });
+            }
+
+            return new LyricResult.Synced(new SyncedLyrics(lines, ProviderName));
+        }
+
         var text = string.IsNullOrWhiteSpace(lyrics.Attribution)
-            ? lyrics.Text
+            ? lyrics.Text!
             : lyrics.Text + "\n\n" + lyrics.Attribution;
 
         return new LyricResult.Plain(new PlainLyrics(text, ProviderName));

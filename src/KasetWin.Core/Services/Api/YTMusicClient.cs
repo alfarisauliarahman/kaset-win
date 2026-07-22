@@ -183,6 +183,8 @@ public sealed partial class YTMusicClient : IYTMusicClient
         CancellationToken ct,
         string? glOverride = null,
         string? clientVersionOverride = null,
+        string? clientNameOverride = null,
+        IReadOnlyDictionary<string, string>? clientExtras = null,
         Func<JsonNode, bool>? shouldCache = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(endpoint);
@@ -196,10 +198,31 @@ public sealed partial class YTMusicClient : IYTMusicClient
 
         // Optional client overrides (e.g. podcasts, a surface the pinned 2023 WEB_REMIX version
         // 404s — a newer clientVersion unlocks it). gl/hl pin the region; clientVersion the build.
-        if ((glOverride is not null || clientVersionOverride is not null)
+        if ((glOverride is not null || clientVersionOverride is not null || clientNameOverride is not null
+                || clientExtras is not null)
             && payload["context"] is JsonObject ctx
             && ctx["client"] is JsonObject client)
         {
+            if (clientExtras is not null)
+            {
+                // Client-specific context fields. A mobile client that omits them (androidSdkVersion,
+                // osName, osVersion) is served the web-shaped response instead of the mobile one, so
+                // they are part of the client identity rather than optional decoration.
+                foreach (var pair in clientExtras)
+                {
+                    client[pair.Key] = pair.Value;
+                }
+            }
+
+            if (clientNameOverride is not null)
+            {
+                // A different InnerTube client entirely. Some surfaces only exist for one client —
+                // time-synced lyrics, for instance, are served to the Android Music client and not to
+                // WEB_REMIX. Always paired with the matching clientVersion by the caller: a client
+                // name with a mismatched version is rejected outright.
+                client["clientName"] = clientNameOverride;
+            }
+
             if (glOverride is not null)
             {
                 // Region only — DON'T pin hl, or YT translates text (e.g. podcast descriptions) to

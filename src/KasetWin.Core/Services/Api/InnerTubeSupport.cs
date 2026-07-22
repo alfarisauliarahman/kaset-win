@@ -54,6 +54,45 @@ public static class InnerTubeSupport
     public const string ClientVersionWeb = "2.20240620.05.00";
 
     /// <summary>
+    /// InnerTube <c>clientName</c> of the Android YouTube Music app. Used for exactly one surface:
+    /// the lyrics browse (see <c>YTMusicClient.Lyrics.cs</c>). The desktop <see cref="ClientNameMusic"/>
+    /// client only ever receives plain, untimed lyrics; the Android Music client receives the same
+    /// lyrics with per-line cue ranges.
+    /// </summary>
+    public const string ClientNameAndroidMusic = "ANDROID_MUSIC";
+
+    /// <summary>
+    /// InnerTube <c>clientVersion</c> paired with <see cref="ClientNameAndroidMusic"/>.
+    /// <para>
+    /// ⚠️ <b>This value goes stale.</b> Verified live on 2026-07-22 against
+    /// <c>browse MPLYt…</c>: <c>7.21.50</c> → timed lyrics; <c>6.33.52</c> → the plain description
+    /// shelf (a silent downgrade, not an error); <c>5.01</c> → HTTP 400; a fabricated <c>9.99.99</c>
+    /// → HTTP 404. Every one of those outcomes must degrade to plain text, never to "no lyrics" —
+    /// that is why the lyrics call always has a WEB_REMIX fallback behind it. Do not bump this
+    /// blindly; re-verify with a real request first (same rule as <see cref="ClientVersionMusic"/>).
+    /// </para>
+    /// </summary>
+    public const string ClientVersionAndroidMusic = "7.21.50";
+
+    /// <summary>
+    /// The <c>context.client</c> fields that turn a music request into an Android Music request.
+    /// Merged over the standard music context by the request core, so cookies, origin, and
+    /// <c>SAPISIDHASH</c> handling stay exactly as they are for every other endpoint.
+    /// </summary>
+    /// <remarks>
+    /// These are part of the client identity, not decoration: an <c>ANDROID_MUSIC</c> request that
+    /// omits them is served the web-shaped (plain) response.
+    /// </remarks>
+    public static IReadOnlyDictionary<string, string> AndroidMusicClientExtras { get; } =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["androidSdkVersion"] = "34",
+            ["osName"] = "Android",
+            ["osVersion"] = "14",
+            ["platform"] = "MOBILE",
+        };
+
+    /// <summary>
     /// Computes the <c>SAPISIDHASH</c> authorization value for a request.
     /// </summary>
     /// <param name="unixSeconds">The request timestamp in Unix seconds.</param>

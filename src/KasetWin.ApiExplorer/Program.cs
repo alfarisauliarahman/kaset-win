@@ -44,6 +44,7 @@ internal static class ApiExplorerCli
                 "auth" => await RunAuthAsync(options).ConfigureAwait(false),
                 "list" => RunList(),
                 "browse" => await RunBrowseAsync(options).ConfigureAwait(false),
+                "lyrics" => await RunLyricsAsync(options).ConfigureAwait(false),
                 "-h" or "--help" or "help" => PrintUsageAndOk(),
                 _ => UnknownCommand(command),
             };
@@ -157,6 +158,249 @@ internal static class ApiExplorerCli
         }
 
         return 0;
+    }
+
+    // ── lyrics ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// InnerTube clients worth trying for lyrics. WEB_REMIX is what the app already speaks and
+    /// serves plain text; the Android Music client is the one reported to serve time-synced lyrics.
+    /// Versions are pinned per client because InnerTube rejects a name/version mismatch outright.
+    /// </summary>
+    private static readonly (string Label, string? Name, string? Version, Dictionary<string, string>? Extras)[] LyricsClients =
+    [
+        ("WEB_REMIX (what Kaset uses today)", null, null, null),
+        ("ANDROID_MUSIC 6.33.52 (bare)", "ANDROID_MUSIC", "6.33.52", null),
+        ("ANDROID_MUSIC 6.33.52 + android context", "ANDROID_MUSIC", "6.33.52", AndroidContext),
+        ("ANDROID_MUSIC 7.21.50 + android context", "ANDROID_MUSIC", "7.21.50", AndroidContext),
+        ("IOS_MUSIC 6.33.3 + ios context", "IOS_MUSIC", "6.33.3", IosContext),
+    ];
+
+    /// <summary>
+    /// Context fields a real Android Music client sends. Without them YouTube answers a mobile
+    /// clientName with the web-shaped response, so they are part of the identity, not decoration.
+    /// </summary>
+    private static readonly Dictionary<string, string> AndroidContext = new()
+    {
+        ["androidSdkVersion"] = "30",
+        ["osName"] = "Android",
+        ["osVersion"] = "11",
+        ["platform"] = "MOBILE",
+    };
+
+    private static readonly Dictionary<string, string> IosContext = new()
+    {
+        ["osName"] = "iOS",
+        ["osVersion"] = "16.6.0.20G75",
+        ["deviceModel"] = "iPhone14,3",
+        ["platform"] = "MOBILE",
+    };
+
+    /// <summary>
+    /// Explores the lyrics surface for a videoId: resolves the Lyrics tab's browse id from
+    /// <c>next</c>, then browses it once per candidate client and reports which shapes come back.
+    /// The question it exists to answer is whether any client returns per-line timings — so it
+    /// looks explicitly for timing-shaped keys rather than only dumping the tree.
+    /// </summary>
+    private static async Task<int> RunLyricsAsync(CliOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(options.Positional))
+        {
+            Console.Error.WriteLine("Error: 'lyrics' requires a videoId. Example: lyrics BiQIc7fG9pA -v");
+            return 1;
+        }
+
+        var videoId = options.Positional;
+        var cookieSource = CliCookieSource.FromRuntime(options.CookiePath, options.AuthUser, options.Brand);
+
+        using var http = YTMusicClient.CreateConfiguredHttpClient();
+        var client = new YTMusicClient(http, cookieSource, new ApiCache(), new ExponentialBackoffRetryPolicy());
+
+        Console.WriteLine($"lyrics {Redactor.Redact(videoId)}");
+        Console.WriteLine($"  auth: {(cookieSource.CanResolveSapisid ? "yes" : "no (public)")}");
+        Console.WriteLine();
+
+        // The whole flow is repeated per client, deliberately: the lyrics browse id itself is issued
+        // by `next`, and asking a different client can yield a different id. Browsing a WEB_REMIX id
+        // as an Android client only proves that one id is plain — not that the surface is.
+        foreach (var (label, name, version, extras) in LyricsClients)
+        {
+            Console.WriteLine($"  ── {label} ──");
+            try
+            {
+                var next = name is null || version is null
+                    ? await client.NextRawAsync(videoId).ConfigureAwait(false)
+                    : await client.NextRawAsync(videoId, name, version, extras).ConfigureAwait(false);
+
+                var lyricsBrowseId = FindLyricsBrowseId(next, options.Verbose);
+                if (lyricsBrowseId is null)
+                {
+                    Console.WriteLine("    no selectable lyrics tab (MPLY...) for this client");
+                    Console.WriteLine();
+                    continue;
+                }
+
+                Console.WriteLine($"    browseId: {lyricsBrowseId}");
+
+                var node = name is null || version is null
+                    ? await client.BrowseRawAsync(lyricsBrowseId).ConfigureAwait(false)
+                    : await client.BrowseRawAsync(lyricsBrowseId, name, version, extras).ConfigureAwait(false);
+
+                ReportLyricsShape(node, options.Verbose);
+            }
+            catch (KasetError ex)
+            {
+                Console.WriteLine($"    failed [{ex.Kind}]: {Truncate(Redactor.Redact(ex.Message), 90)}");
+            }
+
+            Console.WriteLine();
+        }
+
+        return 0;
+    }
+
+    /// <summary>Finds the selectable Lyrics tab's browse id in a <c>next</c> response.</summary>
+    private static string? FindLyricsBrowseId(JsonNode next, bool verbose)
+    {
+        string? lyricsBrowseId = null;
+        foreach (var tab in CollectRenderers(next, "tabRenderer"))
+        {
+            var title = tab?["title"]?.ToString() ?? tab?["endpoint"]?["browseEndpoint"]?["browseId"]?.ToString();
+            var id = tab?["endpoint"]?["browseEndpoint"]?["browseId"]?.ToString();
+            var unselectable = tab?["unselectable"]?.GetValue<bool>() == true;
+
+            if (verbose)
+            {
+                Console.WriteLine($"      tab {Truncate(title ?? "(untitled)", 24),-26} id={id ?? "-"}{(unselectable ? "  [unselectable]" : string.Empty)}");
+            }
+
+            if (!unselectable && id is not null && id.StartsWith("MPLY", StringComparison.Ordinal))
+            {
+                lyricsBrowseId ??= id;
+            }
+        }
+
+        return lyricsBrowseId;
+    }
+
+    /// <summary>
+    /// Summarizes one lyrics response: which renderers it used, whether any timing-shaped data is
+    /// present, and a sample of the text. Timing keys are searched for by name because that is the
+    /// whole question — plain text is easy to recognize, timings are what we are hunting.
+    /// </summary>
+    private static void ReportLyricsShape(JsonNode node, bool verbose)
+    {
+        var histogram = BuildRendererHistogram(node);
+        Console.WriteLine($"    renderers: {string.Join(", ", histogram.OrderByDescending(p => p.Value).Take(5).Select(p => $"{p.Key}×{p.Value}"))}");
+
+        string[] timingKeys =
+        [
+            "timedLyricsData", "cueRange", "startTimeMs", "endTimeMs", "lyricLine",
+            "timedLyrics", "syncedLyrics", "lyricsData", "timedLyricsModel",
+            "elementRenderer", "musicTimedLyrics", "lyricsModel", "cueGroup",
+        ];
+
+        var found = timingKeys.Where(k => ContainsKey(node, k)).ToList();
+        Console.WriteLine(found.Count > 0
+            ? $"    TIMING KEYS FOUND: {string.Join(", ", found)}"
+            : "    timing keys: none");
+
+        // The decisive detail: the timed model can come back with lines but NO cueRange, which means
+        // the track simply has no synced version. Distinguish "surface unsupported" from
+        // "this song is unsynced", because they call for completely different conclusions.
+        foreach (var data in CollectRenderers(node, "timedLyricsData"))
+        {
+            if (data is not JsonArray lines)
+            {
+                continue;
+            }
+
+            var withCues = lines.Count(l => l?["cueRange"] is not null);
+            Console.WriteLine($"    timed lines: {lines.Count}, with cueRange: {withCues}");
+            if (lines.FirstOrDefault(l => l?["cueRange"] is not null) is { } sample)
+            {
+                Console.WriteLine($"    sample     : {Truncate(Redactor.Redact(sample.ToJsonString()), 200)}");
+            }
+        }
+
+        foreach (var shelf in CollectRenderers(node, "musicDescriptionShelfRenderer"))
+        {
+            var text = shelf?["description"]?["runs"]?[0]?["text"]?.ToString()
+                ?? shelf?["description"]?["simpleText"]?.ToString();
+            var footer = shelf?["footer"]?["runs"]?[0]?["text"]?.ToString()
+                ?? shelf?["footer"]?["simpleText"]?.ToString();
+            Console.WriteLine($"    text  : {Truncate(Redactor.Redact(text ?? "(none)").ReplaceLineEndings(" / "), 90)}");
+            Console.WriteLine($"    footer: {Truncate(Redactor.Redact(footer ?? "(none)"), 60)}");
+        }
+
+        if (verbose)
+        {
+            PrintCompactJson(node);
+        }
+    }
+
+    /// <summary>Depth-first search for any object carrying <paramref name="key"/>.</summary>
+    private static bool ContainsKey(JsonNode? node, string key)
+    {
+        switch (node)
+        {
+            case JsonObject obj:
+                foreach (var pair in obj)
+                {
+                    if (string.Equals(pair.Key, key, StringComparison.Ordinal) || ContainsKey(pair.Value, key))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            case JsonArray arr:
+                foreach (var item in arr)
+                {
+                    if (ContainsKey(item, key))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>Collects every object nested under a named renderer key.</summary>
+    private static List<JsonNode?> CollectRenderers(JsonNode? node, string rendererKey)
+    {
+        var found = new List<JsonNode?>();
+        Walk(node);
+        return found;
+
+        void Walk(JsonNode? current)
+        {
+            switch (current)
+            {
+                case JsonObject obj:
+                    foreach (var pair in obj)
+                    {
+                        if (string.Equals(pair.Key, rendererKey, StringComparison.Ordinal))
+                        {
+                            found.Add(pair.Value);
+                        }
+
+                        Walk(pair.Value);
+                    }
+
+                    break;
+                case JsonArray arr:
+                    foreach (var item in arr)
+                    {
+                        Walk(item);
+                    }
+
+                    break;
+            }
+        }
     }
 
     private static void PrintTypedSummary(string browseId, JsonNode node)
@@ -323,6 +567,9 @@ internal static class ApiExplorerCli
         Console.WriteLine("  auth   [--cookies <path>] [--authuser <n>] [--brand <id>]");
         Console.WriteLine("  list");
         Console.WriteLine("  browse <id> [-v] [--cookies <path>] [--authuser <n>] [--brand <id>]");
+        Console.WriteLine("  lyrics <videoId> [-v] [--cookies <path>]");
+        Console.WriteLine("         Resolves the Lyrics tab for a track and browses it once per");
+        Console.WriteLine("         InnerTube client, reporting which (if any) return timings.");
         Console.WriteLine();
         Console.WriteLine("Cookies (for authenticated endpoints) are supplied at runtime via:");
         Console.WriteLine("  - the KASET_COOKIE environment variable (raw Cookie header), or");
