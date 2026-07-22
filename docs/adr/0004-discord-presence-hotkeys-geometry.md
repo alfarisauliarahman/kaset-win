@@ -33,10 +33,36 @@ wrong in a way that is invisible until someone else uses the app:
 (id 2) alongside the minimum-size subclass in `MainWindowLayout`. Off by default. A combination that
 fails to register is skipped individually.
 
-### Window geometry: saved on close, validated on restore
+### Window geometry: frame **and** maximised state, saved on close, validated on restore
 
 Saved in `OnAppWindowClosing`, restored in `MainWindowLayout.Configure`, guarded on both ends
 (see ADR 0003 for the mini-player interaction).
+
+Persisted value: `x,y,width,height,maximized` in `window.geometry`. Four-field values written by
+earlier builds still parse, as not-maximised.
+
+- **A maximised window reopens maximised.** The first implementation persisted geometry only when
+  the presenter state was `Restored`, on the theory that "what should be restored is the size the
+  user chose, not the state". That was wrong: on Windows a maximised window is expected to reopen
+  maximised, and skipping the save also meant a maximise-then-quit silently kept whatever stale frame
+  was saved before. The state is now stored beside the frame.
+- **The frame stored beside it is always the *restored* frame, never the maximised one.**
+  `AppWindow.Size`/`Position` report the live frame, which while maximised is the whole work area.
+  Storing that would hand the user a work-area-sized "restored" window the moment they un-maximise.
+  The restored frame is only available from Win32 `GetWindowPlacement` → `rcNormalPosition`, so
+  `SaveGeometry` reads it there when maximised.
+- **`Minimized` is still never saved** (the frame is meaningless), and neither is mini-player mode —
+  `CompactOverlay` is not an `OverlappedPresenter` at all, so the presenter type check already
+  excludes it, and the close-from-mini-player path passes an `overrideFrame` instead (ADR 0003).
+- **`IsFrameVisibleOnAnyDisplay` still gates the frame**, maximised or not. The restored frame under
+  a maximised window is exactly what the user gets when they un-maximise, so it can still strand a
+  window on a monitor that was unplugged. The maximise itself is applied even when the frame is
+  rejected and the default size is used instead: a maximised window always lands on an attached
+  display, so it cannot go off-screen.
+- **A trip to the tray must not un-maximise.** `BringToForeground` used to call
+  `OverlappedPresenter.Restore()` unconditionally to undo a minimise; on a maximised window that
+  threw the maximised state away, so ✕-then-reopen quietly downgraded it before anything could be
+  persisted. It now calls `Restore()` only when the state is actually `Minimized`.
 
 ## Rationale for the parts that look arbitrary
 

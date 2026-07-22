@@ -82,6 +82,8 @@ public sealed partial class NowPlayingPanel : UserControl
         QueueTabs.SizeChanged += (_, _) => DisableSelectorBarScrolling();
 
         Lyrics.ActiveLineChanged += OnActiveLineChanged;
+        // The "Sumber: …" attribution follows whichever provider answered the current lookup.
+        Lyrics.PropertyChanged += OnLyricsVmPropertyChanged;
         if (_controller is not null)
         {
             _controller.Changed += OnControllerChanged;
@@ -166,6 +168,14 @@ public sealed partial class NowPlayingPanel : UserControl
         else if (IsQueue)
         {
             await EnsureUpNextFilledAsync();
+        }
+    }
+
+    private void OnLyricsVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(LyricsViewModel.ActiveProvider) or null or "")
+        {
+            DispatcherQueue.TryEnqueue(() => this.Bindings.Update());
         }
     }
 
@@ -299,6 +309,28 @@ public sealed partial class NowPlayingPanel : UserControl
 
     /// <summary>Whether the CC track picker applies (lyrics mode + podcast episode).</summary>
     public bool ShowCcPicker => IsLyrics && _player?.CurrentTrack?.IsPodcastEpisode == true;
+
+    // ── Lyrics provider attribution ("Sumber: …") ─────────────────────────────────────────────
+
+    /// <summary>
+    /// SINGLE HOOK-UP POINT for the lyrics provider name. It currently reads
+    /// <c>ILyricsService.ActiveProvider</c> as mirrored by <see cref="LyricsViewModel.ActiveProvider"/>
+    /// (the label of whichever provider answered: LRCLib / NetEase / YouTube captions). If Core moves
+    /// the provider name onto the lyric result itself, change ONLY this expression — the two
+    /// properties below and the XAML binding stay as they are.
+    /// </summary>
+    private string? LyricsProviderName => Lyrics.ActiveProvider;
+
+    /// <summary>Whether a provider name is known and the attribution line should render.</summary>
+    public bool HasLyricsSource => !string.IsNullOrWhiteSpace(LyricsProviderName);
+
+    /// <summary>Localized "Sumber: &lt;provider&gt;" / "Source: &lt;provider&gt;" attribution line.</summary>
+    public string LyricsSourceText => HasLyricsSource
+        ? string.Format(
+            System.Globalization.CultureInfo.CurrentCulture,
+            Localization.UiStrings.LyricsSourceFormat,
+            LyricsProviderName)
+        : string.Empty;
 
     /// <summary>Builds the CC menu on open: Nonaktif + every caption track of the current video.</summary>
     private async void OnCcFlyoutOpening(object? sender, object e)
@@ -479,6 +511,7 @@ public sealed partial class NowPlayingPanel : UserControl
     {
         Unloaded -= OnUnloaded;
         Lyrics.ActiveLineChanged -= OnActiveLineChanged;
+        Lyrics.PropertyChanged -= OnLyricsVmPropertyChanged;
         Queue.PropertyChanged -= OnQueueVmPropertyChanged;
         if (_player is not null)
         {

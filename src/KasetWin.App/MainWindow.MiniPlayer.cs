@@ -50,6 +50,49 @@ public sealed partial class MainWindow
     /// </summary>
     internal RectInt32? FrameBeforeMiniPlayer => _frameBeforeMini;
 
+    /// <summary>
+    /// Set when the window was hidden to the tray while compact: mini-player mode still has to be
+    /// left (the tray reopens this same window), but not while it is hidden — see
+    /// <see cref="DeferMiniPlayerExitWhileHidden"/>.
+    /// </summary>
+    private bool _miniPlayerExitPending;
+
+    /// <summary>
+    /// Marks mini-player mode as "leave this before the window is shown again", without touching the
+    /// presenter, the chrome or the frame right now.
+    /// </summary>
+    /// <remarks>
+    /// Called from the close-to-tray path. Both of the obvious orderings there are visibly broken:
+    /// leaving mini-player mode <em>before</em> <c>AppWindow.Hide()</c> lets the user watch the window
+    /// grow back to full size, and doing it <em>after</em> is worse — <c>SetPresenter</c> and
+    /// <c>MoveAndResize</c> re-show the hidden window, so it flashes back (full screen, then a jump to
+    /// the top-left) before it finally disappears. Nothing that resizes a window is invisible, so the
+    /// work is deferred to the moment the window is about to become visible again, where the user is
+    /// expecting it to change anyway.
+    /// </remarks>
+    internal void DeferMiniPlayerExitWhileHidden()
+    {
+        if (_isMiniPlayer)
+        {
+            _miniPlayerExitPending = true;
+        }
+    }
+
+    /// <summary>
+    /// Performs a deferred mini-player exit. Must be called while the window is still hidden and
+    /// immediately before showing it, so the presenter switch and the frame restore never paint.
+    /// </summary>
+    internal void CompleteDeferredMiniPlayerExit()
+    {
+        if (!_miniPlayerExitPending)
+        {
+            return;
+        }
+
+        _miniPlayerExitPending = false;
+        ExitMiniPlayer();
+    }
+
     /// <summary>Flips into or out of mini-player mode. Safe to call when the AppWindow is unavailable.</summary>
     internal void ToggleMiniPlayer()
     {
@@ -158,6 +201,7 @@ public sealed partial class MainWindow
 
         _sidePanelModeBeforeMini = Controls.SidePanelMode.None;
         _isMiniPlayer = false;
+        _miniPlayerExitPending = false;
     }
 
     /// <summary>Scales a logical pixel value by the window's current DPI.</summary>

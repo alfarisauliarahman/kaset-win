@@ -58,6 +58,18 @@ public sealed class WebViewEnvironmentProvider
         var options = new CoreWebView2EnvironmentOptions
         {
             AreBrowserExtensionsEnabled = true,
+
+            // Stop the embedded Chromium from claiming the keyboard's hardware media keys.
+            //
+            // The playback page holds a live media session, and Chromium handles ⏯/⏭/⏮ itself
+            // whenever it does — so the key never reaches Kaset's own SMTC registration and "next"
+            // from the keyboard does nothing (or lets YouTube pick the next song behind Kaset's
+            // back, which breaks queue authority). Which of the two sessions Windows routes to
+            // depends on activation order, which is why this behaved intermittently rather than
+            // failing outright. Kaset registers SMTC deliberately (Req 10) and that must be the
+            // only handler. Only the key handling is disabled; the page's media session still
+            // exists, so nothing about playback or DRM changes.
+            AdditionalBrowserArguments = "--disable-features=HardwareMediaKeyHandling",
         };
 
         return await CoreWebView2Environment

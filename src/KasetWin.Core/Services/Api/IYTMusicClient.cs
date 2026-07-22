@@ -98,4 +98,13 @@ public interface IYTMusicClient
     /// (from <see cref="GetPodcastCaptionTracksAsync"/>); <c>null</c> picks creator subs, then ASR.
     /// </summary>
     Task<SyncedLyrics?> GetPodcastCaptionsAsync(string videoId, string? trackBaseUrl = null, CancellationToken ct = default); // player + timedtext (CC)
+
+    // ── Lyrics ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// YouTube Music's own (plain-text, untimed) lyrics for a track: <c>next</c> → the "Lyrics"
+    /// tab's <c>browseId</c> → <c>browse</c>. Returns <c>null</c> when the track has no lyrics tab
+    /// or the response carries no usable text.
+    /// </summary>
+    Task<Parsers.YouTubeMusicLyrics?> GetYouTubeMusicLyricsAsync(string videoId, CancellationToken ct = default);
 }

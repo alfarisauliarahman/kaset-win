@@ -155,6 +155,12 @@ internal static class AppHost
         services.AddSingleton<ILyricsProvider>(static sp => new NetEaseLyricsProvider(
             new HttpClient(),
             sp.GetService<ILogger<NetEaseLyricsProvider>>()));
+        // FALLBACK (must stay after the synced providers above): YouTube Music's own lyrics tab.
+        // Keyed on the videoId, so it covers tracks LRCLib/NetEase miss — but the payload is plain
+        // text with no line timings, so it may only ever fill the "plain" tier.
+        services.AddSingleton<ILyricsProvider>(static sp => new YouTubeMusicLyricsProvider(
+            sp.GetRequiredService<IYTMusicClient>(),
+            sp.GetService<ILogger<YouTubeMusicLyricsProvider>>()));
         // Podcast episodes: YouTube captions (CC) as synced "lyrics" (creator subs > auto/ASR).
         // Registered as its concrete type too: the lyrics panel talks to it directly for the
         // caption-track picker (list tracks / select / off).

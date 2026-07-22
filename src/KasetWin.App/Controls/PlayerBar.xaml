@@ -130,17 +130,26 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Row 0: cover + title + like as ONE tight group, CENTRED above the progress bar
-                     (love sits right next to the title). TrackInfo has a MaxWidth so a long title
-                     clips/marquees instead of stretching the group. -->
-                <StackPanel
+                <!-- Row 0: cover + title + like as ONE group above the progress bar (love sits right
+                     next to the title). Responsive by design: TrackInfo sits in the near-all-star
+                     column, so at the 980px minimum width it SHRINKS (and its marquee scrolls the
+                     title) instead of overflowing and clipping the like button — while the trailing
+                     hair-weight star column soaks up the surplus on a wide window so the group keeps
+                     hugging the cover instead of drifting apart. The column MaxWidth replaces the old
+                     fixed MaxWidth="340" on TrackInfo, which was the truncation culprit. -->
+                <Grid
                     Grid.Row="0"
-                    HorizontalAlignment="Center"
                     VerticalAlignment="Center"
-                    Orientation="Horizontal"
-                    Spacing="10">
+                    ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="1000*" MaxWidth="520" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
                         <!-- Rounded cover; aspect adapts to the track (16:9 for a video, square otherwise) -->
                         <Border
+                            Grid.Column="0"
                             Width="{Binding CurrentTrack, Converter={StaticResource CoverDimension}, ConverterParameter=w}"
                             Height="{Binding CurrentTrack, Converter={StaticResource CoverDimension}, ConverterParameter=h}"
                             VerticalAlignment="Center"
@@ -190,45 +199,53 @@
                         </Border>
                         <controls:TrackInfo
                             x:Name="BarTrackInfo"
-                            MaxWidth="340"
+                            Grid.Column="1"
                             VerticalAlignment="Center"
                             Large="True"
                             ShowAlbum="True"
                             Song="{Binding CurrentTrack}" />
-                        <Border
+                        <!-- LIVE + like + dislike travel together in one Auto column so they stay
+                             right beside the title. -->
+                        <StackPanel
+                            Grid.Column="2"
                             VerticalAlignment="Center"
-                            Padding="6,2"
-                            Background="{ThemeResource SystemFillColorCriticalBrush}"
-                            CornerRadius="4"
-                            Visibility="{Binding IsLive, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock
-                                FontWeight="SemiBold"
-                                Foreground="White"
-                                Text="LIVE"
-                                Style="{StaticResource CaptionTextBlockStyle}" />
-                        </Border>
-                        <Button
-                            x:Name="LikeButton"
-                            AutomationProperties.Name="Like"
-                            VerticalAlignment="Center"
-                            Click="OnLikeClick"
-                            IsEnabled="False"
-                            Style="{StaticResource SubtleButtonStyle}"
-                            ToolTipService.ToolTip="Like">
-                            <FontIcon x:Name="LikeIcon" FontSize="16" Glyph="&#xEB51;" />
-                        </Button>
-                        <!-- Podcast-only: dislike (thumbs down), mirrors YT Music's episode rating. -->
-                        <Button
-                            x:Name="DislikeButton"
-                            AutomationProperties.Name="Dislike"
-                            VerticalAlignment="Center"
-                            Click="OnDislikeClick"
-                            Style="{StaticResource SubtleButtonStyle}"
-                            ToolTipService.ToolTip="Dislike"
-                            Visibility="Collapsed">
-                            <FontIcon x:Name="DislikeIcon" FontSize="16" Glyph="&#xE8E0;" />
-                        </Button>
-                    </StackPanel>
+                            Orientation="Horizontal"
+                            Spacing="6">
+                            <Border
+                                VerticalAlignment="Center"
+                                Padding="6,2"
+                                Background="{ThemeResource SystemFillColorCriticalBrush}"
+                                CornerRadius="4"
+                                Visibility="{Binding IsLive, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock
+                                    FontWeight="SemiBold"
+                                    Foreground="White"
+                                    Text="LIVE"
+                                    Style="{StaticResource CaptionTextBlockStyle}" />
+                            </Border>
+                            <Button
+                                x:Name="LikeButton"
+                                AutomationProperties.Name="Like"
+                                VerticalAlignment="Center"
+                                Click="OnLikeClick"
+                                IsEnabled="False"
+                                Style="{StaticResource SubtleButtonStyle}"
+                                ToolTipService.ToolTip="Like">
+                                <FontIcon x:Name="LikeIcon" FontSize="16" Glyph="&#xEB51;" />
+                            </Button>
+                            <!-- Podcast-only: dislike (thumbs down), mirrors YT Music's episode rating. -->
+                            <Button
+                                x:Name="DislikeButton"
+                                AutomationProperties.Name="Dislike"
+                                VerticalAlignment="Center"
+                                Click="OnDislikeClick"
+                                Style="{StaticResource SubtleButtonStyle}"
+                                ToolTipService.ToolTip="Dislike"
+                                Visibility="Collapsed">
+                                <FontIcon x:Name="DislikeIcon" FontSize="16" Glyph="&#xE8E0;" />
+                            </Button>
+                        </StackPanel>
+                    </Grid>
 
                 <!-- Row 1: progress bar spanning the full card width -->
                 <Grid Grid.Row="1" ColumnSpacing="8">
@@ -289,7 +306,31 @@
                 VerticalAlignment="Center"
                 Style="{StaticResource SubtleButtonStyle}"
                 ToolTipService.ToolTip="Sleep timer">
-                <FontIcon x:Name="SleepTimerIcon" FontSize="16" Glyph="&#xEC46;" />
+                <!--
+                    The moon alone only says "a timer exists", not how long is left. The badge puts
+                    the remaining minutes on the button itself, so the state is readable without
+                    hovering for a tooltip.
+                -->
+                <Grid>
+                    <FontIcon x:Name="SleepTimerIcon" FontSize="16" Glyph="&#xEC46;" />
+                    <Border
+                        x:Name="SleepTimerBadge"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Margin="0,0,-6,-5"
+                        Padding="3,0"
+                        MinWidth="13"
+                        CornerRadius="7"
+                        Visibility="Collapsed"
+                        Background="{ThemeResource AccentFillColorDefaultBrush}">
+                        <TextBlock
+                            x:Name="SleepTimerBadgeText"
+                            FontSize="9"
+                            FontWeight="SemiBold"
+                            HorizontalAlignment="Center"
+                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                    </Border>
+                </Grid>
                 <Button.Flyout>
                     <MenuFlyout x:Name="SleepTimerFlyout" Placement="Top" />
                 </Button.Flyout>

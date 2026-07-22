@@ -70,10 +70,8 @@ manually, which would pause playback the instant they pressed Next.
 - **Closing the window is not closing the window.** Kaset's close button hides the window to the
   tray so background audio continues, and the tray reopens *the same instance*. Mini-player mode is
   window state, so it survives that round trip: without intervention the user gets a 400×150 window
-  with no chrome and no obvious way out. `OnAppWindowClosing` therefore leaves mini-player mode —
-  but **after** `AppWindow.Hide()`, not before. Doing it before is also correct and was the first
-  attempt; it just looks broken, because the window visibly grows back to full size before
-  vanishing. Both orderings "work"; only one of them is acceptable to watch.
+  with no chrome and no obvious way out. The exit therefore has to happen somewhere — but **not
+  during the close**. See the next section: this has regressed twice.
 - Persisted geometry must never be read from the live frame while compact. `SaveGeometry` takes an
   `overrideFrame` so a close from mini-player mode stores the frame captured on the way in
   (`FrameBeforeMiniPlayer`) rather than 400×150.
@@ -82,3 +80,38 @@ manually, which would pause playback the instant they pressed Next.
   back the size the user had chosen.
 - `PlayerService`'s constructor gained a sixth optional parameter. Existing call sites and tests are
   unaffected (it defaults to `null`, which leaves the track-end flow exactly as it was).
+
+## Leaving mini-player mode on close: why it is deferred (2026-07-22, second revision)
+
+Closing to the tray from the mini player must look like nothing happened — the window simply
+disappears. The mini-player exit resizes the window and switches presenters, and **there is no point
+during a close at which that is invisible.** Both obvious orderings were shipped and both were
+rejected by manual testing; recording them here because the naive fix for one is the other:
+
+1. **Exit first, then `AppWindow.Hide()`** (original). Behaviourally correct, visually wrong: the
+   window is still on screen while it grows from 400×150 back to the full frame, so the user watches
+   it inflate and only then vanish. Checklist step 58, round 1.
+2. **`AppWindow.Hide()` first, then exit** (the "fix" for 1). Worse. `AppWindow.SetPresenter` and
+   `MoveAndResize` do not respect the hidden state — switching from `CompactOverlay` back to
+   `Overlapped` re-shows the window. The observed sequence was: window hidden, then a full-screen
+   flash (the presenter switch re-showing before the frame is re-applied), then the compact window
+   snapping to the top-left, and only then the disappearance. Checklist step 58c, round 2.
+
+**Decision: neither — defer the exit to the next show.** `OnAppWindowClosing` calls
+`DeferMiniPlayerExitWhileHidden()`, which only sets a flag; the close then does nothing but
+`Hide()`. `BringToForeground` calls `CompleteDeferredMiniPlayerExit()` **before** `AppWindow.Show()`,
+so the presenter switch, the chrome swap and the frame restore all happen on a still-hidden window
+and inside a single UI-thread turn — no message is pumped between them, so nothing paints. The user
+sees the window disappear instantly, and reopens into the full shell.
+
+Consequences of the deferral:
+
+- `_isMiniPlayer` stays `true` while the window sits in the tray. That is deliberate: it keeps
+  `FrameBeforeMiniPlayer` alive, so a Quit from the tray still persists the pre-shrink frame rather
+  than 400×150.
+- Show paths that bypass `BringToForeground` need a net. `kaset://` protocol activation calls
+  `AppWindow.Show()` directly (`MainWindow.Navigation.cs`), so `OnActivated` also completes a pending
+  exit. On that path the compact window can be visible for a frame before it snaps back — acceptable
+  for a rare path, and far better than stranding the user in chrome-less 400×150.
+- Anything added later that shows this window must call `CompleteDeferredMiniPlayerExit()` first.
+  Do **not** "simplify" this back into the close handler.

@@ -213,8 +213,13 @@ public sealed partial class LyricsService : ObservableObject, ILyricsService
         try
         {
             // A hard deadline: a hung provider must not keep the lookup (and its spinner) alive.
-            return await provider.SearchAsync(info, CancellationToken.None)
+            var result = await provider.SearchAsync(info, CancellationToken.None)
                 .WaitAsync(ProviderTimeout).ConfigureAwait(false);
+
+            // Guarantee attribution: whatever a provider forgot to label is stamped with its Name,
+            // so ActiveProvider (and the "Sumber: …" line the panel renders) is never blank for a
+            // result that actually carries lyrics.
+            return StampSource(result, provider.Name);
         }
         catch (TimeoutException)
         {
@@ -242,6 +247,19 @@ public sealed partial class LyricsService : ObservableObject, ILyricsService
         ActiveProvider = ProviderLabel(result);
         IsLoading = false;
     }
+
+    /// <summary>
+    /// Returns <paramref name="result"/> with its <c>Source</c> set to <paramref name="providerName"/>
+    /// when the provider left it blank. Results that already carry a source are returned unchanged.
+    /// </summary>
+    public static LyricResult StampSource(LyricResult result, string providerName) => result switch
+    {
+        LyricResult.Synced synced when string.IsNullOrWhiteSpace(synced.Lyrics.Source)
+            => new LyricResult.Synced(synced.Lyrics with { Source = providerName }),
+        LyricResult.Plain plain when string.IsNullOrWhiteSpace(plain.Lyrics.Source)
+            => new LyricResult.Plain(plain.Lyrics with { Source = providerName }),
+        _ => result,
+    };
 
     private static string? ProviderLabel(LyricResult result) => result switch
     {

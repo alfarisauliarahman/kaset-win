@@ -265,19 +265,19 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        // Closing does not destroy this window — the tray reopens this same instance. Mini-player
+        // mode therefore has to be left, or reopening hands back a 400×150 window with no chrome and
+        // no obvious way out. It is *not* left here, in either order: doing it before Hide() lets the
+        // user watch the window grow back to full size, and doing it after is worse, because
+        // SetPresenter/MoveAndResize re-show the hidden window (full-screen flash, then a jump to the
+        // top-left) before it finally disappears. The exit is deferred to just before the window is
+        // shown again — see ADR 0003.
+        DeferMiniPlayerExitWhileHidden();
+
         // Keep the app + hidden WebView2 alive so audio continues in the background (Req 1.4), and
         // surface a tray icon so the hidden window can be brought back.
         args.Cancel = true;
         AppWindow.Hide();
-
-        // Closing does not destroy this window — the tray reopens this same instance. Mini-player
-        // mode therefore has to be left, or reopening hands back a 400×150 window with no chrome and
-        // no obvious way out. Done *after* Hide() so the window is already off screen: restoring
-        // first made the window visibly grow back to full size before vanishing.
-        if (_isMiniPlayer)
-        {
-            ExitMiniPlayer();
-        }
 
         MainWindowLayout.SaveGeometry(this, frameToPersist);
         _tray?.Show();
@@ -307,8 +307,16 @@ public sealed partial class MainWindow : Window
         {
             try
             {
+                // If the window was closed to the tray while in the mini player, leave mini-player
+                // mode now — while it is still hidden, so the presenter switch and the frame restore
+                // never paint. Doing it during the close is what produced the visible flash.
+                CompleteDeferredMiniPlayerExit();
+
                 AppWindow.Show();
-                if (AppWindow.Presenter is OverlappedPresenter presenter)
+
+                // Un-minimise only. A maximised window must stay maximised across a trip to the tray,
+                // otherwise the remembered maximised state is thrown away by the first tray restore.
+                if (AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized } presenter)
                 {
                     presenter.Restore();
                 }
@@ -376,7 +384,17 @@ public sealed partial class MainWindow : Window
 
     private void OnActivated(object sender, WindowActivatedEventArgs args)
     {
-        if (_loginEvaluated || args.WindowActivationState == WindowActivationState.Deactivated)
+        if (args.WindowActivationState == WindowActivationState.Deactivated)
+        {
+            return;
+        }
+
+        // Safety net for show paths that do not go through BringToForeground (kaset:// protocol
+        // activation surfaces the window directly): a window closed to the tray while compact must
+        // never come back as a chrome-less 400×150 overlay. No-op when nothing is pending.
+        CompleteDeferredMiniPlayerExit();
+
+        if (_loginEvaluated)
         {
             return;
         }

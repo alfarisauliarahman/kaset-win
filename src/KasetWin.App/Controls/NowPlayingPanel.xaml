@@ -73,8 +73,11 @@
                 <SelectorBarItem x:Name="RelatedTab" Text="Related" />
             </SelectorBar>
 
+            <!-- The lyrics body is padded 20px from the panel edge while this header grid only pads
+                 10px, so the title needs the extra 10px to sit on the same vertical line as the text. -->
             <StackPanel
                 Grid.Column="0"
+                Margin="10,0,0,0"
                 Orientation="Horizontal"
                 Spacing="8"
                 Visibility="{x:Bind IsLyrics, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
@@ -353,6 +356,12 @@
         <Grid
             Grid.Row="1"
             Visibility="{x:Bind IsLyrics, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+            <Grid.RowDefinitions>
+                <!-- Row 0 holds the lyrics body (synced list / plain text / empty state); row 1 is
+                     the provider attribution pinned under it. -->
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <ListView
                 x:Name="LyricsList"
                 AutomationProperties.Name="Lyrics"
@@ -413,6 +422,19 @@
                 TextAlignment="Center"
                 Visibility="{x:Bind Lyrics.ShowEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
                 Style="{StaticResource BodyTextBlockStyle}" />
+
+            <!-- "Sumber: <provider>" — credits whichever lyrics provider answered (LRCLib, NetEase,
+                 YouTube captions). Subdued so it reads as a footnote, not as a lyric line. -->
+            <TextBlock
+                x:Name="LyricsSourceLabel"
+                Grid.Row="1"
+                Margin="20,0,20,12"
+                HorizontalAlignment="Left"
+                Opacity="0.5"
+                Text="{x:Bind LyricsSourceText, Mode=OneWay}"
+                TextWrapping="Wrap"
+                Visibility="{x:Bind HasLyricsSource, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                Style="{StaticResource CaptionTextBlockStyle}" />
         </Grid>
     </Grid>
 </UserControl>

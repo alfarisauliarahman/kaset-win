@@ -677,6 +677,71 @@ Fase:
       tidak membuat jendela terbuka di luar layar (kondisi yang tak bisa dipulihkan pengguna biasa).
     - _Requirements: 42.5, 42.6, 42.7_
 
+### PERBAIKAN DARI PUTARAN UJI MANUAL 2 (2026-07-22)
+
+Semua berasal dari `docs/manual-test-checklist.md` putaran 2. Nomor dalam kurung = nomor langkah uji.
+
+- [x] 39. Otoritas antrean saat berpindah track (#65b)
+  - **GEJALA**: memutar album lalu menekan Next membuat antrean berubah jadi mix, Previous mati, dan
+    track semula tidak bisa diputar ulang.
+  - **SEBAB**: `_expectedVideoId` — penjaga yang seharusnya mengabaikan `STATE_UPDATE` untuk video lain
+    selama perpindahan — dilepas di blok `finally` begitu `LoadVideoAsync` **kembali**. Padahal
+    panggilan itu hanya *memulai* navigasi; YouTube Music masih melaporkan halaman lama beberapa detik
+    setelahnya. Tiap laporan yang lolos ditambahkan ke antrean sebagai riwayat efemeral
+    (`AppendDeduplicated`), lalu indeks aktif dipindah ke situ — itulah "antrean jadi mix".
+  - **PERBAIKAN**: penjaga baru dilepas saat videoId yang ditunggu **benar-benar terlihat**, bukan saat
+    panggilan navigasi selesai. Load yang gagal tetap melepas penjaga (lewat `catch`), dan ada batas
+    `MaxIgnoredUpdatesDuringLoad` (30 laporan) supaya navigasi yang tidak pernah mendarat tidak
+    mengunci player dari kenyataan selamanya. Dihitung, bukan diukur waktu, supaya deterministik.
+  - **CATATAN TEST**: dua test lama (`StateUpdate_ForAutoplayTrack_…`, `StateUpdate_ForQueuedAutoAdvancedTrack_…`)
+    ternyata mensimulasikan laporan asing yang datang **sebelum** track termuat pernah melapor —
+    skenario yang justru sedang ditolak. Keduanya diperbaiki agar menyertakan laporan settle dulu.
+  - _Requirements: 2.4, 2.5, 2.6_
+
+- [x] 40. Timer tidur "akhir lagu ini" benar-benar menghentikan pemutaran (#15)
+  - **GEJALA**: ikon timer padam (jadi timer terpakai) tapi musik lanjut ke lagu berikutnya.
+  - **SEBAB GANDA**: (a) jalur timer memanggil `PlayerService.PauseAsync()`, yang **return lebih awal
+    saat `IsPlaying` sudah false** — dan itu justru keadaan normal ketika event track-ended tiba, jadi
+    tidak ada jeda yang benar-benar dikirim; (b) YouTube Music bereaksi pada event `ended` yang sama
+    dan memulai lagu berikutnya sendiri, sehingga satu jeda pun bisa mendarat di video yang sudah
+    ditinggalkan.
+  - **PERBAIKAN**: jeda dikirim langsung ke controller (bukan lewat `PauseAsync` yang bersyarat), plus
+    flag `_sleepStopEnforced` yang menekan balik setiap laporan "sedang memutar" ke posisi jeda dan
+    menahan adopsi antrean — sampai pengguna sendiri menekan play/next/prev atau memuat lagu lain.
+  - _Requirements: 39.4, 39.5_
+
+- [x] 41. Media key tidak berfungsi (#64)
+  - **SEBAB**: bukan di SMTC Kaset sama sekali. Chromium di dalam WebView2 menangani tombol media
+    perangkat keras sendiri selama halamannya punya media session aktif — dan halaman pemutaran selalu
+    punya. Tombolnya tidak pernah sampai ke registrasi SMTC milik Kaset. Rute mana yang dipakai Windows
+    bergantung urutan aktivasi, itulah kenapa gejalanya kadang muncul kadang tidak, bukan mati total.
+  - **PERBAIKAN**: `--disable-features=HardwareMediaKeyHandling` pada `AdditionalBrowserArguments` di
+    `WebViewEnvironmentProvider`. Hanya penanganan tombolnya yang dimatikan; media session halaman
+    tetap ada, jadi pemutaran dan DRM tidak tersentuh.
+  - _Requirements: 10.2, 37.7_
+
+- [x] 42. Baris artis kosong pada peluncuran `kaset://` (#73)
+  - **SEBAB**: `PlayAsync(videoId)` membangun `Song` hanya dari videoId, dan `ResolveTrackFromMessage`
+    selalu memenangkan entri antrean atas laporan halaman — termasuk daftar artis yang kosong.
+  - **PERBAIKAN**: artis dari halaman dipakai **hanya untuk mengisi kekosongan**, tidak pernah menimpa
+    artis milik entri antrean yang sungguhan (yang punya `Id` dan bisa dinavigasi).
+  - _Requirements: 33.1, 2.6_
+
+- [x] 43. Ikon glyph dibacakan Narrator sebagai kode (#20, #22, #28)
+  - **SEBAB**: `FontIcon` di dalam tombol tidak pernah disembunyikan dari pohon aksesibilitas, jadi
+    Narrator masuk ke dalam tombol dan membacakan glyph Segoe Fluent — yang merupakan codepoint
+    private-use, sehingga terdengar sebagai kode acak setelah nama tombolnya.
+  - **PERBAIKAN**: satu implicit style `FontIcon` di `App.xaml` menyetel `AccessibilityView="Raw"`
+    se-aplikasi. Dipilih daripada menambah atribut di puluhan tempat justru supaya ikon baru di masa
+    depan tidak bisa memunculkan lagi masalahnya karena lupa satu atribut.
+  - _Requirements: 38.1, 38.2_
+
+- [x] 44. Sisa waktu timer tidur terlihat tanpa hover (#11, #12)
+  - **PERBAIKAN**: badge angka menit di atas ikon bulan (detik pada menit terakhir, "♪" untuk mode
+    akhir-lagu). Tooltip saja tidak cukup: ia menuntut hover, dan pada putaran 2 tooltipnya sendiri
+    tidak menampilkan sisa waktu.
+  - _Requirements: 39.2_
+
 ## Notes
 
 - Sub-tugas bertanda `*` bersifat opsional (test atau fitur fase lanjutan) dan **tidak** diimplementasikan otomatis; dapat dilewati untuk MVP yang lebih cepat.

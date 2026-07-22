@@ -50,6 +50,35 @@ public class PlayerProperties
         return (player, queue, controller, bridge);
     }
 
+    /// <summary>
+    /// Feeds the STATE_UPDATE the WebView sends once a deliberately loaded track is actually
+    /// playing. This is what releases <c>PlayerService</c>'s load guard, so any test that wants to
+    /// exercise post-load behaviour has to do it first — exactly as the real page does.
+    /// </summary>
+    private static void SettleLoadedTrack(PlayerService player, string videoId, string title) =>
+        player.HandleStateUpdate(new PlaybackStateMessage(
+            IsPlaying: true,
+            Progress: 0,
+            Duration: 100,
+            VideoId: videoId,
+            Title: title,
+            Artist: string.Empty,
+            TrackChanged: true,
+            HasVideo: null,
+            VideoType: null));
+
+    /// <summary>A report for some other video, of the kind the outgoing page emits during a load.</summary>
+    private static PlaybackStateMessage ForeignReport(string videoId) =>
+        new(IsPlaying: true,
+            Progress: 42,
+            Duration: 200,
+            VideoId: videoId,
+            Title: "Some other song",
+            Artist: "Someone else",
+            TrackChanged: true,
+            HasVideo: null,
+            VideoType: null);
+
     private static IReadOnlyList<Song> MakeSongs(int count) =>
         [.. Enumerable.Range(0, count).Select(i => new Song
         {
@@ -156,6 +185,11 @@ public class PlayerProperties
 
         await player.PlayCollectionAsync(MakeSongs(3), startIndex: 0);
 
+        // The freshly loaded track reports first. Until it does, the load guard is armed and any
+        // other videoId is treated as navigation drift (see _expectedVideoId) — so a test that
+        // skipped this step would be simulating something that cannot legitimately happen.
+        SettleLoadedTrack(player, "q0", "Song 0");
+
         player.HandleStateUpdate(
             new PlaybackStateMessage(
                 IsPlaying: true,
@@ -199,6 +233,10 @@ public class PlayerProperties
 
         await player.PlayCollectionAsync(MakeSongs(2), startIndex: 1);
 
+        // Autoplay drift is only legitimate *after* the loaded track has settled; before that it is
+        // the outgoing page still reporting, which the load guard rejects.
+        SettleLoadedTrack(player, "q1", "Song 1");
+
         player.HandleStateUpdate(
             new PlaybackStateMessage(
                 IsPlaying: true,
@@ -222,6 +260,157 @@ public class PlayerProperties
         Assert.Equal(1, queue.CurrentIndex);
         Assert.Equal("q1", controller.CurrentVideoId);
         Assert.Equal("q1", player.CurrentTrack?.VideoId);
+    }
+
+    [Fact]
+    public async Task StateUpdate_FillsTheArtistGap_ForATrackQueuedFromNothingButAVideoId()
+    {
+        var (player, _, _, _) = CreatePlayer();
+
+        // What `kaset://play?v=…` produces: a Song with an id and nothing else.
+        await player.PlayAsync("proto1");
+
+        player.HandleStateUpdate(new PlaybackStateMessage(
+            IsPlaying: true, Progress: 1, Duration: 100, VideoId: "proto1",
+            Title: "i hate u, i love u", Artist: "gnash", TrackChanged: true,
+            HasVideo: null, VideoType: null));
+
+        Assert.Equal("i hate u, i love u", player.CurrentTrack?.Title);
+        Assert.Equal("gnash", player.CurrentTrack?.Artists.SingleOrDefault()?.Name);
+    }
+
+    [Fact]
+    public async Task StateUpdate_DoesNotOverwriteRealArtists_WithThePagesFlatString()
+    {
+        var (player, _, _, _) = CreatePlayer();
+
+        var song = new Song
+        {
+            Id = "rich",
+            VideoId = "rich",
+            Title = "Rejoice",
+            Artists = [new Artist { Id = "UC123", Name = "Official HIGE DANDism" }],
+        };
+        await player.PlayCollectionAsync([song], startIndex: 0);
+
+        player.HandleStateUpdate(new PlaybackStateMessage(
+            IsPlaying: true, Progress: 1, Duration: 100, VideoId: "rich", Title: "Rejoice",
+            Artist: "Official HIGE DANDism - Topic", TrackChanged: true, HasVideo: null, VideoType: null));
+
+        // The queue entry keeps its browsable artist id; the page's flat string must not clobber it.
+        Assert.Equal("UC123", player.CurrentTrack?.Artists.SingleOrDefault()?.Id);
+    }
+
+    // ── Sleep timer: "end of this track" must really stop playback ──────────────────
+
+    [Fact]
+    public async Task SleepTimerAtTrackEnd_StopsPlayback_EvenWhenTheTrackAlreadyReportedStopped()
+    {
+        var sleepTimer = new SleepTimer();
+        var queue = new QueueService(bound => 0);
+        var controller = new FakePlaybackController();
+        var bridge = new FakeJsBridge();
+        var player = new PlayerService(queue, controller, bridge, sleepTimer: sleepTimer);
+
+        await player.PlayCollectionAsync(MakeSongs(3), startIndex: 0);
+        SettleLoadedTrack(player, "q0", "Song 0");
+
+        sleepTimer.StartEndOfTrack();
+
+        // A finished video reports "not playing" before the ended event arrives. The old code paused
+        // through PauseAsync(), which returns early in exactly that state — so nothing happened and
+        // the music carried on into the next song.
+        player.HandleStateUpdate(new PlaybackStateMessage(
+            IsPlaying: false, Progress: 100, Duration: 100, VideoId: "q0", Title: "Song 0",
+            Artist: string.Empty, TrackChanged: false, HasVideo: null, VideoType: null));
+
+        await player.HandleTrackEndedAsync("q0");
+
+        Assert.False(player.IsPlaying);
+        Assert.Equal("pause", controller.Operations[^1]); // the pause really reached the controller
+        Assert.Equal(0, queue.CurrentIndex);              // the queue must not have advanced
+        Assert.False(sleepTimer.State.IsArmed);
+    }
+
+    [Fact]
+    public async Task SleepTimerAtTrackEnd_KeepsPlaybackDown_WhenYouTubeAutoplaysAnyway()
+    {
+        var sleepTimer = new SleepTimer();
+        var queue = new QueueService(bound => 0);
+        var controller = new FakePlaybackController();
+        var player = new PlayerService(queue, controller, new FakeJsBridge(), sleepTimer: sleepTimer);
+
+        await player.PlayCollectionAsync(MakeSongs(2), startIndex: 0);
+        SettleLoadedTrack(player, "q0", "Song 0");
+        sleepTimer.StartEndOfTrack();
+        await player.HandleTrackEndedAsync("q0");
+
+        // YouTube Music reacts to the same ended event and starts its own next song. Kaset must push
+        // it straight back down instead of letting the timer look like it did nothing.
+        player.HandleStateUpdate(ForeignReport("youtubes-own-pick"));
+
+        Assert.False(player.IsPlaying);
+        Assert.Equal("q0", player.CurrentTrack?.VideoId);
+        Assert.DoesNotContain(queue.Tracks, t => t.VideoId == "youtubes-own-pick");
+
+        // ...until the user asks for playback again, which is theirs to decide.
+        await player.TogglePlayPauseAsync();
+        Assert.True(player.IsPlaying);
+
+        player.HandleStateUpdate(ForeignReport("later-drift"));
+        Assert.True(player.IsPlaying);
+    }
+
+    // ── Load guard (the "album queue turns into a mix after Next" bug) ───────────────
+
+    [Fact]
+    public async Task StateUpdate_WhileLoadingNextTrack_IgnoresTheOutgoingPagesReports()
+    {
+        var (player, queue, _, _) = CreatePlayer();
+
+        await player.PlayCollectionAsync(MakeSongs(3), startIndex: 0);
+        SettleLoadedTrack(player, "q0", "Song 0");
+
+        await player.NextAsync(); // navigating to q1; the page keeps reporting for a while yet
+
+        // Whatever the outgoing page says during that window must not touch the queue: appending it
+        // is what turned an album into a mix and broke Previous.
+        for (int i = 0; i < 5; i++)
+        {
+            player.HandleStateUpdate(ForeignReport("drift1"));
+        }
+
+        Assert.Equal(3, queue.Tracks.Count);
+        Assert.Equal(1, queue.CurrentIndex);
+        Assert.Equal("q1", player.CurrentTrack?.VideoId);
+
+        // Once q1 really reports, the guard lifts and genuine autoplay drift is adopted again.
+        SettleLoadedTrack(player, "q1", "Song 1");
+        player.HandleStateUpdate(ForeignReport("auto9"));
+
+        Assert.Equal(4, queue.Tracks.Count);
+        Assert.Equal("auto9", player.CurrentTrack?.VideoId);
+    }
+
+    [Fact]
+    public async Task StateUpdate_WhenLoadedTrackNeverReports_EventuallyAdoptsReality()
+    {
+        var (player, queue, _, _) = CreatePlayer();
+
+        await player.PlayCollectionAsync(MakeSongs(2), startIndex: 0);
+        SettleLoadedTrack(player, "q0", "Song 0");
+
+        await player.NextAsync(); // q1 will never report — pulled video, region block, page error
+
+        // The guard must not hold forever: being permanently out of step with what is audibly
+        // playing is worse than one drifted queue entry.
+        for (int i = 0; i < 30; i++)
+        {
+            player.HandleStateUpdate(ForeignReport("reality"));
+        }
+
+        Assert.Equal("reality", player.CurrentTrack?.VideoId);
+        Assert.Contains(queue.Tracks, t => t.VideoId == "reality");
     }
 
     [Fact]

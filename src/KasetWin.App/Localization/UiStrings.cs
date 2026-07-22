@@ -263,6 +263,10 @@ internal static class UiStrings
     internal static string RelatedEmpty => IsIndonesian ? "Tidak ada konten terkait." : "No related content.";
     internal static string LyricsEmpty => IsIndonesian ? "Putar lagu untuk melihat lirik di sini." : "Play a song to see its lyrics here.";
     internal static string SubtitlesCcLabel => IsIndonesian ? "Subtitel (CC)" : "Subtitles (CC)";
+
+    /// <summary>Attribution line under the lyrics — <c>{0}</c> is the provider name (e.g. "LRCLib").</summary>
+    internal static string LyricsSourceFormat => IsIndonesian ? "Sumber: {0}" : "Source: {0}";
+
     internal static string CcOff => IsIndonesian ? "Nonaktif" : "Off";
 
     // ── Artist / album pages ───────────────────────────────────────────────────────────────────

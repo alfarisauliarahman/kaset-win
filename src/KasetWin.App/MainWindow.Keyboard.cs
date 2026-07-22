@@ -513,17 +513,38 @@ public sealed partial class MainWindow
         columns.Children.Add(playback);
         columns.Children.Add(rightColumn);
 
+        // Size the sheet against the CURRENT window, not a fixed 640px: at the 980×600 minimum the
+        // old constant was taller than the window, so the dialog filled it top to bottom and the last
+        // rows were clipped with no way to reach them. Reserve room for the dialog's own chrome
+        // (title + close button + padding) and clamp to something still readable.
+        var xamlRoot = Content.XamlRoot;
+        double availableHeight = xamlRoot.Size.Height;
+        double availableWidth = xamlRoot.Size.Width;
+        var contentMaxHeight = Math.Clamp(availableHeight - 220.0, 200.0, 640.0);
+
         _shortcutsDialog = new ContentDialog
         {
             Title = Localization.UiStrings.ShortcutsTitle,
-            Content = new ScrollViewer { Content = columns, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 640 },
+            Content = new ScrollViewer
+            {
+                Content = columns,
+                VerticalScrollMode = ScrollMode.Auto,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                // A narrow window cannot fit the two 320px columns side by side either, so let the
+                // sheet pan sideways rather than clip the right-hand column.
+                HorizontalScrollMode = ScrollMode.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                MaxHeight = contentMaxHeight,
+            },
             CloseButtonText = Localization.UiStrings.DialogClose,
-            XamlRoot = Content.XamlRoot,
+            XamlRoot = xamlRoot,
         };
 
         // The default ContentDialog max width (~548px) clips the two-column layout; widen it generously
-        // so both columns and their key chips fit without the right column being cut off.
-        _shortcutsDialog.Resources["ContentDialogMaxWidth"] = 1000.0;
+        // so both columns and their key chips fit without the right column being cut off — but never
+        // wider than the window itself.
+        _shortcutsDialog.Resources["ContentDialogMaxWidth"] = Math.Clamp(availableWidth - 48, 320.0, 1000.0);
+        _shortcutsDialog.Resources["ContentDialogMaxHeight"] = Math.Max(240.0, availableHeight - 48);
 
         try
         {

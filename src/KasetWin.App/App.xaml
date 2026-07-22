@@ -16,6 +16,22 @@
             <converters:BoolToVisibilityConverter x:Key="GlobalBoolToVisibility" />
 
             <!--
+                Every FontIcon in the app is decorative: it sits inside a button/menu item that
+                already carries its own AutomationProperties.Name. Left in the accessibility tree,
+                Narrator descends into the button and reads the glyph itself — and because the
+                Segoe Fluent glyphs are private-use codepoints, that comes out as a spoken character
+                code ("Suka" followed by gibberish). Raw hides them app-wide from one place, so no
+                future icon can reintroduce the problem by forgetting an attribute.
+
+                Deliberately not applied to IconSourceElement/BitmapIcon: those can legitimately be
+                the only content of a control. Anything genuinely informative should use a real
+                accessible name on its parent instead of relying on the glyph being announced.
+            -->
+            <Style TargetType="FontIcon">
+                <Setter Property="AutomationProperties.AccessibilityView" Value="Raw" />
+            </Style>
+
+            <!--
                 Subtle (chromeless) button used across PlayerBar / Search / Library for icon and
                 list-row buttons. WinUI 3 has no built-in "SubtleButtonStyle", so it is defined
                 here once, app-wide, based on the default Button style with a transparent

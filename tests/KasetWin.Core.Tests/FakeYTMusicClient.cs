@@ -89,4 +89,23 @@ internal sealed class FakeYTMusicClient : IYTMusicClient
     public Task<PodcastChannel> GetPodcastChannelAsync(string channelId, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<IReadOnlyList<CaptionTrack>> GetPodcastCaptionTracksAsync(string videoId, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<SyncedLyrics?> GetPodcastCaptionsAsync(string videoId, string? trackBaseUrl = null, CancellationToken ct = default) => throw new NotSupportedException();
+    /// <summary>
+    /// Stubs <see cref="GetYouTubeMusicLyricsAsync"/>. When left <c>null</c> the call throws like
+    /// every other unused member; set it (per videoId) in the YouTube Music lyrics tests.
+    /// </summary>
+    public Func<string, KasetWin.Core.Services.Api.Parsers.YouTubeMusicLyrics?>? YouTubeMusicLyrics { get; init; }
+
+    /// <summary>Number of times <see cref="GetYouTubeMusicLyricsAsync"/> was invoked.</summary>
+    public int YouTubeMusicLyricsCalls;
+
+    public Task<KasetWin.Core.Services.Api.Parsers.YouTubeMusicLyrics?> GetYouTubeMusicLyricsAsync(string videoId, CancellationToken ct = default)
+    {
+        if (YouTubeMusicLyrics is null)
+        {
+            throw new NotSupportedException();
+        }
+
+        Interlocked.Increment(ref YouTubeMusicLyricsCalls);
+        return Task.FromResult(YouTubeMusicLyrics(videoId));
+    }
 }

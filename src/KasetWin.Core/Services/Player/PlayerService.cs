@@ -59,10 +59,34 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// arriving mid-load is YouTube autoplay / transient drift bleeding in, and adopting it would yank
     /// the now-playing UI (and the queue) to an unrelated track before snapping back once our track
     /// settles — the "queue jumps around when changing tracks in an album/playlist" bug. Cleared once
-    /// the load finishes (or the expected id is observed), so genuine autoplay drift after playback has
-    /// settled is still adopted (Req 2.6).
+    /// the expected id is observed, so genuine autoplay drift after playback has settled is still
+    /// adopted (Req 2.6).
+    ///
+    /// The release point matters: the guard is dropped when the expected videoId is actually
+    /// <em>observed</em>, not when <see cref="IPlaybackController.LoadVideoAsync"/> returns. That call
+    /// only starts the navigation, and YouTube Music keeps reporting the outgoing page for seconds
+    /// afterwards. Releasing on return let those reports through, and each unmatched one was appended
+    /// to the queue as ephemeral history — the "album queue turns into a mix after pressing Next" bug.
     /// </summary>
     private volatile string? _expectedVideoId;
+
+    /// <summary>
+    /// How many consecutive foreign <c>STATE_UPDATE</c>s the load guard has already swallowed.
+    /// </summary>
+    /// <remarks>
+    /// A navigation that never reports its videoId (page error, region block, a pulled video) must not
+    /// wedge the player into ignoring reality forever, so the guard gives up after
+    /// <see cref="MaxIgnoredUpdatesDuringLoad"/> reports and adopts whatever is actually playing.
+    /// Counted rather than timed, so the behaviour stays deterministic under test.
+    /// </remarks>
+    private int _ignoredUpdatesDuringLoad;
+
+    /// <summary>
+    /// Foreign reports tolerated before the load guard gives up. The observer ticks roughly once a
+    /// second, so this is about half a minute — comfortably longer than a normal navigation, and short
+    /// enough that a genuinely failed load recovers on its own.
+    /// </summary>
+    private const int MaxIgnoredUpdatesDuringLoad = 30;
 
     private Song? _currentTrack;
     private bool _isPlaying;
@@ -80,6 +104,21 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
 
     /// <summary>Sleep timer consulted at track end; <c>null</c> when the feature is not wired.</summary>
     private readonly SleepTimer? _sleepTimer;
+
+    /// <summary>
+    /// Set when an "end of this track" sleep timer has stopped playback, and cleared by the next
+    /// deliberate transport action from the user.
+    /// </summary>
+    /// <remarks>
+    /// A single pause is not enough. YouTube Music reacts to the same <c>ended</c> event Kaset does
+    /// and starts the next song itself, so a pause sent at track end can land on the outgoing video
+    /// while the page is already bringing up the next one — the timer then looks like it did nothing
+    /// (the icon goes out, the music plays on). While this flag is set, any report of playback
+    /// running is pushed straight back down to paused, so whatever the page starts is stopped again.
+    /// It also suppresses queue adoption, so the now-playing UI stays on the track the user fell
+    /// asleep to instead of following YouTube's pick.
+    /// </remarks>
+    private bool _sleepStopEnforced;
 
     /// <summary>
     /// Creates a player wired to the queue, the playback controller, and the JS bridge. The
@@ -309,6 +348,9 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// <inheritdoc />
     public async Task TogglePlayPauseAsync()
     {
+        // Asking for playback is the user overruling a fired sleep timer.
+        _sleepStopEnforced = false;
+
         // Involution: two toggles return to the original state (Property 9).
         if (IsPlaying)
         {
@@ -341,6 +383,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     {
         // Explicit skip (player-bar / media key): move to the next track even under Repeat One, which
         // only governs auto-advance at track end — otherwise "Next" replays the same song (Req 37.7).
+        _sleepStopEnforced = false;
         Song? next = _queue.AdvanceToNext(ignoreRepeatOne: true);
         if (next is not null)
         {
@@ -357,6 +400,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// <inheritdoc />
     public async Task PreviousAsync()
     {
+        _sleepStopEnforced = false;
         Song? previous = _queue.AdvanceToPrevious();
         if (previous is not null)
         {
@@ -470,7 +514,12 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         if (action is TrackEndedAction.AdvanceToNext or TrackEndedAction.EndPlayback
             && _sleepTimer?.NotifyTrackEnded() == true)
         {
-            await PauseAsync().ConfigureAwait(false);
+            // Pause the controller directly rather than through PauseAsync(): that one returns early
+            // when IsPlaying is already false, which it usually is by the time a track-ended event
+            // arrives — so the timer silently did nothing at all.
+            _sleepStopEnforced = true;
+            await _controller.PauseAsync().ConfigureAwait(false);
+            IsPlaying = false;
             return;
         }
         switch (action)
@@ -539,6 +588,15 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     {
         ArgumentNullException.ThrowIfNull(message);
 
+        // A sleep timer that ended playback outranks whatever the page decides to do next: keep
+        // pushing it back to paused until the user themselves asks for playback again.
+        if (_sleepStopEnforced && message.IsPlaying)
+        {
+            _ = _controller.PauseAsync();
+            IsPlaying = false;
+            return;
+        }
+
         // Queue authority during a load: while Kaset is deliberately loading a track, ignore any
         // STATE_UPDATE that reports a *different* videoId. Such a report is YouTube autoplay or
         // transient drift bleeding in mid-transition; adopting it would jump the now-playing UI and
@@ -549,7 +607,15 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
             && _expectedVideoId is { } pending
             && !string.Equals(message.VideoId, pending, StringComparison.Ordinal))
         {
-            return;
+            if (++_ignoredUpdatesDuringLoad < MaxIgnoredUpdatesDuringLoad)
+            {
+                return;
+            }
+
+            // The expected track never reported. Stop guarding and adopt what is really playing —
+            // being permanently out of step with the page is worse than a queue that drifted once.
+            _expectedVideoId = null;
+            _ignoredUpdatesDuringLoad = 0;
         }
 
         IsPlaying = message.IsPlaying;
@@ -563,6 +629,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
             if (string.Equals(message.VideoId, _expectedVideoId, StringComparison.Ordinal))
             {
                 _expectedVideoId = null;
+                _ignoredUpdatesDuringLoad = 0;
             }
 
             // A non-empty reported videoId is authoritative even if the DOM title is stale (Req 2.6).
@@ -593,8 +660,18 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         if (queued is not null)
         {
             // Keep the rich queue metadata; only override the title when the message has one.
+            //
+            // Artists are the exception: a track queued without any (a bare `kaset://play?v=…`
+            // launch builds a Song from nothing but the videoId) would otherwise show a title with a
+            // blank artist line forever, because the queued entry always wins here. The page knows
+            // who the artist is, so borrow it — but only to fill a gap, never to overwrite the
+            // richer artist objects a real queue entry carries.
+            bool hasArtist = !string.IsNullOrWhiteSpace(message.Artist);
             return queued with
             {
+                Artists = queued.Artists.Count == 0 && hasArtist
+                    ? [new Artist { Id = string.Empty, Name = message.Artist }]
+                    : queued.Artists,
                 Title = hasTitle ? message.Title : queued.Title,
                 ThumbnailUrl = queued.ThumbnailUrl ?? message.ThumbnailUrl ?? queued.FallbackThumbnailUrl,
                 HasVideo = message.HasVideo ?? queued.HasVideo,
@@ -642,9 +719,14 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     {
         // Guard the load window: transient STATE_UPDATEs for other videos (autoplay/drift) that
         // arrive while the controller is switching tracks must not hijack the queue (see
-        // <see cref="_expectedVideoId"/>). Cleared in the finally so a failed load never wedges the
-        // player into permanently ignoring updates.
+        // <see cref="_expectedVideoId"/>). The guard stays armed until the new track actually
+        // reports — navigation keeps running long after LoadVideoAsync returns — and is bounded by
+        // MaxIgnoredUpdatesDuringLoad so a load that never lands cannot wedge the player.
         _expectedVideoId = track.VideoId;
+        _ignoredUpdatesDuringLoad = 0;
+
+        // Deliberately loading something overrules a fired sleep timer.
+        _sleepStopEnforced = false;
 
         CurrentTrack = track;
         // A freshly loaded on-demand track is not live until proven otherwise (set via SetLive).
@@ -661,9 +743,13 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
             await _controller.PlayAsync().ConfigureAwait(false);
             IsPlaying = true;
         }
-        finally
+        catch
         {
+            // Only a *failed* load releases the guard here. A successful one keeps it armed until
+            // HandleStateUpdate sees the track report, which is the whole point of the guard.
             _expectedVideoId = null;
+            _ignoredUpdatesDuringLoad = 0;
+            throw;
         }
 
         // Background: pull the album (and any missing metadata) so the now-playing UI is complete even

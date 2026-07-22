@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Globalization;
 using KasetWin.App.Accessibility;
 using KasetWin.App.Hosting;
 using KasetWin.App.Navigation;
@@ -201,12 +202,14 @@ public sealed partial class PlayerBar : UserControl
                 ? Localization.UiStrings.SleepTimerAtTrackEnd
                 : FormatRemaining(state.Remaining);
             A11y.Label(SleepTimerButton, Localization.UiStrings.A11ySleepTimerArmed(remaining));
+            ApplySleepTimerBadge(state);
             return;
         }
 
         _sleepTicker?.Stop();
         SleepTimerIcon.Foreground =
             (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
+        SleepTimerBadge.Visibility = Visibility.Collapsed;
         A11y.Label(SleepTimerButton, Localization.UiStrings.TipSleepTimer);
     }
 
@@ -244,6 +247,26 @@ public sealed partial class PlayerBar : UserControl
     /// <summary>Shrinks the shell to the compact always-on-top mini player.</summary>
     private void OnMiniPlayerClick(object sender, RoutedEventArgs e) =>
         ((Application.Current as App)?.MainWindow as MainWindow)?.ToggleMiniPlayer();
+
+    /// <summary>
+    /// Puts the countdown on the button itself: whole minutes left, or a musical note for the
+    /// "end of this track" mode, which has no clock to show. Under a minute it counts seconds, so
+    /// the last minute does not sit frozen at "1".
+    /// </summary>
+    private void ApplySleepTimerBadge(SleepTimerState state)
+    {
+        if (state.Mode == SleepTimerMode.EndOfTrack)
+        {
+            SleepTimerBadgeText.Text = "♪";
+            SleepTimerBadge.Visibility = Visibility.Visible;
+            return;
+        }
+
+        SleepTimerBadgeText.Text = state.Remaining >= TimeSpan.FromMinutes(1)
+            ? ((int)Math.Ceiling(state.Remaining.TotalMinutes)).ToString(CultureInfo.CurrentCulture)
+            : Math.Max(0, (int)state.Remaining.TotalSeconds).ToString(CultureInfo.CurrentCulture);
+        SleepTimerBadge.Visibility = Visibility.Visible;
+    }
 
     /// <summary>Formats the countdown coarsely ("12 minutes", then seconds in the final minute).</summary>
     private static string FormatRemaining(TimeSpan remaining) =>

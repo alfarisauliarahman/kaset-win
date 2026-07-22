@@ -96,23 +96,43 @@ internal static class MainWindowLayout
         {
             var scale = DpiScale(hwnd);
 
+            var saved = TryLoadGeometry();
+
             // Restore the frame the user left behind; fall back to the default size on first run or
             // when the saved frame no longer fits any attached display (monitor unplugged, DPI
             // change, resolution drop) — an off-screen window is unrecoverable without registry
             // surgery, so validating it is not optional.
-            if (TryLoadGeometry() is { } saved && IsFrameVisibleOnAnyDisplay(saved))
+            if (saved.HasValue && IsFrameVisibleOnAnyDisplay(saved.Value.Frame))
             {
+                var frame = saved.Value.Frame;
                 appWindow.MoveAndResize(new RectInt32(
-                    saved.X,
-                    saved.Y,
-                    Math.Max(saved.Width, Scale(MinimumWidth, scale)),
-                    Math.Max(saved.Height, Scale(MinimumHeight, scale))));
+                    frame.X,
+                    frame.Y,
+                    Math.Max(frame.Width, Scale(MinimumWidth, scale)),
+                    Math.Max(frame.Height, Scale(MinimumHeight, scale))));
             }
             else
             {
                 var width = Math.Max(Scale(DefaultWidth, scale), Scale(MinimumWidth, scale));
                 var height = Math.Max(Scale(DefaultHeight, scale), Scale(MinimumHeight, scale));
                 appWindow.Resize(new SizeInt32(width, height));
+            }
+
+            // A window that was maximised when it was closed reopens maximised — that is the Windows
+            // convention, and the restored frame applied just above is what the user gets back when
+            // they un-maximise. Maximising is applied even when the saved frame was rejected: a
+            // maximised window always lands on an attached display, so it cannot go off-screen.
+            if (saved.HasValue && saved.Value.Maximized
+                && appWindow.Presenter is OverlappedPresenter presenter)
+            {
+                try
+                {
+                    presenter.Maximize();
+                }
+                catch (COMException)
+                {
+                    // Best effort — an un-maximised window is a far better failure than no window.
+                }
             }
         }
     }
@@ -125,16 +145,23 @@ internal static class MainWindowLayout
     /// Saves the window's current frame so the next launch reopens at the same size and place.
     /// </summary>
     /// <remarks>
-    /// Skipped whenever the window is not a normal overlapped window: in mini-player
-    /// (<c>CompactOverlay</c>) mode the frame is 400×150, and persisting that would reopen the full
-    /// shell at mini-player size. Maximised and minimised frames are skipped for the same reason —
-    /// what should be restored is the size the user chose, not the state.
+    /// <para>
+    /// Both the frame <em>and</em> the maximised state are stored, so a window that was maximised on
+    /// close reopens maximised (the Windows convention). The frame stored alongside it is always the
+    /// <em>restored</em> frame — read from <c>GetWindowPlacement</c>'s <c>rcNormalPosition</c> while
+    /// maximised — because that is the size the user gets back when they un-maximise.
+    /// </para>
+    /// <para>
+    /// Two states are still never persisted: mini-player (<c>CompactOverlay</c>) mode, where the
+    /// live frame is 400×150 and persisting it would reopen the full shell at mini-player size; and
+    /// a minimised window, whose frame is meaningless.
+    /// </para>
     /// </remarks>
     /// <param name="window">The window whose frame to persist.</param>
     /// <param name="overrideFrame">
     /// A frame to store instead of the window's live one. Used when closing from the mini player,
     /// where the live frame is 400×150 but the frame worth remembering is the one captured before
-    /// shrinking.
+    /// shrinking. Always stored as not-maximised.
     /// </param>
     public static void SaveGeometry(Window window, RectInt32? overrideFrame = null)
     {
@@ -149,26 +176,41 @@ internal static class MainWindowLayout
             {
                 if (frame.Width > 0 && frame.Height > 0)
                 {
-                    AppData.Settings[GeometryKey] = $"{frame.X},{frame.Y},{frame.Width},{frame.Height}";
+                    AppData.Settings[GeometryKey] = Format(frame, maximized: false);
                 }
 
                 return;
             }
 
-            if (appWindow.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Restored })
+            // CompactOverlay (mini player) has no frame worth remembering, and a minimised window's
+            // frame is not the one the user chose. Everything else — Restored and Maximized — is.
+            if (appWindow.Presenter is not OverlappedPresenter presenter
+                || presenter.State == OverlappedPresenterState.Minimized)
             {
                 return;
             }
 
-            var size = appWindow.Size;
-            var position = appWindow.Position;
-            if (size.Width <= 0 || size.Height <= 0)
+            var maximized = presenter.State == OverlappedPresenterState.Maximized;
+
+            // While maximised the live frame is the maximised one; the frame worth saving is the
+            // restored ("normal") one, which only GetWindowPlacement exposes.
+            var restored = maximized
+                ? TryGetRestoredFrame(window)
+                : new RectInt32(
+                    appWindow.Position.X, appWindow.Position.Y, appWindow.Size.Width, appWindow.Size.Height);
+
+            if (restored is null)
             {
                 return;
             }
 
-            AppData.Settings[GeometryKey] =
-                $"{position.X},{position.Y},{size.Width},{size.Height}";
+            var normal = restored.Value;
+            if (normal.Width <= 0 || normal.Height <= 0)
+            {
+                return;
+            }
+
+            AppData.Settings[GeometryKey] = Format(normal, maximized);
         }
         catch (Exception ex) when (ex is COMException or InvalidOperationException)
         {
@@ -176,8 +218,15 @@ internal static class MainWindowLayout
         }
     }
 
-    /// <summary>Reads the saved frame, or <c>null</c> when absent or malformed.</summary>
-    private static RectInt32? TryLoadGeometry()
+    /// <summary>Serialised form: <c>x,y,width,height,maximized</c>.</summary>
+    private static string Format(RectInt32 frame, bool maximized) =>
+        $"{frame.X},{frame.Y},{frame.Width},{frame.Height},{(maximized ? 1 : 0)}";
+
+    /// <summary>
+    /// Reads the saved frame plus maximised state, or <c>null</c> when absent or malformed. Values
+    /// written before the maximised flag existed (four fields) still parse, as not-maximised.
+    /// </summary>
+    private static (RectInt32 Frame, bool Maximized)? TryLoadGeometry()
     {
         try
         {
@@ -187,7 +236,7 @@ internal static class MainWindowLayout
             }
 
             var parts = raw.Split(',');
-            if (parts.Length != 4
+            if (parts.Length is not (4 or 5)
                 || !int.TryParse(parts[0], out var x)
                 || !int.TryParse(parts[1], out var y)
                 || !int.TryParse(parts[2], out var width)
@@ -198,9 +247,41 @@ internal static class MainWindowLayout
                 return null;
             }
 
-            return new RectInt32(x, y, width, height);
+            var maximized = parts.Length == 5 && parts[4].Trim() == "1";
+            return (new RectInt32(x, y, width, height), maximized);
         }
         catch (Exception ex) when (ex is FormatException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The window's restored ("normal") frame, even while it is maximised. <c>AppWindow</c> only
+    /// reports the live frame, so this reads <c>rcNormalPosition</c> from <c>GetWindowPlacement</c>.
+    /// Returns <c>null</c> when the handle or the placement call is unavailable.
+    /// </summary>
+    private static RectInt32? TryGetRestoredFrame(Window window)
+    {
+        try
+        {
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(window);
+            if (hwnd == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            var placement = new WINDOWPLACEMENT { length = (uint)Marshal.SizeOf<WINDOWPLACEMENT>() };
+            if (!GetWindowPlacement(hwnd, ref placement))
+            {
+                return null;
+            }
+
+            var normal = placement.rcNormalPosition;
+            return new RectInt32(
+                normal.Left, normal.Top, normal.Right - normal.Left, normal.Bottom - normal.Top);
+        }
+        catch (COMException)
         {
             return null;
         }
@@ -291,11 +372,35 @@ internal static class MainWindowLayout
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hwnd);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowPlacement(IntPtr hwnd, ref WINDOWPLACEMENT lpwndpl);
+
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT
     {
         public int X;
         public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WINDOWPLACEMENT
+    {
+        public uint length;
+        public uint flags;
+        public uint showCmd;
+        public POINT ptMinPosition;
+        public POINT ptMaxPosition;
+        public RECT rcNormalPosition;
     }
 
     [StructLayout(LayoutKind.Sequential)]
