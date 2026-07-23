@@ -1,3 +1,4 @@
+using KasetWin.Core;
 using KasetWin.App.Composition;
 using KasetWin.App.Auth;
 using KasetWin.App.Hosting;
@@ -216,16 +217,42 @@ internal static class AppHost
             // watch-next response names the album only by its browse id, so the enricher resolves
             // the title through the album browse — otherwise the player bar has an album it cannot
             // print and simply shows nothing.
+            // Both fetchers leave a trace. Enrichment swallows every failure by design — playback must
+            // never be disturbed by a missing album line — and that silence is exactly why "the album
+            // is missing after a kaset:// launch" survived a round of fixes: the seam is covered by
+            // tests and passes, so the only thing left unproven was whether these calls succeed
+            // inside the running app at all. The lyrics path taught the same lesson (see ADR 0005).
             new TrackMetadataEnricher(
                 async (videoId, ct) =>
                 {
-                    var meta = await sp.GetRequiredService<IYTMusicClient>().GetSongMetadataAsync(videoId, ct);
-                    return meta.Song;
+                    try
+                    {
+                        var meta = await sp.GetRequiredService<IYTMusicClient>().GetSongMetadataAsync(videoId, ct);
+                        Diag.Write(
+                            $"enrich song videoId={videoId} title={meta.Song?.Title ?? "<null>"} "
+                            + $"album={meta.Song?.Album?.Id ?? "<null>"}/{meta.Song?.Album?.Title ?? "<untitled>"} "
+                            + $"thumb={(meta.Song?.ThumbnailUrl is null ? "<null>" : "yes")}");
+                        return meta.Song;
+                    }
+                    catch (Exception ex)
+                    {
+                        Diag.Write($"enrich song videoId={videoId} FAILED: {ex.GetType().Name}: {ex.Message}");
+                        throw;
+                    }
                 },
                 async (albumBrowseId, ct) =>
                 {
-                    var detail = await sp.GetRequiredService<IYTMusicClient>().GetPlaylistAsync(albumBrowseId, ct);
-                    return detail.Playlist.Title;
+                    try
+                    {
+                        var detail = await sp.GetRequiredService<IYTMusicClient>().GetPlaylistAsync(albumBrowseId, ct);
+                        Diag.Write($"enrich album {albumBrowseId} title={detail.Playlist.Title}");
+                        return detail.Playlist.Title;
+                    }
+                    catch (Exception ex)
+                    {
+                        Diag.Write($"enrich album {albumBrowseId} FAILED: {ex.GetType().Name}: {ex.Message}");
+                        throw;
+                    }
                 }).FetchAsync,
             sp.GetRequiredService<SleepTimer>()));
 

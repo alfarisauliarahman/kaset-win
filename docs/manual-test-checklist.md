@@ -72,11 +72,11 @@ bukan aman. Kalau salah satu pecah, tersangkanya ADR 0006, dan tidak ada gunanya
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 75 | Album → putar track 1 → Next (lihat panel antrean) | Track 2 album yang sama; antrean tidak berubah | |
-| 76 | Next 3–4 kali lagi | Tetap album yang sama, urut; tidak pernah jadi mix | |
-| 77 | Previous | Kembali ke track sebelumnya | |
-| 81 | Timer "Akhir lagu ini", biarkan lagu habis | Berhenti; antrean tidak maju | |
-| 115 | `start "kaset://play?v=t82Q3f4pNUY"`, buka panel lirik | Baris lirik menyala mengikuti lagu | |
+| 75 | Album → putar track 1 → Next (lihat panel antrean) | Track 2 album yang sama; antrean tidak berubah | ✅ 2026-07-23 (putaran 6, pasca ADR 0006) |
+| 76 | Next 3–4 kali lagi | Tetap album yang sama, urut; tidak pernah jadi mix | ✅ 2026-07-23 (putaran 6) |
+| 77 | Previous | Kembali ke track sebelumnya | ✅ 2026-07-23 (putaran 6) |
+| 81 | Timer "Akhir lagu ini", biarkan lagu habis | Berhenti; antrean tidak maju | ⚠️ 2026-07-23 (putaran 6): musik BERHENTI dengan benar, tapi antrean melompat jauh — penguji memperkirakan 12 sampai 35 lagu terlewat. Bunyi/toast **belum dicek** (itu langkah 137). Sebab ditemukan & diperbaiki, lihat seksi H |
+| 115 | `start "kaset://play?v=t82Q3f4pNUY"`, buka panel lirik | Baris lirik menyala mengikuti lagu | ⚠️ 2026-07-23 (putaran 6): lirik tersinkron jalan, tapi **nama album hilang DAN sampul album hilang** di player bar. Lihat seksi H |
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
@@ -107,6 +107,46 @@ bukan aman. Kalau salah satu pecah, tersangkanya ADR 0006, dan tidak ada gunanya
 > putaran berturut-turut tidak pernah masuk daftar. Perbaikan `ToString()` itu satu rantai: kalau
 > 142–144 masih membacakan objek yang salah, berarti diagnosisnya belum lengkap, bukan sekadar
 > kurang menempel di satu tombol.
+
+## H. Cacat dari putaran 6 (2026-07-23) — ditemukan oleh G0
+
+G0 memang untuk ini: dua dari lima langkah regresi gagal, dan keduanya tidak terlihat oleh 497 test.
+
+### H1. Timer tidur menghentikan musik, tapi antrean jalan terus — **diperbaiki**
+
+Gejala (#81): musik berhenti benar, tapi antrean melompat belasan sampai puluhan lagu.
+
+Sebab, dari kode: penjaga sleep-stop di `HandleStateUpdate` hanya mencegat laporan yang **sedang
+memutar**. Setiap pause yang Kaset kirim membuat halaman melapor dirinya *paused* — pada video yang
+sudah dia pindahi sendiri — dan laporan paused itu jatuh lurus ke adopsi antrean di bawahnya. Jadi
+YouTube menyusuri rantai autoplay-nya, kita mem-pause tiap satu, dan tiap pause itu menambah satu
+track lalu memajukan indeks. Komentar di kodenya bahkan sudah mengklaim "ia juga menekan adopsi
+antrean" — perilaku yang tidak pernah benar-benar ditulis.
+
+Perbaikan: selama stop berlaku, laporan bervideoId **lain** diabaikan seluruhnya, sementara laporan
+untuk track yang dihentikan tetap dihormati (kalau tidak, posisi di UI beku). Dikunci 3 test baru.
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 147 | Timer "Akhir lagu ini" di tengah album, biarkan habis, tunggu 2 menit, lalu buka panel antrean | Antrean **persis** seperti sebelum tidur; lagu yang berhenti masih yang ditandai sedang diputar | |
+| 148 | Lanjutan 147: tekan Play | Lagu itu jalan lagi, dan antrean kembali mengikuti seperti biasa | |
+
+### H2. `kaset://` masih tanpa album, dan sekarang tanpa sampul juga — **belum diperbaiki**
+
+Gejala (#115): lirik tersinkron jalan, tapi player bar tidak menampilkan nama album **maupun sampul**.
+Nama album adalah cacat yang sama dengan #73 putaran 4, yang putaran 5 klaim sudah ditutup; sampul
+hilang itu **baru**.
+
+Belum ada sebab yang terbukti, dan tidak akan ditebak. Yang sudah pasti: seam-nya sendiri benar —
+`ProtocolLaunch_EnrichesTheQueueEntry_NotJustTheCurrentTrack` lulus, jadi begitu fetcher memberi
+album, antrean dan player bar terisi. Yang belum terbukti: apakah fetcher itu berhasil **di dalam
+aplikasi**. Enrichment menelan semua kegagalan by design, jadi gagalnya senyap — pola yang persis
+sama dengan lirik tersinkron dulu (jalan di ApiExplorer tanpa login, gagal 100% di aplikasi
+ber-login, ADR 0005). Karena itu kedua fetcher sekarang menulis ke `diag.log`.
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 149 | `start "kaset://play?v=t82Q3f4pNUY"`, tunggu lagunya jalan, lalu buka `%LOCALAPPDATA%\Packages\Kaset.KasetWin_kjgd17zy2bc08\LocalState\diag.log` | Ada baris `enrich song …`. Isinya yang menentukan: `FAILED` berarti panggilannya ditolak, `album=<null>` berarti responsnya memang tidak membawa album | |
 
 ## F. Cacat terbuka dari putaran 4 (2026-07-23)
 
@@ -333,9 +373,9 @@ Urutan sengaja: yang paling berisiko dan paling sering dipakai dulu.
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 75 | Buka sebuah album (mis. *Editorial*), putar dari track 1. Buka panel antrean. Tekan **Next** | Pindah ke track 2 **album yang sama**; isi panel antrean **tidak berubah** — tidak ada lagu asing yang muncul | ✅ 2026-07-23 |
-| 76 | Lanjutkan: tekan Next 3–4 kali lagi, perhatikan panel antrean tiap kali | Tetap album yang sama, urut. Tidak pernah berganti jadi mix | ✅ 2026-07-23 |
-| 77 | Sekarang tekan **Previous** | Kembali ke track sebelumnya. (Ini yang dulu mati total) | ✅ 2026-07-23 - catatan penguji: frasa "mati total" di kolom Harapan salah konteks. Lihat juga 77b |
+| 75 | Buka sebuah album (mis. *Editorial*), putar dari track 1. Buka panel antrean. Tekan **Next** | Pindah ke track 2 **album yang sama**; isi panel antrean **tidak berubah** — tidak ada lagu asing yang muncul | ✅ 2026-07-23 → ✅ 2026-07-23 (putaran 6, pasca ADR 0006) |
+| 76 | Lanjutkan: tekan Next 3–4 kali lagi, perhatikan panel antrean tiap kali | Tetap album yang sama, urut. Tidak pernah berganti jadi mix | ✅ 2026-07-23 → ✅ 2026-07-23 (putaran 6) |
+| 77 | Sekarang tekan **Previous** | Kembali ke track sebelumnya. (Ini yang dulu mati total) | ✅ 2026-07-23 - catatan penguji: frasa "mati total" di kolom Harapan salah konteks. Lihat juga 77b → ✅ 2026-07-23 (putaran 6) |
 | 78 | Klik track 1 di panel antrean | Track 1 diputar ulang dari awal — tidak nyangkut | ⚠️ 2026-07-23: premis langkahnya salah - track 1 sudah tidak ada di antrean, sudah pindah ke Riwayat. Berubah jadi permintaan fitur, lihat F5 · **uji ulang: G #135–136** |
 | 79 | Ulangi 75–78 dari **playlist**, bukan album | Perilaku sama | ⏭️ 2026-07-23: tidak diuji |
 | 80 | Putar 1 lagu saja dari kartu Beranda (bukan album), biarkan sampai habis | Boleh mengikuti autoplay YouTube — ini memang perilaku yang benar saat antrean habis | ✅ 2026-07-23 |
@@ -344,7 +384,7 @@ Urutan sengaja: yang paling berisiko dan paling sering dipakai dulu.
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 81 | Putar lagu, lompat ke ±10 detik sebelum habis. Klik timer tidur → **Akhir lagu ini**. Biarkan habis | Musik **berhenti**. Antrean **tidak** maju. Ini cacat #15 yang dulu diam-diam gagal | ✅ 2026-07-23 |
+| 81 | Putar lagu, lompat ke ±10 detik sebelum habis. Klik timer tidur → **Akhir lagu ini**. Biarkan habis | Musik **berhenti**. Antrean **tidak** maju. Ini cacat #15 yang dulu diam-diam gagal | ✅ 2026-07-23 → ⚠️ 2026-07-23 (putaran 6): musik BERHENTI dengan benar, tapi antrean melompat jauh — penguji memperkirakan 12 sampai 35 lagu terlewat. Lihat seksi H |
 | 82 | Lanjutan 81: tunggu 30 detik setelah berhenti | Tetap diam. Tidak ada lagu yang tiba-tiba jalan sendiri (YouTube sempat memulai lagu berikutnya di belakang layar) | ✅ 2026-07-23 |
 | 83 | Lanjutan 82: tekan tombol Play | Musik jalan lagi normal — penjagaannya lepas begitu kamu sendiri yang minta | ✅ 2026-07-23 |
 | 84 | Klik timer tidur → 15 menit. Lihat **ikon bulannya** | Ada badge angka **15** menempel di ikon. Tidak perlu hover | ✅ 2026-07-23 |
@@ -436,7 +476,7 @@ Tiga videoId terverifikasi: `t82Q3f4pNUY` (Musixmatch, sync), `mZsHggY8G6M` (Lyr
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 115 | `start "kaset://play?v=t82Q3f4pNUY"`, buka panel lirik | Baris lirik **menyala mengikuti lagu** | ✅ 2026-07-23 |
+| 115 | `start "kaset://play?v=t82Q3f4pNUY"`, buka panel lirik | Baris lirik **menyala mengikuti lagu** | ✅ 2026-07-23 → ⚠️ 2026-07-23 (putaran 6): lirik tersinkron jalan, tapi **nama album hilang DAN sampul album hilang** di player bar. Lihat seksi H |
 | 116 | Perhatikan posisi baris aktif saat lagu berjalan | Baris aktif naik ke **atas** panel dan diam di situ, baris berikutnya di bawahnya (gaya Apple Music) — **tidak terpotong** header | ✅ 2026-07-23 |
 | 117 | Lihat label sumber di bawah panel | `Sumber: YouTube Music — Musixmatch` (atau LyricFind, tergantung lagu) | ✅ 2026-07-23 |
 | 118 | Gulir lirik sampai baris terakhir | Baris terakhir masih bisa naik sampai atas, dan **tidak ada baris berisi "Source: …"** di dalam daftar liriknya | ✅ 2026-07-23 |

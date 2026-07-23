@@ -272,6 +272,82 @@ public class PlayerLoadAndMetadataTests
         Assert.Null(await enricher.FetchAsync("proto1"));
     }
 
+    // ── 81 (putaran 6): a fired sleep timer must not let the queue march on ──────────
+
+    [Fact]
+    public async Task SleepTimerStop_IgnoresForeignReports_SoTheQueueDoesNotMarchOn()
+    {
+        var queue = new QueueService(bound => 0);
+        var controller = new GatedPlaybackController();
+        var timer = new SleepTimer();
+        var player = new PlayerService(queue, controller, new FakeJsBridge(), sleepTimer: timer);
+
+        await player.PlayCollectionAsync(MakeSongs(3), startIndex: 0);
+        player.HandleStateUpdate(Report("q0", "Song 0"));
+
+        timer.StartEndOfTrack();
+        await player.HandleTrackEndedAsync("q0");
+        Assert.False(player.IsPlaying);
+
+        int tracksAfterStop = queue.Tracks.Count;
+
+        // What the page really does after the stop: it walks its own autoplay chain, and every pause
+        // Kaset sends comes back as a *paused* report naming whichever video it had already moved to.
+        // These used to be adopted — one appended track and one index move each — so a night's sleep
+        // ended with the queue tens of songs away from where the user left it.
+        for (int i = 0; i < 20; i++)
+        {
+            player.HandleStateUpdate(Report($"autoplay{i}", $"Autoplay {i}", playing: false));
+        }
+
+        Assert.Equal(tracksAfterStop, queue.Tracks.Count);
+        Assert.Equal("q0", queue.CurrentTrack?.VideoId);
+        Assert.Equal("q0", player.CurrentTrack?.VideoId);
+    }
+
+    [Fact]
+    public async Task SleepTimerStop_StillFollowsReportsForTheStoppedTrack()
+    {
+        var queue = new QueueService(bound => 0);
+        var timer = new SleepTimer();
+        var player = new PlayerService(
+            queue, new GatedPlaybackController(), new FakeJsBridge(), sleepTimer: timer);
+
+        await player.PlayCollectionAsync(MakeSongs(3), startIndex: 0);
+        player.HandleStateUpdate(Report("q0", "Song 0"));
+        timer.StartEndOfTrack();
+        await player.HandleTrackEndedAsync("q0");
+
+        // Suppression is aimed at where YouTube wandered off to, not at the track itself: a paused
+        // tick for the stopped track must still be honoured, or the UI freezes on a stale position.
+        player.HandleStateUpdate(new PlaybackStateMessage(
+            false, 42, 100, "q0", "Song 0", string.Empty, true, null, null));
+
+        Assert.Equal(42, player.Progress);
+        Assert.Equal("q0", player.CurrentTrack?.VideoId);
+    }
+
+    [Fact]
+    public async Task PressingPlayAfterASleepStop_LetsTheQueueFollowAgain()
+    {
+        var queue = new QueueService(bound => 0);
+        var timer = new SleepTimer();
+        var player = new PlayerService(
+            queue, new GatedPlaybackController(), new FakeJsBridge(), sleepTimer: timer);
+
+        await player.PlayCollectionAsync(MakeSongs(3), startIndex: 0);
+        player.HandleStateUpdate(Report("q0", "Song 0"));
+        timer.StartEndOfTrack();
+        await player.HandleTrackEndedAsync("q0");
+
+        // The stop lasts until the user asks for playback again — and then normal autoplay adoption
+        // has to come back, otherwise the suppression would outlive the reason for it.
+        await player.TogglePlayPauseAsync();
+        player.HandleStateUpdate(Report("elsewhere", "Elsewhere"));
+
+        Assert.Equal("elsewhere", player.CurrentTrack?.VideoId);
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────────
 
     /// <summary>Polls <paramref name="condition"/> briefly; fails the test if it never holds.</summary>

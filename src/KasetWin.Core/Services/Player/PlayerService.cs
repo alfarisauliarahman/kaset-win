@@ -145,6 +145,17 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     private bool _sleepStopEnforced;
 
     /// <summary>
+    /// The videoId the sleep timer stopped on, while <see cref="_sleepStopEnforced"/> holds.
+    /// </summary>
+    /// <remarks>
+    /// Needed because "suppress queue adoption" cannot be expressed by the flag alone: the page
+    /// keeps reporting after the stop, and a report has to be classified as "still the track the
+    /// user fell asleep to" or "somewhere YouTube wandered to on its own". Only the second is
+    /// ignored, so a genuine progress/pause tick for the stopped track still updates the UI.
+    /// </remarks>
+    private string? _sleepStoppedVideoId;
+
+    /// <summary>
     /// Creates a player wired to the queue, the playback controller, and the JS bridge. The
     /// constructor subscribes to <see cref="IJsBridge.StateUpdated"/> and
     /// <see cref="IJsBridge.TrackEnded"/>; call <see cref="Dispose"/> to unsubscribe.
@@ -375,7 +386,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     public async Task TogglePlayPauseAsync()
     {
         // Asking for playback is the user overruling a fired sleep timer.
-        _sleepStopEnforced = false;
+        ReleaseSleepStop();
 
         // Involution: two toggles return to the original state (Property 9).
         if (IsPlaying)
@@ -409,7 +420,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     {
         // Explicit skip (player-bar / media key): move to the next track even under Repeat One, which
         // only governs auto-advance at track end — otherwise "Next" replays the same song (Req 37.7).
-        _sleepStopEnforced = false;
+        ReleaseSleepStop();
         Song? next = _queue.AdvanceToNext(ignoreRepeatOne: true);
         if (next is not null)
         {
@@ -426,7 +437,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// <inheritdoc />
     public async Task PreviousAsync()
     {
-        _sleepStopEnforced = false;
+        ReleaseSleepStop();
         Song? previous = _queue.AdvanceToPrevious();
         if (previous is not null)
         {
@@ -522,6 +533,17 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         await _controller.SetAudioQualityAsync(quality).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Lifts the sleep-timer stop. Called from every path where the user themselves asked for
+    /// playback (play/pause, next, previous, a deliberate load) — the two fields must fall together,
+    /// or a stale videoId would keep suppressing reports long after the stop was released.
+    /// </summary>
+    private void ReleaseSleepStop()
+    {
+        _sleepStopEnforced = false;
+        _sleepStoppedVideoId = null;
+    }
+
     /// <inheritdoc />
     public void SetLive(bool isLive) => IsLive = isLive;
 
@@ -544,6 +566,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
             // when IsPlaying is already false, which it usually is by the time a track-ended event
             // arrives — so the timer silently did nothing at all.
             _sleepStopEnforced = true;
+            _sleepStoppedVideoId = expected;
             await _controller.PauseAsync().ConfigureAwait(false);
             IsPlaying = false;
             return;
@@ -622,11 +645,27 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
 
         // A sleep timer that ended playback outranks whatever the page decides to do next: keep
         // pushing it back to paused until the user themselves asks for playback again.
-        if (_sleepStopEnforced && message.IsPlaying)
+        if (_sleepStopEnforced)
         {
-            _ = _controller.PauseAsync();
-            IsPlaying = false;
-            return;
+            if (message.IsPlaying)
+            {
+                _ = _controller.PauseAsync();
+                IsPlaying = false;
+                return;
+            }
+
+            // Suppressing only the *playing* reports was not enough, and the gap was wide. Each
+            // pause we send makes the page report itself paused — on whatever video it had already
+            // moved to — and a paused report used to fall straight through to queue adoption below.
+            // YouTube walks its autoplay chain, we pause each one, and every one of those pauses
+            // appended a track and advanced the index: the queue marched forward by tens of songs
+            // while the user was asleep and nothing was audibly playing.
+            if (!string.IsNullOrEmpty(message.VideoId)
+                && _sleepStoppedVideoId is { } stopped
+                && !string.Equals(message.VideoId, stopped, StringComparison.Ordinal))
+            {
+                return;
+            }
         }
 
         // Queue authority during a load: while Kaset is deliberately loading a track, ignore any
@@ -798,7 +837,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         _ignoredUpdatesDuringLoad = 0;
 
         // Deliberately loading something overrules a fired sleep timer.
-        _sleepStopEnforced = false;
+        ReleaseSleepStop();
 
         CurrentTrack = track;
         // A freshly loaded on-demand track is not live until proven otherwise (set via SetLive).
