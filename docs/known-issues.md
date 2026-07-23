@@ -37,7 +37,7 @@ Terakhir diperbarui: 2026-07-23 (putaran uji 5).
 | Hal | Yang dibutuhkan |
 |---|---|
 | **Discord Rich Presence tidak aktif** | `DiscordRichPresenceOptions.DefaultApplicationId` masih kosong. Perlu satu Application ID dari Discord Developer Portal (sekali seumur hidup, bukan per-user). Sampai diisi, kartu Pengaturan menampilkan penjelasannya alih-alih diam-diam gagal. |
-| **Checklist seksi G belum dijalankan** | 15 langkah yang menguji perbaikan putaran 5 (aksesibilitas, `kaset://`, nyangkut, ikon taskbar, antrean, bunyi timer). Seksi D & E sudah dijalankan pada putaran 4. |
+| **Checklist seksi G belum dijalankan** | **20 langkah** (127–146) yang menguji perbaikan putaran 5: aksesibilitas, `kaset://`, nyangkut, ikon taskbar, antrean, bunyi timer. Seksi D & E sudah dijalankan pada putaran 4. Langkah 142–146 ditambahkan menyusul — seksi G semula tidak punya langkah untuk tombol Ulangi, tombol hapus riwayat, maupun Narrator di sidebar, padahal ketiganya justru gejala yang dilaporkan dua putaran berturut-turut. |
 
 ## Ditolak / dibatalkan — jangan dikerjakan ulang tanpa membaca ini
 
