@@ -64,6 +64,20 @@ dilaporkan), **129** (`kaset://` lengkap), **130** (next cepat tidak berhenti to
 taskbar), **137** (bunyi timer "akhir lagu ini"), **140** (like/love sinkron — satu-satunya yang
 perbaikannya belum terbukti menyasar sebab yang benar).
 
+### G0. Regresi wajib — jalankan lima ini SEBELUM 127
+
+ADR 0006 mengubah jalur pemuatan track (tiket generasi + pemuatan paksa). Kelima langkah ini lulus
+di putaran 4 **lewat jalur yang baru saja diubah itu**, jadi statusnya sekarang tidak diketahui —
+bukan aman. Kalau salah satu pecah, tersangkanya ADR 0006, dan tidak ada gunanya melanjutkan ke 127.
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 75 | Album → putar track 1 → Next (lihat panel antrean) | Track 2 album yang sama; antrean tidak berubah | |
+| 76 | Next 3–4 kali lagi | Tetap album yang sama, urut; tidak pernah jadi mix | |
+| 77 | Previous | Kembali ke track sebelumnya | |
+| 81 | Timer "Akhir lagu ini", biarkan lagu habis | Berhenti; antrean tidak maju | |
+| 115 | `start "kaset://play?v=t82Q3f4pNUY"`, buka panel lirik | Baris lirik menyala mengikuti lagu | |
+
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
 | 127 | Nyalakan Narrator, Tab ke daftar antrean / saran pencarian | Menyebut **"Judul — Artis"**. Tidak ada lagi dump `Id = …, VideoId = …` | |
