@@ -863,6 +863,71 @@ Dari seksi F `docs/manual-test-checklist.md`. Dikerjakan paralel oleh tiga subag
 
 - [x] 61. **Keterangan sumber lirik dipangkas** (#121) — lisensornya sudah tampil di tiap lirik.
 
+### PERBAIKAN PUTARAN UJI 6 & 7 (2026-07-23) — pelajarannya: klaim putaran 5 sebagian besar salah
+
+Seksi G disusun untuk menguji perbaikan putaran 5. Saat akhirnya dijalankan dengan tangan, **enam dari
+klaim itu terbukti tidak benar** — dan tiga di antaranya adalah fitur yang tidak pernah berjalan
+sekali pun. Semua sebab di bawah dibuktikan (log runtime atau jalur kode yang ditunjuk), bukan
+ditebak.
+
+- [x] 62. **Antrean melompat belasan–puluhan lagu setelah timer tidur** (#81)
+  - **SEBAB**: penjaga sleep-stop di `HandleStateUpdate` hanya mencegat laporan ber-`IsPlaying=true`.
+    Tiap pause yang Kaset kirim membuat halaman melapor dirinya *paused* pada video yang sudah dia
+    pindahi sendiri, dan laporan paused itu jatuh lurus ke adopsi antrean. YouTube menyusuri rantai
+    autoplay-nya, kita mem-pause tiap satu, dan tiap pause menambah track + memajukan indeks.
+  - **CATATAN**: komentar di kodenya sudah mengklaim "ia juga menekan adopsi antrean" — perilaku yang
+    tidak pernah ditulis. Dokumentasi yang mendahului kode, dan tidak ada yang mengecek.
+  - **PERBAIKAN**: penyaringan berdasarkan videoId, bukan status main. 3 test.
+
+- [x] 63. **Setiap panggilan API dari thread non-UI gagal untuk pengguna login**
+  - **SEBAB**: `CoreWebView2.CookieManager` objek COM dengan afinitas thread; tiap request InnerTube
+    menandatangani diri dengan cookie. `COMException` di 100% panggilan latar — terbukti dari
+    `diag.log` setelah kedua fetcher diinstrumentasi.
+  - **DAMPAK**: album & sampul hilang di `kaset://` (#73/#115/#129) — bukan cacat parser seperti
+    dikira putaran 5. Enrichment menelan semua kegagalan by design, jadi gagalnya senyap.
+  - **PERBAIKAN**: `UiThreadCookieSource` (App layer, bukan Platform — batas WinUI-free dijaga).
+  - _Lihat ADR 0007._
+
+- [x] 64. **Timer tidur tidak pernah berbunyi maupun memunculkan toast** (#81/#137)
+  - **SEBAB 1**: `PlayerBar` berlangganan `Expired` di konstruktor; `OnLoaded` melepas `StateChanged`
+    **dan** `Expired` tapi memasang ulang hanya `StateChanged`. `Loaded` datang beberapa detik
+    setelah konstruktor, jadi handler copot sebelum dipakai sekali pun. Tugas 60 tidak pernah hidup.
+  - **SEBAB 2**: chime dijaga `IsPlaying: true`, padahal di akhir lagu `IsPlaying` sudah false —
+    fakta yang didokumentasikan sendiri di tugas 60 soal `PauseAsync`.
+  - **PERBAIKAN**: kedua handler dipasang & dilepas berpasangan; penjaga `IsPlaying` dihapus.
+
+- [x] 65. **Klik sumber yang sedang aktif memunculkan placeholder "Coming soon"**
+  - **SEBAB**: `NavigateToTag` menggabung "tag punya halaman nyata" dan "belum di halaman itu" dalam
+    satu `if`; saat sudah di halaman itu seluruh blok dilewati dan jatuh ke `PlaceholderPage`.
+  - **CATATAN**: mengenai **Ctrl+,** di halaman Settings juga. Satu perbaikan menutup keduanya.
+
+- [x] 66. **Contekan pintasan memenuhi layar** (#74/#100, gagal 3 putaran)
+  - **SEBAB**: anggaran `tinggiJendela − 220` selalu habis karena isinya butuh ±760 px → dialog tetap
+    setinggi jendela − 60. `ContentDialog.MaxHeight` tidak berpengaruh: template-nya mengikat border
+    ke ThemeResource, bukan ke properti dialog (diverifikasi dari XBF WindowsAppRuntime).
+  - **BELUM PASTI**: "tidak bisa digulir" tidak terbukti dari kode; scrollbar kini dibuat terlihat.
+
+- [x] 67. **Ikon thumbnail taskbar nyaris tak terlihat** (#133)
+  - **SEBAB**: glyph *outline* dirender 32 px lalu diperkecil shell ke 16 → stroke sub-piksel, tanpa
+    kontras. `GetHicon` alpha diuji dan **bukan** penyebabnya.
+  - **PERBAIKAN**: bentuk vektor padat + halo gelap, ukuran dari `SM_CXSMICON` per-DPI,
+    `CreateDIBSection` + premultiplied alpha; `THB_ICON` hanya diset bila ikonnya benar-benar ada.
+
+- [x] 68. **Lirik & pemutaran tidak pulih setelah internet kembali** (#131)
+  - **SEBAB (a)**: hasil kosong dicatat sebagai "sudah dimuat" di `LyricsViewModel`, jadi percobaan
+    berikutnya dilewati sebagai redundan. `LyricsService` sendiri **tidak** menyimpan kegagalan ke
+    cache — hipotesis itu diuji dan gugur; `YouTubeMusicLyricsProvider` tetap dikeraskan.
+  - **SEBAB (b)**: terbukti dari jejak Serilog — klik terjadi saat jaringan **masih** mati, jadi
+    pemuatan paksa (ADR 0006) menghancurkan halaman yang masih memutar dari buffer dan bernavigasi
+    ke jaringan mati. Kegagalannya diingat, tapi hanya untuk menolong klik berikutnya.
+  - **PERBAIKAN**: hasil kosong tidak lagi mengunci; controller memuat ulang saat konektivitas
+    kembali, **tanpa** melanjutkan pemutaran sendiri.
+
+- [ ] 69. **Race laten di `LoadTrackAsync`** — `_expectedVideoId`/`CurrentTrack` diset di luar
+  `_loadGate` dan tidak atomik dengan `Interlocked.Increment(_loadGeneration)`. Kelas bug yang sama
+  dengan ADR 0006, di baris berbeda. **Tidak terbukti** menyebabkan gejala; jendelanya nanodetik
+  sehingga tidak bisa dibuatkan test deterministik. Dicatat, sengaja belum diubah.
+
 ## Notes
 
 - Sub-tugas bertanda `*` bersifat opsional (test atau fitur fase lanjutan) dan **tidak** diimplementasikan otomatis; dapat dilewati untuk MVP yang lebih cepat.

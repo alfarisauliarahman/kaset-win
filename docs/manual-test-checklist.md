@@ -1,6 +1,6 @@
 # Checklist Uji Manual — KasetWin
 
-Hal-hal yang **tidak bisa** dijamin oleh 497 test headless dan job build CI: apa pun yang melibatkan
+Hal-hal yang **tidak bisa** dijamin oleh 503 test headless dan job build CI: apa pun yang melibatkan
 WebView2 sungguhan, sesi login sungguhan, presenter jendela, SMTC, atau mata manusia.
 
 **Cara menyiapkan** (dari `M:\kaset\kaset\KasetWin`):
@@ -56,7 +56,7 @@ dan diverifikasi. Langkah 2, 9, 16, 32, 53, 58b lulus.
 ## G. Uji perbaikan putaran 5 (2026-07-23)
 
 **Ini yang harus diuji sekarang** — 20 langkah, 127–146. Menutup sebagian besar seksi F. **Belum
-satu pun diuji dengan tangan**: build hijau dan 497 test lulus, tapi seksi F sendiri lahir dari
+satu pun diuji dengan tangan**: build hijau dan 497 test lulus saat itu, tapi seksi F sendiri lahir dari
 hal-hal yang lolos kedua gerbang itu.
 
 Kalau waktumu sedikit, enam ini yang paling menentukan: **142** (Ulangi — gejala yang sudah dua kali
@@ -203,16 +203,37 @@ mengklaim keduanya. `ToString()` pada `Song` menutup satu kelas masalah, tapi je
 memuat kedua tombol ini. Perlu Narrator hidup — dan penguji sudah menyatakan berhenti mengujinya
 untuk sekarang, jadi ini menunggu, bukan diam-diam dianggap beres.
 
-### H5. Sisa yang dilaporkan putaran 7 — **belum diperbaiki**
+### H5. Sisa yang dilaporkan putaran 7 — **semuanya sudah ditangani, sebab masing-masing terbukti**
 
-| Asal | Gejala |
-|---|---|
-| 141 | Keterangan sumber lirik di Pengaturan **masih panjang** — pemangkasan putaran 5 tidak berpengaruh |
-| 100 | Contekan pintasan **masih memenuhi layar** — sudah tiga putaran, tiga perbaikan, nol perubahan |
-| 133 | Ikon thumbnail taskbar muncul tapi **sangat tipis**, nyaris tak terlihat |
-| 110 | Lagu tanpa lirik menampilkan "Putar lagu untuk melihat lirik", bukan "lirik tidak tersedia" |
-| 131 | Setelah internet kembali: lirik tidak muncul, dan mengklik lagu yang sama membuat tampilan **blank tanpa memutar** |
-| — | **Klik toggle sumber Music dua kali → halaman "Home — Coming soon" (beranda mode YouTube) muncul**, padahal sumbernya Music |
+| Asal | Gejala | Sebab yang ditemukan |
+|---|---|---|
+| 141 | Keterangan sumber lirik **masih panjang** | Kartunya merender **dua** paragraf bertumpuk (caption + atribusi) = 134 karakter; putaran 5 hanya memangkas salah satunya. Paragraf atribusi dihapus — lisensornya sudah tampil di bawah tiap lirik — sisa satu kalimat 31 karakter |
+| 100 | Contekan pintasan **masih memenuhi layar** | Anggaran tingginya `tinggiJendela − 220`, sedangkan isinya butuh ±760 px, jadi selalu habis: dialog tetap setinggi jendela − 60. `ContentDialog.MaxHeight` tidak bisa menolong — template-nya mengikat border ke ThemeResource, bukan ke propertinya. Kini konten dipatok 520 px + scrollbar terlihat |
+| 133 | Ikon taskbar **sangat tipis** | Glyph *outline* dirender 32 px lalu diperkecil shell ke 16 → garis di bawah 1 piksel, tanpa kontras. Kini bentuk vektor padat di atas halo gelap, ukuran mengikuti DPI |
+| 110 | Pesan lirik salah untuk lagu tanpa lirik | Kedua keadaan ("belum ada lagu" vs "lagu ini tak berlirik") memang bisa dibedakan lewat `CurrentTrack`; pesannya saja yang tidak pernah dipisah |
+| 131a | Lirik tidak muncul lagi setelah internet kembali | Hasil kosong dicatat sebagai "sudah dimuat", jadi percobaan berikutnya dilewati sebagai redundan — panel tidak pernah bertanya lagi |
+| 131b | Blank tanpa memutar | Terbukti dari jejak Serilog: kliknya terjadi saat jaringan **masih mati**, jadi pemuatan paksa ADR 0006 menghancurkan halaman yang masih memutar dari buffer lalu bernavigasi ke jaringan mati. Kegagalannya diingat, tapi hanya untuk menolong klik **berikutnya** |
+| — | Klik toggle Music 2× → "Home — Coming soon" | Bukan beranda YouTube — placeholder generik. `NavigateToTag` menggabung syarat "tag punya halaman" dan "belum di halaman itu" dalam satu `if`, jadi saat sudah di Home seluruh blok dilewati dan jatuh ke placeholder. Bug yang sama kena **Ctrl+,** di halaman Settings |
+
+### H5b. Langkah uji untuk perbaikan di atas — **belum satu pun diuji tangan**
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 152 | Set timer "Akhir lagu ini", biarkan lagu habis | Musik berhenti, **toast muncul, DAN terdengar satu bunyi** | |
+| 153 | Set timer 1 menit (`SleepTimerPresets` → `[1]`), biarkan habis | Toast + bunyi yang sama | |
+| 154 | Set timer lalu **batalkan** | Tidak ada bunyi sama sekali | |
+| 155 | Di halaman Home, klik tombol sumber **Music** (yang sedang aktif) 2–3 kali | Tidak terjadi apa-apa. Tidak ada "Coming soon" | |
+| 156 | Klik **YouTube**, lalu klik **YouTube** lagi | Pindah sekali, klik kedua tidak melakukan apa pun | |
+| 157 | Buka Pengaturan, tekan **Ctrl+,** sekali lagi | Tetap di Pengaturan; tidak muncul placeholder | |
+| 158 | Kecilkan jendela ke ukuran minimum, tekan **Shift + /** | Contekan **muat**, ada jarak ke tepi atas-bawah, dan bilah gulir vertikal **terlihat** | |
+| 159 | Lanjutan 158: putar roda mouse di atas daftar | Isinya benar-benar bergulir. Kalau bilahnya terlihat tapi tidak bergeser, sebabnya input routing — jejak berbeda | |
+| 160 | Hover ikon Kaset di taskbar | Tiga tombol tampak **padat**, bukan kerangka tipis | |
+| 161 | Ulangi 160 dengan tema Windows terang **dan** gelap | Terbaca jelas di kedua tema (ikonnya punya halo gelap) | |
+| 162 | Tekan play/pause, lihat tombol tengah thumbnail | Berganti antara ▶ dan ‖ | |
+| 163 | Putar lagu yang tidak punya lirik, buka panel lirik | Tertulis "Lirik tidak tersedia untuk lagu ini", **bukan** "Putar lagu untuk melihat lirik" | |
+| 164 | Pengaturan → Sumber lirik | Keterangannya **satu baris pendek** | |
+| 165 | Matikan Wi-Fi saat memutar, tunggu lirik gagal, nyalakan Wi-Fi, **buka/tutup panel lirik** | Liriknya muncul — panel bertanya lagi alih-alih menganggapnya sudah dimuat | |
+| 166 | Matikan Wi-Fi, klik lagu yang sama (halaman jadi blank), lalu nyalakan Wi-Fi dan **tunggu** | Halaman dimuat ulang sendiri; menekan Play memutar lagunya. (Musik sengaja **tidak** jalan sendiri) | |
 
 ### H6. Yang sudah beres menurut penguji
 
@@ -221,7 +242,17 @@ untuk sekarang, jadi ini menunggu, bukan diam-diam dianggap beres.
 
 ### H7. Permintaan fitur baru
 
-- **Panel lirik & antrean di dalam mini player**, seperti mini player Apple Music.
+- **Panel lirik & antrean di dalam mini player**, seperti mini player Apple Music. Belum dikerjakan.
+
+### H8. Masih terbuka setelah putaran 7
+
+| Hal | Kenapa masih terbuka |
+|---|---|
+| **Sidebar tidak menyempit** mengikuti lebar jendela | Tidak pernah dimulai — dicoret pemilik repo saat memilih cakupan putaran 5 |
+| **Klik kanan mati** di playlist/album/playlist podcast | Sama: tidak pernah dimulai |
+| **Aksesibilitas #128 & #142** | Lihat H4. Butuh Narrator hidup, dan pemilik repo menghentikan pengujian Narrator untuk sekarang |
+| **Pesan lirik kosong untuk podcast** | Berbunyi "Lirik tidak tersedia untuk **lagu** ini" padahal header panelnya "Subtitel (CC)". Ditemukan agent sendiri, di luar cakupan yang diminta |
+| **Race laten di `LoadTrackAsync`** | `_expectedVideoId` dan `CurrentTrack` diset **di luar** `_loadGate` dan tidak atomik dengan `Interlocked.Increment(_loadGeneration)`. Dua pemuatan dari thread berbeda (media key vs klik UI) bisa membuat pemuatan lama menimpa penjaga milik yang baru — kelas bug yang sama dengan yang ditutup ADR 0006, di baris berbeda. **Tidak terbukti** menyebabkan gejala apa pun, dan jendelanya nanodetik sehingga tidak bisa dibuatkan test deterministik. Dicatat, sengaja tidak diubah |
 
 
 
@@ -577,7 +608,7 @@ Tiga videoId terverifikasi: `t82Q3f4pNUY` (Musixmatch, sync), `mZsHggY8G6M` (Lyr
 
 Dicatat jujur, bukan diklaim aman:
 
-- **ViewModel dan lapisan Platform tidak punya test sama sekali.** 497 test seluruhnya `KasetWin.Core`.
+- **ViewModel dan lapisan Platform tidak punya test sama sekali.** 503 test seluruhnya `KasetWin.Core`.
   `SearchViewModel` (724 baris) dan `PlaylistDetailViewModel` (859 baris) hanya diuji dengan tangan.
 - **Wiring timer tidur.** `SleepTimer` sendiri diuji 9 test; bahwa `PlayerService` benar-benar
   menjeda dan ticker benar-benar hidup/mati mengikuti state hanya bisa dibuktikan lewat langkah

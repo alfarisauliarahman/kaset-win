@@ -8,7 +8,7 @@ Dua daftar, dan keduanya sengaja ada:
 - **Ditolak / dibatalkan** — pernah dipertimbangkan, diputuskan tidak. Ditulis supaya tidak ada yang
   mengerjakannya lagi dari nol, lalu heran kenapa di-revert.
 
-Terakhir diperbarui: 2026-07-23 (putaran uji 5).
+Terakhir diperbarui: 2026-07-23 (putaran uji 7).
 
 ---
 
@@ -19,14 +19,15 @@ Terakhir diperbarui: 2026-07-23 (putaran uji 5).
 | **Baris lirik sebelumnya tampak separuh** di atas baris aktif | Tinggi baris yang melipat dibaca sebelum layout selesai, jadi target gulir meleset beberapa piksel. Kosmetik; baris aktifnya sendiri sudah tidak terpotong lagi. Perbaikan sesungguhnya berarti menunda gulir sampai layout settle, yang bisa membuat glide-nya tersendat — dan tersendat lebih terasa daripada separuh baris. |
 | **Pemutaran tidak otomatis melanjut saat internet kembali** | Yang diperbaiki putaran 5 adalah "klik lagu yang sama tidak berefek"; melanjutkan sendiri butuh pemantauan status jaringan, mekanisme terpisah yang sengaja belum ditambahkan. Pengguna menekan play. Lihat ADR 0006. |
 | **Mengklik lagu yang sedang diputar mengulanginya dari 0:00** | Bukan cacat — konsekuensi yang disengaja dari perbaikan di atas, dan perilaku yang lazim di pemutar musik. Membalikkannya berarti mengembalikan "lagu mati tidak bisa dimuat ulang". |
-| **Contekan pintasan memenuhi layar saat windowed** | Perbaikan tinggi maksimum putaran 3 terbukti tidak berpengaruh; sebabnya belum ditemukan. Masih terbuka, sengaja dilewati pada putaran 5. |
-| **Sidebar tidak menyempit mengikuti lebar jendela** | Masih terbuka, sengaja dilewati pada putaran 5. |
-| **Sampul album berkedip di mini player** | Masih terbuka, sengaja dilewati pada putaran 5. |
-| **Klik kanan mati di beberapa halaman** (playlist, album, playlist podcast) | Masih terbuka, sengaja dilewati pada putaran 5. |
+| **Sidebar tidak menyempit mengikuti lebar jendela** | Masih terbuka. Tidak pernah dimulai — dicoret pemilik repo saat memilih cakupan putaran 5, bukan dicoba lalu gagal. |
+| **Klik kanan mati di beberapa halaman** (playlist, album, playlist podcast) | Masih terbuka. Sama seperti di atas: tidak pernah dimulai. |
+| **Narrator: tombol Ulangi & tombol sumber ringkas** (#128/#142) | Perbaikan `ToString()` putaran 5 menutup satu kelas masalah, tapi bukan kelas yang memuat kedua tombol ini — diuji tangan putaran 7, nol perubahan. Butuh Narrator hidup; pemilik repo menghentikan pengujian Narrator untuk sekarang. |
+| **Pesan lirik kosong berbunyi "lagu ini" untuk podcast** | Header panelnya "Subtitel (CC)" tapi pesan kosongnya menyebut "lagu". Ditemukan sendiri oleh agent, di luar cakupan yang diminta. |
+| **Race laten di `LoadTrackAsync`** | `_expectedVideoId`/`CurrentTrack` diset di luar `_loadGate`, tidak atomik dengan increment generasi. Kelas bug yang sama dengan ADR 0006 di baris berbeda. **Tidak terbukti** menyebabkan gejala apa pun, dan jendelanya nanodetik sehingga tidak ada test deterministik yang bisa ditulis. Jangan "perbaiki" tanpa test yang benar-benar membuktikannya. |
 | **`Tyler, The Creator` bisa terbaca dua artis** | Pemisahan koma pada byline datar terjadi di `observer.js`, di hulu Core. Aturan konjungsi "dan"/"and" tidak diperlebar ke koma justru supaya kasus ini tidak jadi lebih parah. Menebak salah lebih buruk daripada nama yang kepanjangan. |
 | **Lirik tidak selalu tersinkron** | Ketersediaan versi tersinkron ditentukan per lagu oleh YouTube, bukan oleh penyedia lisensinya. Terverifikasi: satu lagu Musixmatch bisa tersinkron penuh, satu lagi tidak sama sekali. Bukan bug. |
 | **Versi klien `ANDROID_MUSIC 7.21.50` yang di-pin pasti basi** | Tidak bisa dihindari; bisa dipulihkan. Kegagalannya turun ke teks polos (tidak pernah ke "lirik hilang"), log memperingatkan setelah 12 lagu beruntun tanpa timing, dan versinya bisa diganti lewat setting `lyrics.androidClientVersion` **tanpa rilis baru**. Lihat ADR 0005. |
-| **ViewModel & lapisan Platform nol test** | 497 test seluruhnya `KasetWin.Core`. `SearchViewModel` (724 baris) dan `PlaylistDetailViewModel` (859 baris) hanya diuji dengan tangan. Gap struktural terbesar yang tersisa. |
+| **ViewModel & lapisan Platform nol test** | 503 test seluruhnya `KasetWin.Core`. `SearchViewModel` (724 baris) dan `PlaylistDetailViewModel` (859 baris) hanya diuji dengan tangan. Gap struktural terbesar yang tersisa. |
 | **Tidak ada tampilan error + tombol "coba lagi"** | 16 halaman punya `ProgressRing`, tapi kalau panggilan API gagal user hanya melihat halaman kosong. Rekomendasi prioritas tertinggi yang belum dikerjakan. |
 | **`MainWindow` ~3.000 baris di 8 partial** | `NavigationService` yang direncanakan masih TODO sejak task 14.2. Tiap fitur shell baru menumpuk di sini. |
 | **Podcast di sidebar tidak memuat** | YouTube Music tidak menyediakan Podcast untuk region Indonesia. Bukan cacat Kaset. |
@@ -37,7 +38,7 @@ Terakhir diperbarui: 2026-07-23 (putaran uji 5).
 | Hal | Yang dibutuhkan |
 |---|---|
 | **Discord Rich Presence tidak aktif** | `DiscordRichPresenceOptions.DefaultApplicationId` masih kosong. Perlu satu Application ID dari Discord Developer Portal (sekali seumur hidup, bukan per-user). Sampai diisi, kartu Pengaturan menampilkan penjelasannya alih-alih diam-diam gagal. |
-| **Checklist seksi G belum dijalankan** | **20 langkah** (127–146) yang menguji perbaikan putaran 5: aksesibilitas, `kaset://`, nyangkut, ikon taskbar, antrean, bunyi timer. Seksi D & E sudah dijalankan pada putaran 4. Langkah 142–146 ditambahkan menyusul — seksi G semula tidak punya langkah untuk tombol Ulangi, tombol hapus riwayat, maupun Narrator di sidebar, padahal ketiganya justru gejala yang dilaporkan dua putaran berturut-turut. |
+| **Checklist seksi G, H5b belum dijalankan** | Seksi G sudah dijalankan pada putaran 7; **seksi H5b (langkah 152–166) belum satu pun**. Untuk arsip: seksi G semula **20 langkah** (127–146) yang menguji perbaikan putaran 5: aksesibilitas, `kaset://`, nyangkut, ikon taskbar, antrean, bunyi timer. Seksi D & E sudah dijalankan pada putaran 4. Langkah 142–146 ditambahkan menyusul — seksi G semula tidak punya langkah untuk tombol Ulangi, tombol hapus riwayat, maupun Narrator di sidebar, padahal ketiganya justru gejala yang dilaporkan dua putaran berturut-turut. |
 
 ## Ditolak / dibatalkan — jangan dikerjakan ulang tanpa membaca ini
 
