@@ -24,6 +24,7 @@ using KasetWin.Platform.Smtc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.UI.Dispatching;
 using Microsoft.Web.WebView2.Core;
 
 namespace KasetWin.App.Composition;
@@ -43,6 +44,17 @@ namespace KasetWin.App.Composition;
 /// </remarks>
 internal static class AppHost
 {
+    /// <summary>
+    /// The UI thread's dispatcher, captured when the host is built.
+    /// </summary>
+    /// <remarks>
+    /// Captured here rather than inside a DI factory because factories run on whichever thread
+    /// first resolves the service — for a background caller that would capture the wrong thread,
+    /// which is the very bug this is here to prevent. <see cref="Build"/> is called from
+    /// <c>App.OnLaunched</c>, so this is the real UI dispatcher.
+    /// </remarks>
+    private static DispatcherQueue? _uiDispatcher;
+
     /// <summary>Builds the configured (but not yet started) application host.</summary>
     public static IHost Build() =>
         Host.CreateDefaultBuilder()
@@ -57,7 +69,11 @@ internal static class AppHost
                     WriteToDebug = true,
                 });
             })
-            .ConfigureServices(static (_, services) => ConfigureServices(services))
+            .ConfigureServices(static (_, services) =>
+            {
+                _uiDispatcher = DispatcherQueue.GetForCurrentThread();
+                ConfigureServices(services);
+            })
             .Build();
 
     /// <summary>Registers every service currently available for dependency injection.</summary>
@@ -135,7 +151,21 @@ internal static class AppHost
             var controller = sp.GetRequiredService<WebView2PlaybackController>();
             return () => accessor.Current ?? controller.CoreWebView2;
         });
-        services.AddSingleton<ICookieSource, WebView2CookieSource>();
+        // Cookie reads are marshalled to the UI thread. CoreWebView2's cookie manager is a COM
+        // object with thread affinity, and every InnerTube request signs itself with cookies — so
+        // before this, any API call made off the UI thread threw COMException for a signed-in user.
+        // Silent wherever the caller treats the result as optional, which is why "no album after a
+        // kaset:// launch" outlived a fix aimed at the layer above it.
+        services.AddSingleton<ICookieSource>(static sp =>
+        {
+            var source = new WebView2CookieSource(
+                sp.GetRequiredService<Func<CoreWebView2?>>(),
+                sp.GetService<ILogger<WebView2CookieSource>>());
+
+            return _uiDispatcher is { } dispatcher
+                ? new UiThreadCookieSource(source, dispatcher)
+                : source;
+        });
 
         // ── Core: YouTube Music client (task 7.1) ────────────────────────────────────────
         // Owns a browser-shaped HttpClient via CreateConfiguredHttpClient (no IHttpClientFactory
