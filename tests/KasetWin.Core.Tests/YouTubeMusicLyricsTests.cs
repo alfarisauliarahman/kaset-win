@@ -393,6 +393,65 @@ public class YouTubeMusicLyricsTests
         Assert.Equal(1, client.YouTubeMusicLyricsCalls);
     }
 
+    [Fact]
+    public async Task Provider_does_not_memoize_a_miss_so_a_lookup_made_offline_can_recover()
+    {
+        // The client returns null — not an exception — when the `next` step is answered from the
+        // API cache and only the browse steps fail (the offline shape: TryBrowseLyricsAsync
+        // swallows the KasetError). Memoizing that null used to keep the track lyric-less for the
+        // rest of the session, long after the Wi-Fi came back (checklist 131).
+        var calls = 0;
+        var client = new FakeYTMusicClient
+        {
+            YouTubeMusicLyrics = _ => ++calls == 1 ? null : new YouTubeMusicLyrics("body", null),
+        };
+        var provider = new YouTubeMusicLyricsProvider(client);
+
+        Assert.IsType<LyricResult.Unavailable>(await provider.SearchAsync(Info));
+        var second = Assert.IsType<LyricResult.Plain>(await provider.SearchAsync(Info));
+
+        Assert.Equal("body", second.Lyrics.Text);
+        Assert.Equal(2, client.YouTubeMusicLyricsCalls);
+    }
+
+    [Fact]
+    public async Task Provider_does_not_memoize_a_transport_fault_either()
+    {
+        var calls = 0;
+        var client = new FakeYTMusicClient
+        {
+            YouTubeMusicLyrics = _ => ++calls == 1
+                ? throw new HttpRequestException("no such host")
+                : new YouTubeMusicLyrics("body", null),
+        };
+        var provider = new YouTubeMusicLyricsProvider(client);
+
+        Assert.IsType<LyricResult.Unavailable>(await provider.SearchAsync(Info));
+        Assert.IsType<LyricResult.Plain>(await provider.SearchAsync(Info));
+    }
+
+    [Fact]
+    public async Task A_lookup_that_failed_while_offline_succeeds_when_the_panel_asks_again()
+    {
+        // End to end over the real service + real provider: neither layer may keep the failure, or
+        // the track stays lyric-less until the app restarts (checklist 131). Note this only fires
+        // when something *asks* again — the retry trigger itself lives in the App layer.
+        var calls = 0;
+        var client = new FakeYTMusicClient
+        {
+            YouTubeMusicLyrics = _ => ++calls == 1
+                ? throw new HttpRequestException("no such host")
+                : new YouTubeMusicLyrics("body", null),
+        };
+        var service = new LyricsService(new ILyricsProvider[] { new YouTubeMusicLyricsProvider(client) });
+
+        await service.LoadForTrackAsync(Info);
+        Assert.IsType<LyricResult.Unavailable>(service.CurrentLyrics);
+
+        await service.LoadForTrackAsync(Info);
+        Assert.Equal("body", Assert.IsType<LyricResult.Plain>(service.CurrentLyrics).Lyrics.Text);
+    }
+
     // ── Service: the resolved lyrics always carry their source ──────────────────────────
 
     [Fact]

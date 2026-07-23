@@ -513,38 +513,76 @@ public sealed partial class MainWindow
         columns.Children.Add(playback);
         columns.Children.Add(rightColumn);
 
-        // Size the sheet against the CURRENT window, not a fixed 640px: at the 980×600 minimum the
-        // old constant was taller than the window, so the dialog filled it top to bottom and the last
-        // rows were clipped with no way to reach them. Reserve room for the dialog's own chrome
-        // (title + close button + padding) and clamp to something still readable.
+        // ── Sizing: budget the CONTENT, never the dialog ───────────────────────────────────────
+        // Why the two previous attempts looked like they did nothing:
+        //  * A ContentDialog does not shrink itself to the window. Its template gives the visible
+        //    "BackgroundElement" border its MinWidth/MaxWidth/MinHeight/MaxHeight from *theme
+        //    resources* (ContentDialogMaxHeight & co.), not from the ContentDialog's own MaxHeight
+        //    property — so setting MaxHeight on the dialog instance changes nothing at all, and the
+        //    only reliable lever is how tall the content we hand it is.
+        //  * The previous budget was `windowHeight − 220`. Because the sheet always wants more rows
+        //    than that, the content took every pixel it was offered at *every* window size, so the
+        //    dialog ended up roughly as tall as the window — indistinguishable from the original
+        //    "fills the screen top to bottom" bug no matter how the window was sized.
+        // So: subtract the dialog's own chrome *and* a deliberate window margin, and cap the result
+        // well below the window so the sheet always reads as a sheet, with the list scrolling inside.
         var xamlRoot = Content.XamlRoot;
-        double availableHeight = xamlRoot.Size.Height;
-        double availableWidth = xamlRoot.Size.Width;
-        var contentMaxHeight = Math.Clamp(availableHeight - 220.0, 200.0, 640.0);
+        double availableHeight = xamlRoot.Size.Height > 0 ? xamlRoot.Size.Height : MainWindowLayout.MinimumHeight;
+        double availableWidth = xamlRoot.Size.Width > 0 ? xamlRoot.Size.Width : MainWindowLayout.MinimumWidth;
+
+        var scroller = new ScrollViewer
+        {
+            Content = columns,
+            VerticalScrollMode = ScrollMode.Enabled,
+            // Not Auto: the Fluent auto-hiding scroll bar is a 2px sliver until the pointer is over
+            // it, which is exactly why an overflowing sheet reads as "cannot be scrolled". The list
+            // here overflows by design at small window sizes, so show the bar and say so.
+            VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
+            // A narrow window cannot fit the two 320px columns side by side either, so let the
+            // sheet pan sideways rather than clip the right-hand column.
+            HorizontalScrollMode = ScrollMode.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            MaxHeight = ShortcutsContentMaxHeight(availableHeight),
+            // Tab-reachable so the list can also be scrolled with the arrow keys / Page Up-Down,
+            // not only with the wheel.
+            IsTabStop = true,
+        };
 
         _shortcutsDialog = new ContentDialog
         {
             Title = Localization.UiStrings.ShortcutsTitle,
-            Content = new ScrollViewer
-            {
-                Content = columns,
-                VerticalScrollMode = ScrollMode.Auto,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                // A narrow window cannot fit the two 320px columns side by side either, so let the
-                // sheet pan sideways rather than clip the right-hand column.
-                HorizontalScrollMode = ScrollMode.Auto,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-                MaxHeight = contentMaxHeight,
-            },
+            Content = scroller,
             CloseButtonText = Localization.UiStrings.DialogClose,
             XamlRoot = xamlRoot,
         };
 
+        // The dialog template wraps our content in a ScrollViewer of its own. Two nested scrollers
+        // around the same overflow is how a wheel spin ends up doing nothing visible, and the outer
+        // one is the one that never has an overflow (our content is bounded). Turn it off so every
+        // wheel notch lands on the scroller that actually moves. These are inheritable attached
+        // properties, but the local values set on `scroller` above outrank them.
+        ScrollViewer.SetVerticalScrollMode(_shortcutsDialog, ScrollMode.Disabled);
+        ScrollViewer.SetVerticalScrollBarVisibility(_shortcutsDialog, ScrollBarVisibility.Disabled);
+
         // The default ContentDialog max width (~548px) clips the two-column layout; widen it generously
         // so both columns and their key chips fit without the right column being cut off — but never
-        // wider than the window itself.
+        // wider than the window itself. These theme-resource overrides are a second line of defence
+        // only: whether a {ThemeResource} inside the template resolves against an instance's own
+        // Resources is not something to bet the fix on, and the content budget above already keeps
+        // the sheet inside the window on its own.
         _shortcutsDialog.Resources["ContentDialogMaxWidth"] = Math.Clamp(availableWidth - 48, 320.0, 1000.0);
-        _shortcutsDialog.Resources["ContentDialogMaxHeight"] = Math.Max(240.0, availableHeight - 48);
+        _shortcutsDialog.Resources["ContentDialogMaxHeight"] = Math.Max(240.0, availableHeight - ShortcutsWindowMargin);
+
+        // Resizing the window while the sheet is open must not put it back outside the window.
+        void OnRootSizeChanged(XamlRoot sender, XamlRootChangedEventArgs args)
+        {
+            if (sender.Size.Height > 0)
+            {
+                scroller.MaxHeight = ShortcutsContentMaxHeight(sender.Size.Height);
+            }
+        }
+
+        xamlRoot.Changed += OnRootSizeChanged;
 
         try
         {
@@ -552,9 +590,27 @@ public sealed partial class MainWindow
         }
         finally
         {
+            xamlRoot.Changed -= OnRootSizeChanged;
             _shortcutsDialog = null;
         }
     }
+
+    /// <summary>
+    /// Vertical space the ContentDialog template spends on itself around our content: padding top and
+    /// bottom, the title row plus its margin, and the command (button) area plus its margin. Measured
+    /// against the default theme resources and rounded up — over-reserving costs a few rows of scroll,
+    /// under-reserving costs the bottom of the sheet.
+    /// </summary>
+    private const double ShortcutsDialogChrome = 200.0;
+
+    /// <summary>Gap kept between the sheet and the window edges, so it visibly floats *in* the window
+    /// instead of ending flush with it (the previous budget left none, which is why the sheet still
+    /// looked like it filled the screen).</summary>
+    private const double ShortcutsWindowMargin = 96.0;
+
+    /// <summary>How tall the scrolling shortcut list may be inside a window of <paramref name="windowHeight"/>.</summary>
+    private static double ShortcutsContentMaxHeight(double windowHeight) =>
+        Math.Clamp(windowHeight - ShortcutsDialogChrome - ShortcutsWindowMargin, 160.0, 520.0);
 
     /// <summary>Builds one titled group of "action → keys" rows for the shortcuts help.</summary>
     private static StackPanel BuildShortcutSection(string title, (string Action, string Keys)[] rows)

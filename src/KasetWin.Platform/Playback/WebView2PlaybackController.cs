@@ -87,10 +87,45 @@ public sealed class WebView2PlaybackController : IPlaybackController, IJsBridge,
     /// <param name="logger">Optional logger; defaults to a no-op logger.</param>
     public WebView2PlaybackController(
         Func<CancellationToken, Task<CoreWebView2>>? coreWebViewFactory = null,
-        ILogger<WebView2PlaybackController>? logger = null)
+        ILogger<WebView2PlaybackController>? logger = null,
+        INetworkMonitor? networkMonitor = null)
     {
         _coreWebViewFactory = coreWebViewFactory;
         _logger = logger ?? NullLogger<WebView2PlaybackController>.Instance;
+
+        // A navigation that failed because the network was down leaves a dead page behind, and
+        // nothing ever went back for it: the failure was only remembered so that the *next* click on
+        // the same song would re-navigate instead of being swallowed as "already loaded". The user
+        // saw a blank surface that stayed blank, and pressing play could not help — play() was
+        // landing on a Chromium error page. Connectivity returning is the one moment worth retrying.
+        if (networkMonitor is not null)
+        {
+            _networkMonitor = networkMonitor;
+            _networkMonitor.ConnectivityChanged += OnConnectivityChanged;
+        }
+    }
+
+    private readonly INetworkMonitor? _networkMonitor;
+
+    private async void OnConnectivityChanged(object? sender, bool isConnected)
+    {
+        if (!isConnected || !_currentVideoNavigationFailed || _currentVideoId is not { } videoId)
+        {
+            return;
+        }
+
+        try
+        {
+            // Deliberately does NOT resume playback: the page is restored to a live, correct song,
+            // and starting audio on its own would be a surprise for someone whose connection came
+            // back an hour later. Pressing play now works, which it did not before.
+            _logger.LogInformation("Connectivity restored; reloading the playback page that failed to navigate.");
+            await LoadVideoAsync(videoId, forceReload: true).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Reloading the playback page after connectivity returned failed.");
+        }
     }
 
     /// <inheritdoc />

@@ -38,7 +38,17 @@ public sealed class YouTubeMusicLyricsProvider : ILyricsProvider
     private readonly ILogger<YouTubeMusicLyricsProvider> _logger;
 
     // Per-video memo: the panel reopening (or a refresh) must not re-issue two InnerTube requests.
-    // A miss is memoized as null too — a track without a lyrics tab will not grow one mid-session.
+    //
+    // ONLY results that carry lyrics are memoized. A miss used to be memoized too ("a track without
+    // a lyrics tab will not grow one mid-session"), which is true for a genuine miss and false for
+    // the one that matters: a lookup made while the network was down. The client returns null — not
+    // an exception — whenever the `next` step is served from ApiCache and only the `browse` steps
+    // fail, because YTMusicClient.TryBrowseLyricsAsync swallows the KasetError. That null was then
+    // memoized for the rest of the session, so the track stayed lyric-less even after connectivity
+    // returned and even after ILyricsService.Invalidate (which reaches the service cache, never
+    // this one). Re-asking costs one `next` request that the API cache usually answers, and a track
+    // with no lyrics tab returns before any browse is issued — cheap enough to trade for a lookup
+    // that can recover (checklist 131).
     private readonly ConcurrentDictionary<string, LyricResult> _cache = new(StringComparer.Ordinal);
 
     /// <summary>Creates the provider over the shared authenticated InnerTube client.</summary>
@@ -96,7 +106,12 @@ public sealed class YouTubeMusicLyricsProvider : ILyricsProvider
             return new LyricResult.Unavailable();
         }
 
-        _cache[info.VideoId] = result;
+        // Positive results only — see the _cache remark: an "unavailable" must stay retryable.
+        if (result is not LyricResult.Unavailable)
+        {
+            _cache[info.VideoId] = result;
+        }
+
         return result;
     }
 

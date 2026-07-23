@@ -116,6 +116,16 @@ public sealed partial class LyricsService : ObservableObject, ILyricsService
             _cache[info.VideoId] = result;
         }
 
+        // One line per completed lookup, in the same file as the ytm-lyrics lines. Failures were
+        // already visible in the Serilog file per provider; what was missing is the OUTCOME the
+        // panel actually received, and whether it was published at all or dropped as stale — the
+        // difference between "no lyrics exist" and "the lookup ran while the Wi-Fi was off and
+        // nothing ever asked again" (checklist 131).
+        bool stale = myGeneration != Volatile.Read(ref _generation);
+        Diag.Write(
+            $"lyrics videoId={info.VideoId} result={DescribeResult(result)}"
+            + (stale ? " DROPPED(stale)" : string.Empty));
+
         Publish(result, myGeneration);
     }
 
@@ -247,11 +257,13 @@ public sealed partial class LyricsService : ObservableObject, ILyricsService
         catch (TimeoutException)
         {
             _logger.LogWarning("Provider {Provider} timed out for {VideoId}.", provider.Name, info.VideoId);
+            Diag.Write($"lyrics provider={provider.Name} videoId={info.VideoId} TIMEOUT after {ProviderTimeout.TotalSeconds:0}s");
             return new LyricResult.Unavailable();
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Provider {Provider} failed for {VideoId}.", provider.Name, info.VideoId);
+            Diag.Write($"lyrics provider={provider.Name} videoId={info.VideoId} FAILED: {ex.GetType().Name}");
             return new LyricResult.Unavailable();
         }
     }
@@ -282,6 +294,14 @@ public sealed partial class LyricsService : ObservableObject, ILyricsService
         LyricResult.Plain plain when string.IsNullOrWhiteSpace(plain.Lyrics.Source)
             => new LyricResult.Plain(plain.Lyrics with { Source = providerName }),
         _ => result,
+    };
+
+    /// <summary>Short, secret-free description of a result for the diagnostic line.</summary>
+    private static string DescribeResult(LyricResult result) => result switch
+    {
+        LyricResult.Synced synced => $"synced lines={synced.Lyrics.Lines.Count} provider={synced.Lyrics.Source}",
+        LyricResult.Plain plain => $"plain chars={plain.Lyrics.Text.Length} provider={plain.Lyrics.Source}",
+        _ => "unavailable",
     };
 
     private static string? ProviderLabel(LyricResult result) => result switch

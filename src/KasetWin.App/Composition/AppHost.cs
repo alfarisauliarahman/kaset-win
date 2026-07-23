@@ -115,7 +115,8 @@ internal static class AppHost
         // WebView2 element and calls AttachAsync once its CoreWebView2 is ready (Req 1.1).
         services.AddSingleton<WebView2PlaybackController>(static sp => new WebView2PlaybackController(
             coreWebViewFactory: null,
-            logger: sp.GetService<ILogger<WebView2PlaybackController>>()));
+            logger: sp.GetService<ILogger<WebView2PlaybackController>>(),
+            networkMonitor: sp.GetService<INetworkMonitor>()));
         services.AddSingleton<IPlaybackController>(static sp => sp.GetRequiredService<WebView2PlaybackController>());
         services.AddSingleton<IJsBridge>(static sp => sp.GetRequiredService<WebView2PlaybackController>());
 

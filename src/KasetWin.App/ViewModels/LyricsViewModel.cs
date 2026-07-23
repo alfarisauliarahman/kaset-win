@@ -234,6 +234,16 @@ public sealed partial class LyricsViewModel : ViewModelBase, IDisposable
 
         _loadedVideoId = info.VideoId;
         await _lyrics.LoadForTrackAsync(info, ct).ConfigureAwait(true);
+
+        // A lookup that came back empty does not count as "loaded". Marking it loaded anyway is what
+        // made lyrics stay missing for the rest of the song once a lookup happened to run while the
+        // network was down: every later attempt was skipped as redundant, so the panel never asked
+        // again even after the connection returned. Forgetting an empty result costs one repeated
+        // request in the genuinely-lyric-less case and restores the song in the recoverable one.
+        if (_lyrics.CurrentLyrics is null or LyricResult.Unavailable)
+        {
+            _loadedVideoId = null;
+        }
     }
 
     private static LyricsSearchInfo? BuildSearchInfo(Song? track)

@@ -116,7 +116,7 @@ public sealed partial class NowPlayingPanel : UserControl
         UpNextHeaderText.Text = Localization.UiStrings.QueueUpNextHeader;
         QueueEmptyText.Text = Localization.UiStrings.QueueEmpty;
         RelatedEmptyText.Text = Localization.UiStrings.RelatedEmpty;
-        LyricsEmptyText.Text = Localization.UiStrings.LyricsEmpty;
+        UpdateLyricsEmptyText();
         A11y.Label(CloseButton, Localization.UiStrings.TipClose);
         A11y.Label(CcPickerButton, Localization.UiStrings.TipSubtitles);
 
@@ -339,6 +339,23 @@ public sealed partial class NowPlayingPanel : UserControl
             Localization.UiStrings.LyricsSourceFormat,
             LyricsProviderName)
         : string.Empty;
+
+    /// <summary>
+    /// Picks the empty-state wording. The two states behind <c>ShowEmpty</c> are NOT the same thing:
+    /// with no current track the panel is idle and "Putar lagu…" is the right prompt, but once a
+    /// track is loaded and the lookup came back with nothing, telling the user to play a song reads
+    /// as a broken instruction — a song IS playing (#110). The current track is the only signal
+    /// needed to tell them apart, and it is available here.
+    /// </summary>
+    private void UpdateLyricsEmptyText()
+    {
+        // Deliberately NOT gated on IsLoadingLyrics: the service keeps the previous track's result
+        // visible until the new one resolves, so gating would only make the message flap back to
+        // "Putar lagu…" mid-lookup while a song plays — the exact wording this fixes.
+        LyricsEmptyText.Text = _player?.CurrentTrack is not null
+            ? Localization.UiStrings.LyricsUnavailable
+            : Localization.UiStrings.LyricsEmpty;
+    }
 
     /// <summary>Builds the CC menu on open: Nonaktif + every caption track of the current video.</summary>
     private async void OnCcFlyoutOpening(object? sender, object e)
@@ -577,7 +594,12 @@ public sealed partial class NowPlayingPanel : UserControl
     {
         if (e.PropertyName is nameof(IPlayerService.CurrentTrack) or null or "")
         {
-            DispatcherQueue.TryEnqueue(() => this.Bindings.Update());
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                // The empty-state wording depends on whether anything is playing at all (#110).
+                UpdateLyricsEmptyText();
+                this.Bindings.Update();
+            });
         }
     }
 

@@ -5,6 +5,7 @@ using KasetWin.App.Accessibility;
 using KasetWin.App.Hosting;
 using KasetWin.App.Navigation;
 using KasetWin.App.Sharing;
+using KasetWin.Core;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Api;
 using KasetWin.Core.Services.Player;
@@ -261,13 +262,14 @@ public sealed partial class PlayerBar : UserControl
     {
         try
         {
-            // The chime only makes sense if the timer actually took music away; a sound in an
-            // already-silent room startles rather than informs. The toast reports it either way.
-            if (_player is { IsPlaying: true })
-            {
-                PlaySleepTimerChime();
-            }
-
+            // No IsPlaying gate. It used to guard against "a chime in an already-silent room", but
+            // it silenced the one mode that reported the problem: at the end of a track IsPlaying is
+            // *already* false — the same fact round 5 documented about PauseAsync returning early —
+            // so the end-of-track timer expired to no sound at all. Expired only ever fires for a
+            // timer that genuinely ran out (cancelling raises nothing), so reaching here is itself
+            // the proof that an announcement is wanted.
+            Diag.Write("sleep-timer expired: announcing (toast + chime)");
+            PlaySleepTimerChime();
             _notifier?.Show(Localization.UiStrings.ToastSleepTimerFired);
         }
         catch (Exception)
@@ -372,9 +374,15 @@ public sealed partial class PlayerBar : UserControl
             _sidePanel.Changed += OnSidePanelChanged;
         }
 
+        // Both handlers must be re-attached, not just one. Detaching Expired here without adding it
+        // back silently killed the entire sleep-timer announcement: the constructor subscribes, then
+        // the first Loaded — which arrives seconds later at startup — tore that subscription off
+        // again. Neither mode ever produced a toast or a chime, and the failure was invisible from
+        // the outside because a timer with no listener still stops the music perfectly well.
         _sleepTimer.StateChanged -= OnSleepTimerStateChanged;
         _sleepTimer.Expired -= OnSleepTimerExpired;
         _sleepTimer.StateChanged += OnSleepTimerStateChanged;
+        _sleepTimer.Expired += OnSleepTimerExpired;
 
         // Seed the volume slider from the player once the control is live. The volume is driven from
         // code rather than a OneWay binding because that binding did not apply the initial value
@@ -406,9 +414,11 @@ public sealed partial class PlayerBar : UserControl
             _sidePanel.Changed -= OnSidePanelChanged;
         }
 
-        // The sleep timer is a DI singleton and outlives this control, so leaving the handler
-        // attached would keep the bar alive with it.
+        // The sleep timer is a DI singleton and outlives this control, so leaving a handler attached
+        // would keep the bar alive with it. Both come off together — an asymmetric pair here is what
+        // produced the dangling Expired subscription in the first place.
         _sleepTimer.StateChanged -= OnSleepTimerStateChanged;
+        _sleepTimer.Expired -= OnSleepTimerExpired;
         _sleepTicker?.Stop();
     }
 

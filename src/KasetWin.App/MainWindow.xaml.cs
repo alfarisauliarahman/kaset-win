@@ -223,6 +223,7 @@ public sealed partial class MainWindow : Window
         // the default page, which caused the shell to open on YouTube).
         ApplySourceVisibility(youtube: false);
         NavView.SelectedItem = NavView.MenuItems.OfType<NavigationViewItem>().FirstOrDefault();
+        _youtubeSource = false;
         MusicSourceItem.IsChecked = true;
         YouTubeSourceItem.IsChecked = false;
         AnimateSourceIndicator(youtube: false, animate: false);

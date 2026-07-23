@@ -680,11 +680,21 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         {
             if (++_ignoredUpdatesDuringLoad < MaxIgnoredUpdatesDuringLoad)
             {
+                // Only the first report of a guarded window is logged: the observer ticks about
+                // twice a second, and a line per tick would drown the file.
+                if (_ignoredUpdatesDuringLoad == 1)
+                {
+                    Diag.Write($"player guard ignoring reports for videoId={message.VideoId}; expecting {pending}");
+                }
+
                 return;
             }
 
             // The expected track never reported. Stop guarding and adopt what is really playing —
             // being permanently out of step with the page is worse than a queue that drifted once.
+            Diag.Write(
+                $"player guard GAVE UP after {MaxIgnoredUpdatesDuringLoad} reports; expected {pending} never "
+                + $"reported, adopting videoId={message.VideoId}");
             _expectedVideoId = null;
             _ignoredUpdatesDuringLoad = 0;
         }
@@ -827,6 +837,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     {
         // Take a load ticket. Anything started after this one supersedes it (see _loadGeneration).
         int generation = Interlocked.Increment(ref _loadGeneration);
+        Diag.Write($"player load videoId={track.VideoId} force={forceReload} gen={generation}");
 
         // Guard the load window: transient STATE_UPDATEs for other videos (autoplay/drift) that
         // arrive while the controller is switching tracks must not hijack the queue (see
@@ -853,12 +864,14 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
             {
                 // A newer load was requested while this one waited — drop it entirely. The newer
                 // load owns _expectedVideoId and will drive the controller.
+                Diag.Write($"player load videoId={track.VideoId} gen={generation} superseded at=gate");
                 return;
             }
 
             await _controller.LoadVideoAsync(track.VideoId, forceReload).ConfigureAwait(false);
             if (IsSuperseded(generation))
             {
+                Diag.Write($"player load videoId={track.VideoId} gen={generation} superseded at=after-navigate");
                 return;
             }
 
@@ -868,20 +881,25 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
             await _controller.SetVolumeAsync(_isMuted ? 0 : _volume).ConfigureAwait(false);
             if (IsSuperseded(generation))
             {
+                Diag.Write($"player load videoId={track.VideoId} gen={generation} superseded at=before-play");
                 return;
             }
 
             await _controller.PlayAsync().ConfigureAwait(false);
             IsPlaying = true;
+            Diag.Write($"player load videoId={track.VideoId} gen={generation} play issued");
         }
-        catch
+        catch (Exception ex)
         {
             // A superseded load's failure is not the current load's problem: swallow it rather than
             // disarming the guard the newer load just armed.
             if (IsSuperseded(generation))
             {
+                Diag.Write($"player load videoId={track.VideoId} gen={generation} superseded, error swallowed: {ex.GetType().Name}");
                 return;
             }
+
+            Diag.Write($"player load videoId={track.VideoId} gen={generation} FAILED: {ex.GetType().Name}: {ex.Message}");
 
             // Only a *failed* load releases the guard here. A successful one keeps it armed until
             // HandleStateUpdate sees the track report, which is the whole point of the guard.

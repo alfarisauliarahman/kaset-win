@@ -108,15 +108,14 @@ internal static class UiStrings
     internal static string SettingsRememberCaption => IsIndonesian ? "Pulihkan acak dan ulangi saat diluncurkan lagi." : "Restore shuffle and repeat on next launch.";
     internal static string SettingsLyricsHeader => IsIndonesian ? "Lirik" : "Lyrics";
     internal static string SettingsLyricsSourceLabel => IsIndonesian ? "Sumber lirik" : "Lyrics source";
-    // Two short lines beat one accurate paragraph: the old caption explained the whole provider
-    // chain and the licensing model, which nobody reads in a settings pane. The licensor is already
-    // named on every lyric ("Sumber: YouTube Music — LyricFind"), so it does not need repeating here.
+    // One line, no second paragraph. Trimming the caption alone was not enough: the card also
+    // rendered an attribution paragraph right beneath it, so the block stayed ~130 characters long.
+    // The licensor and the "not every track is synced" caveat already reach the user where they
+    // matter — on the lyric itself, via the "Sumber: <penyedia>" label — so the card only has to say
+    // what the combo box does.
     internal static string SettingsLyricsSourceCaption => IsIndonesian
         ? "Penyedia lirik yang diutamakan."
         : "Preferred lyrics provider.";
-    internal static string SettingsLyricsSourceAttribution => IsIndonesian
-        ? "Lirik YouTube Music berasal dari label (LyricFind/Musixmatch). Tidak semua lagu punya versi tersinkron."
-        : "YouTube Music lyrics come from the label (LyricFind/Musixmatch). Not every track has a synced version.";
     internal static string SettingsSyncedLabel => IsIndonesian ? "Lirik sinkron" : "Synced lyrics";
     internal static string SettingsSyncedCaption => IsIndonesian ? "Utamakan lirik sinkron-waktu, fallback ke lirik biasa." : "Prefer time-synced lyrics, falling back to plain lyrics.";
     internal static string SettingsEqualizerHeader => IsIndonesian ? "Ekualiser" : "Equalizer";
@@ -279,6 +278,14 @@ internal static class UiStrings
     internal static string QueueEmpty => IsIndonesian ? "Tidak ada lagu berikutnya." : "No upcoming songs.";
     internal static string RelatedEmpty => IsIndonesian ? "Tidak ada konten terkait." : "No related content.";
     internal static string LyricsEmpty => IsIndonesian ? "Putar lagu untuk melihat lirik di sini." : "Play a song to see its lyrics here.";
+
+    /// <summary>
+    /// Empty state for a track that IS playing but has no lyrics. <see cref="LyricsEmpty"/> tells the
+    /// user to press play, which reads as a broken instruction when a song is already playing.
+    /// </summary>
+    internal static string LyricsUnavailable => IsIndonesian
+        ? "Lirik tidak tersedia untuk lagu ini."
+        : "No lyrics available for this song.";
     internal static string SubtitlesCcLabel => IsIndonesian ? "Subtitel (CC)" : "Subtitles (CC)";
 
     /// <summary>Attribution line under the lyrics — <c>{0}</c> is the provider name (e.g. "LRCLib").</summary>

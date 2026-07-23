@@ -33,38 +33,53 @@ public sealed partial class MainWindow
 {
     // â”€â”€ Source toggle (Music â‡„ YouTube) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+    /// <summary>
+    /// Single source of truth for the active source (true = YouTube). The two segments' IsChecked
+    /// cannot serve as that state inside a Click handler: ToggleButton has already flipped the
+    /// clicked segment by the time the handler runs, so "was YouTube active?" is unreadable there.
+    /// </summary>
+    private bool _youtubeSource;
+
     private void OnSourceToggleClick(object sender, RoutedEventArgs e)
     {
         var youtube = ReferenceEquals(sender, YouTubeSourceItem);
 
-        // Segmented behaviour: exactly one segment stays active (a click on the active one keeps it).
-        MusicSourceItem.IsChecked = !youtube;
-        YouTubeSourceItem.IsChecked = youtube;
-        AnimateSourceIndicator(youtube, animate: true);
-        ApplySourceVisibility(youtube);
-        UpdateSourceCompactIcon();
-
-        // Only a real user toggle navigates; the startup selection just sets visibility so it does
-        // not override the default launch page.
-        if (_sourceReady)
+        // Segmented behaviour: exactly one segment stays active, and clicking the segment that is
+        // ALREADY active does nothing at all - no navigation, no re-selection. ToggleButton has
+        // just un-checked itself, so put the checked state back and leave.
+        if (youtube == _youtubeSource)
         {
-            NavigateToTag(youtube ? "YouTube.Home" : "Home");
+            MusicSourceItem.IsChecked = !_youtubeSource;
+            YouTubeSourceItem.IsChecked = _youtubeSource;
+            return;
         }
+
+        SelectSource(youtube, animate: true);
     }
 
     /// <summary>
     /// Compact (pane-collapsed) source toggle: flips to the other source. Mirrors
     /// <see cref="OnSourceToggleClick"/> but is icon-only, shown when the sidebar is shrunk for a panel.
+    /// It is a plain Button with no "already active" case - a click always means "switch".
     /// </summary>
     private void OnSourceToggleCompactClick(object sender, RoutedEventArgs e)
+        => SelectSource(!_youtubeSource, animate: false);
+
+    /// <summary>
+    /// Makes <paramref name="youtube"/> the active source: checked state, sliding indicator, sidebar
+    /// item visibility, compact icon, and the source's home page. Only ever called for a real change.
+    /// </summary>
+    private void SelectSource(bool youtube, bool animate)
     {
-        var youtube = YouTubeSourceItem.IsChecked != true; // toggle to the opposite source.
+        _youtubeSource = youtube;
         MusicSourceItem.IsChecked = !youtube;
         YouTubeSourceItem.IsChecked = youtube;
-        AnimateSourceIndicator(youtube, animate: false);
+        AnimateSourceIndicator(youtube, animate);
         ApplySourceVisibility(youtube);
         UpdateSourceCompactIcon();
 
+        // Only a real user toggle navigates; the startup selection just sets visibility so it does
+        // not override the default launch page.
         if (_sourceReady)
         {
             NavigateToTag(youtube ? "YouTube.Home" : "Home");
@@ -273,10 +288,17 @@ public sealed partial class MainWindow
         }
 
         if (PageTypeNamesByTag.TryGetValue(tag, out var typeName)
-            && Navigation.NavigationHelper.ResolvePageType(typeName) is { } pageType
-            && ContentFrame.CurrentSourcePageType != pageType)
+            && Navigation.NavigationHelper.ResolvePageType(typeName) is { } pageType)
         {
-            ContentFrame.Navigate(pageType);
+            // A tag with a real page NEVER falls through to the placeholder. The "already on this
+            // page" case used to be folded into the condition above, so re-navigating to a section
+            // that was already showing (e.g. clicking the active source segment while Home was up)
+            // dropped the shell onto "Home - Coming soon" instead of doing nothing.
+            if (ContentFrame.CurrentSourcePageType != pageType)
+            {
+                ContentFrame.Navigate(pageType);
+            }
+
             return;
         }
 

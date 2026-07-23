@@ -174,15 +174,27 @@ enrich album MPREb_I7Jb8zS9tBs title=Beautiful Mind
 | 150 | `start "kaset://play?v=BEPSc8q6Bd8"` | Judul, **album**, dan **sampul** muncul di player bar, dan kartu "Sedang diputar" di antrean punya sampul | |
 | 151 | Putar lagu dari kartu Beranda (bukan dari album) | Baris album ikut terisi — jalur yang sama, penerima manfaat yang sama | |
 
-### H3. Timer tidur tidak berbunyi dan tidak memunculkan toast — **belum diperbaiki**
+### H3. Timer tidur tidak berbunyi dan tidak memunculkan toast — **diperbaiki, dua sebab**
 
 Gejala (#81, #137): musik berhenti benar, tapi tidak ada bunyi maupun toast — untuk kedua mode.
-Putaran 5 mengklaim menutup ini (tugas 60, event `Expired`), jadi klaim itu salah.
+Putaran 5 mengklaim menutup ini (tugas 60, event `Expired`). Klaim itu salah, dan sebabnya dua:
 
-Belum ditelusuri. Pertanyaan penguji yang harus dijawab lebih dulu, karena menentukan perilakunya:
-**bunyinya sekali saat habis, atau ada peringatan sebelum habis?** Jawaban yang direncanakan: satu
-bunyi tepat saat berhenti. Peringatan 10 detik sebelum tidur justru membangunkan orang yang sedang
-tidur — kebalikan dari gunanya fitur ini.
+1. **Langganan `Expired` dicopot dan tidak pernah dipasang lagi.** `PlayerBar` berlangganan di
+   konstruktor, lalu `OnLoaded` menjalankan `-=` untuk `StateChanged` **dan** `Expired`, tetapi
+   hanya memasang ulang `StateChanged`. `Loaded` datang beberapa detik setelah konstruktor saat
+   aplikasi start, jadi handler-nya copot sebelum sempat dipakai sekali pun. Fitur itu tidak pernah
+   berjalan — dan tak terlihat dari luar, karena timer tanpa pendengar tetap menghentikan musik
+   dengan sempurna. Sekarang keduanya dipasang ulang, dan `OnUnloaded` melepas keduanya: pasangan
+   yang asimetris persis yang melahirkan bug ini.
+2. **Chime dijaga `IsPlaying: true`.** Untuk mode "akhir lagu ini", `IsPlaying` **sudah** false saat
+   timer habis — fakta yang didokumentasikan sendiri di putaran 5 soal `PauseAsync` yang return
+   lebih awal. Jadi bahkan seandainya handler-nya masih terpasang, mode itu tetap bisu. Penjaganya
+   dihapus: `Expired` hanya menyala untuk timer yang benar-benar habis (membatalkan tidak
+   memicunya), jadi sampai di sana sudah cukup jadi bukti bahwa pengumuman memang diinginkan.
+
+Perilaku yang dipilih, menjawab pertanyaan penguji ("bunyinya tiap detik/menit atau gimana?"):
+**satu bunyi tepat saat berhenti**, bukan hitung mundur dan bukan peringatan sebelum habis —
+peringatan justru membangunkan orang yang sedang tidur, kebalikan dari guna fiturnya.
 
 ### H4. Perbaikan aksesibilitas putaran 5 gagal di dua permukaan — **belum diperbaiki**
 

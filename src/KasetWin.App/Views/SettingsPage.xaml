@@ -241,13 +241,7 @@
                             x:Name="LyricsSourceCaption"
                             Opacity="0.7"
                             TextWrapping="Wrap"
-                            Text="Pick the preferred lyrics provider. YouTube Music is tried first because it matches by videoId; NetEase covers Asian/K-pop songs well."
-                            Style="{StaticResource CaptionTextBlockStyle}" />
-                        <TextBlock
-                            x:Name="LyricsSourceAttribution"
-                            Opacity="0.7"
-                            TextWrapping="Wrap"
-                            Text="YouTube Music's lyrics are the licensed label copy, credited per track to either LyricFind or Musixmatch — YouTube decides which one, not Kaset. Not every track comes with time-synced lines."
+                            Text="Preferred lyrics provider."
                             Style="{StaticResource CaptionTextBlockStyle}" />
                     </StackPanel>
                     <ComboBox
