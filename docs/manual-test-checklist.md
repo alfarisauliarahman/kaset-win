@@ -1,6 +1,6 @@
 # Checklist Uji Manual — KasetWin
 
-Hal-hal yang **tidak bisa** dijamin oleh 424 test headless dan job build CI: apa pun yang melibatkan
+Hal-hal yang **tidak bisa** dijamin oleh 497 test headless dan job build CI: apa pun yang melibatkan
 WebView2 sungguhan, sesi login sungguhan, presenter jendela, SMTC, atau mata manusia.
 
 **Cara menyiapkan** (dari `M:\kaset\kaset\KasetWin`):
@@ -44,6 +44,12 @@ dan diverifikasi. Langkah 2, 9, 16, 32, 53, 58b lulus.
 - **Tidak diuji:** 13, 60, 79, 110, 122 (dilewati); 70 (Podcast tidak tersedia di region ID);
   112–113 (aplikasi tidak pernah mati sendiri lagi sejak perbaikan crash).
 - **Cacat baru — lihat seksi F di bawah.**
+
+> **Koreksi 2026-07-23.** Hasil putaran 4 sempat cuma ditulis sebagai ringkasan di atas dan diangkat
+> ke seksi F — **kolom Hasil per baris dibiarkan kosong**, padahal penguji sudah menjawab tiap nomor
+> satu per satu. Commit `24101da` mengklaim "tercatat semua" lebih besar dari kenyataannya. Ke-72
+> jawaban itu sekarang ada di barisnya masing-masing, bertanggal 2026-07-23. Ringkasan tidak
+> menggantikan kolom Hasil: ringkasan hilang di antara putaran, barisnya tidak.
 
 ---
 
@@ -163,12 +169,12 @@ sini, gejalanya adalah **audio mati**, bukan sekadar UI jelek.
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
 | 11 | Klik tombol timer tidur (ikon bulan, cluster kanan player bar) → pilih **15 menit** | Toast "Pemutaran berhenti dalam 15 menit" muncul; ikon bulan berubah jadi warna aksen (biru) | ✅ 2026-07-22 |
-| 12 | Tanpa mengklik apa pun, arahkan kursor ke tombol timer tidur dan diamkan ±1 detik | Tooltip yang muncul menyebut **sisa waktu** (mis. "Timer tidur — 14 menit"), bukan sekadar "Timer tidur" | ❌ 2026-07-22: tooltip tidak menyebut sisa waktu |
-| 13 | Klik tombol timer tidur → pilih **15 menit**. Tunggu toastnya hilang. Klik tombol itu lagi → pilih **30 menit**. Sekarang diamkan lebih dari 15 menit | Musik **masih jalan** setelah menit ke-15 dan baru berhenti di menit ke-30. Kalau berhenti di menit 15, berarti timer lama tidak dibatalkan dan ada dua timer berjalan | |
+| 12 | Tanpa mengklik apa pun, arahkan kursor ke tombol timer tidur dan diamkan ±1 detik | Tooltip yang muncul menyebut **sisa waktu** (mis. "Timer tidur — 14 menit"), bukan sekadar "Timer tidur" | ❌ 2026-07-22: tooltip tidak menyebut sisa waktu → ✅ 2026-07-23 |
+| 13 | Klik tombol timer tidur → pilih **15 menit**. Tunggu toastnya hilang. Klik tombol itu lagi → pilih **30 menit**. Sekarang diamkan lebih dari 15 menit | Musik **masih jalan** setelah menit ke-15 dan baru berhenti di menit ke-30. Kalau berhenti di menit 15, berarti timer lama tidak dibatalkan dan ada dua timer berjalan | ⏭️ 2026-07-23: tidak diuji (penguji tidak mau menunggu 30 menit) |
 | 14 | Klik tombol timer tidur → pilih **Nonaktif** | Toast "Timer tidur dibatalkan"; ikon bulan kembali ke warna normal (putih/abu) | ✅ 2026-07-22 |
-| 15 | **Uji ujung.** Putar lagu, lompat ke ±10 detik sebelum lagu habis. Klik tombol timer tidur → **Akhir lagu ini**. Biarkan lagunya habis sendiri | Pemutaran **berhenti** saat lagu selesai, dan antrean **tidak** maju ke lagu berikutnya | ❌ 2026-07-22: ikon timer padam (timer terpakai) tapi **musik lanjut ke lagu berikutnya** |
+| 15 | **Uji ujung.** Putar lagu, lompat ke ±10 detik sebelum lagu habis. Klik tombol timer tidur → **Akhir lagu ini**. Biarkan lagunya habis sendiri | Pemutaran **berhenti** saat lagu selesai, dan antrean **tidak** maju ke lagu berikutnya | ❌ 2026-07-22: ikon timer padam (timer terpakai) tapi **musik lanjut ke lagu berikutnya** → ✅ 2026-07-23 |
 | 16 | Klik tombol timer tidur → **Akhir lagu ini**. Lalu tekan tombol **Next** di player bar (skip manual) | Musik pindah ke lagu berikutnya seperti biasa, dan ikon timer **tetap menyala** — timer tidak boleh ikut terpakai oleh skip manual | ✅ 2026-07-22 (ikon masih menyala) |
-| 17 | Klik tombol timer tidur → **15 menit**. Biarkan 2–3 lagu berganti sendiri | Ikon timer **tetap menyala** melewati tiap pergantian lagu. Kalau padam saat lagu berganti, berarti timer ikut tereset di batas antar-lagu | |
+| 17 | Klik tombol timer tidur → **15 menit**. Biarkan 2–3 lagu berganti sendiri | Ikon timer **tetap menyala** melewati tiap pergantian lagu. Kalau padam saat lagu berganti, berarti timer ikut tereset di batas antar-lagu | ✅ 2026-07-23 - memunculkan permintaan bunyi notifikasi, lihat F5 |
 
 > Dua langkah lama (18, 19 — "cek CPU di Task Manager") dihapus di putaran 2: itu memeriksa detail
 > internal (`DispatcherTimer` berhenti saat timer mati) yang tidak bisa dinilai dari luar dan tidak
@@ -180,17 +186,17 @@ Nyalakan Narrator: **Ctrl + Win + Enter**. Matikan dengan kombinasi yang sama.
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 20 | Klik di area player bar, lalu tekan **Tab** berulang dari kiri ke kanan sambil mendengarkan Narrator | Tiap tombol disebut **namanya saja**: Acak, Sebelumnya, Putar/Jeda, Berikutnya, Ulangi, Suka, Timer tidur, Mini player, Lirik, Antrean, Bisukan. Tidak ada yang cuma "tombol", tidak ada yang membacakan simbol/kode, dan tidak ada nama berbahasa Indonesia saat aplikasi berbahasa Inggris | ❌ 2026-07-22: banyak elemen tak jelas di sekitar sidebar ("navigation item expanded", "menu tindakan button", Pengaturan disebut "pop out button"); masih campur bahasa Indonesia |
+| 20 | Klik di area player bar, lalu tekan **Tab** berulang dari kiri ke kanan sambil mendengarkan Narrator | Tiap tombol disebut **namanya saja**: Acak, Sebelumnya, Putar/Jeda, Berikutnya, Ulangi, Suka, Timer tidur, Mini player, Lirik, Antrean, Bisukan. Tidak ada yang cuma "tombol", tidak ada yang membacakan simbol/kode, dan tidak ada nama berbahasa Indonesia saat aplikasi berbahasa Inggris | ❌ 2026-07-22: banyak elemen tak jelas di sekitar sidebar ("navigation item expanded", "menu tindakan button", Pengaturan disebut "pop out button"); masih campur bahasa Indonesia → ❌ 2026-07-23: masih sama persis (ada tangkapan layar) |
 | 21 | Tab sampai fokus berada di slider posisi lagu, lalu ke slider volume | Disebut "Posisi pemutaran" dan "Volume", bukan sekadar angka | ✅ 2026-07-22 |
 | 22 | Klik tombol ❤️ (Suka) pada lagu yang sedang diputar, lalu tekan Shift+Tab / Tab sampai fokus kembali ke tombol itu | Namanya berubah dari "Suka" jadi "Batal suka" — dan **tidak** ada karakter/kode aneh yang ikut dibacakan | ❌ 2026-07-22: statusnya benar ("suka") tapi Narrator ikut membacakan kode simbol |
-| 23 | Fokuskan tombol Ulangi (Tab), tekan **Spasi** untuk mengganti mode, lalu Shift+Tab dan Tab lagi supaya fokus kembali ke tombol itu. Ulangi 3× | Nama tombol mengikuti modenya: "Ulangi nonaktif" → "Ulangi semua" → "Ulangi satu lagu" | ❌ 2026-07-22: nama tidak berubah saat mode berganti |
+| 23 | Fokuskan tombol Ulangi (Tab), tekan **Spasi** untuk mengganti mode, lalu Shift+Tab dan Tab lagi supaya fokus kembali ke tombol itu. Ulangi 3× | Nama tombol mengikuti modenya: "Ulangi nonaktif" → "Ulangi semua" → "Ulangi satu lagu" | ❌ 2026-07-22: nama tidak berubah saat mode berganti → ❌ 2026-07-23: malah membacakan track id / song id, bukan nama modenya |
 | 24 | Putar sebuah **podcast**, lalu Tab sampai fokus ke tombol lirik | Disebut "Subtitel (CC)", bukan "Lirik" | ✅ 2026-07-22 |
 | 25 | Buka panel antrean, Tab sampai fokus ke tautan judul/artis salah satu baris lagu | Narrator menyebut **judul lagunya**, bukan "Buka album". Ini pengecualian yang disengaja: tautan itu membungkus judul, jadi memberinya nama sendiri justru menghapus judulnya | ✅ 2026-07-22 |
 | 26 | Buka Pengaturan → gulir ke Ekualiser → Tab menyusuri kesembilan slider | Tiap slider menyebut frekuensinya ("Penguatan 62 Hz", "Penguatan 125 Hz", …), bukan sembilan slider anonim yang identik | ✅ 2026-07-22 |
 | 27 | Buka panel antrean, Tab sampai fokus masuk ke daftarnya. Lalu pindah ke tab Riwayat, ulangi | Daftarnya disebut "Antrean pemutaran", dan yang di tab Riwayat disebut "Riwayat pemutaran" | ✅ 2026-07-22 |
-| 28 | Klik kotak cari, ketik sesuatu dan tekan Enter (supaya masuk riwayat). Klik kotak cari lagi sampai daftar riwayat muncul. Tab sampai fokus ke tombol **✕** di salah satu baris riwayat | Narrator menyebut "Hapus dari riwayat: \<kata yang dicari\>" — jadi sepuluh baris yang identik bisa dibedakan | ❌ 2026-07-22: tidak disebut |
-| 29 | Buka panel antrean sampai sidebar ikut menyempit jadi ikon saja. Tombol sumber Music/YouTube di bawah sidebar berubah bentuk jadi tombol bundar. Tab sampai fokus ke tombol itu | Narrator menyebut sumber yang **sedang aktif** dan bahwa mengklik akan menggantinya (mis. "Sumber: Music — klik untuk pindah ke YouTube") — bukan cuma "tombol" | |
-| 30 | Tab menyusuri player bar dari awal | Narrator **melewati** gambar sampul album — tidak berhenti di situ sama sekali. Ini kebalikan dari langkah lain: yang benar justru **tidak** disebut, karena judul lagunya sudah dibacakan di sebelahnya | |
+| 28 | Klik kotak cari, ketik sesuatu dan tekan Enter (supaya masuk riwayat). Klik kotak cari lagi sampai daftar riwayat muncul. Tab sampai fokus ke tombol **✕** di salah satu baris riwayat | Narrator menyebut "Hapus dari riwayat: \<kata yang dicari\>" — jadi sepuluh baris yang identik bisa dibedakan | ❌ 2026-07-22: tidak disebut → ❌ 2026-07-23: malah membacakan judul lagu yang sedang diputar |
+| 29 | Buka panel antrean sampai sidebar ikut menyempit jadi ikon saja. Tombol sumber Music/YouTube di bawah sidebar berubah bentuk jadi tombol bundar. Tab sampai fokus ke tombol itu | Narrator menyebut sumber yang **sedang aktif** dan bahwa mengklik akan menggantinya (mis. "Sumber: Music — klik untuk pindah ke YouTube") — bukan cuma "tombol" | ❌ 2026-07-23: "music source button off / music source button on" - tidak menyebut sumber yang sedang aktif |
+| 30 | Tab menyusuri player bar dari awal | Narrator **melewati** gambar sampul album — tidak berhenti di situ sama sekali. Ini kebalikan dari langkah lain: yang benar justru **tidak** disebut, karena judul lagunya sudah dibacakan di sebelahnya | ✅ 2026-07-23 (sampul memang dilewati) |
 
 ### A4. Lokalisasi
 
@@ -212,7 +218,7 @@ Nyalakan Narrator: **Ctrl + Win + Enter**. Matikan dengan kombinasi yang sama.
 | 39 | Lihat sidebar | Toggle Music↔YouTube ada di **bawah** pane, di atas baris akun (posisi asli — percobaan memindahkannya ke atas dibatalkan) | ✅ 2026-07-22 |
 | 40 | Klik toggle ke YouTube lalu balik | Indikator meluncur mulus; isi sidebar berganti; navigasi ke Home sumber itu | ✅ 2026-07-22 |
 | 41 | Buka panel antrean (sidebar menyempit ke ikon) | Pill toggle berganti jadi tombol bundar ikon-saja, tidak terpotong | ✅ 2026-07-22 |
-| 42 | Kecilkan jendela sampai batas minimum (980 px) | Cluster kanan player bar (6 tombol + slider) tidak terpotong/tumpang tindih | ⚠️ 2026-07-22: tombol aman, tapi **nama artis & album di bagian tengah terpotong** |
+| 42 | Kecilkan jendela sampai batas minimum (980 px) | Cluster kanan player bar (6 tombol + slider) tidak terpotong/tumpang tindih | ⚠️ 2026-07-22: tombol aman, tapi **nama artis & album di bagian tengah terpotong** → ⚠️ 2026-07-23: sekarang jadi teks berjalan; penguji masih kurang sreg tapi menerima |
 
 ### A6. Discord Rich Presence
 
@@ -249,8 +255,8 @@ Application ID di bagian "Lanjutan" hanya untuk yang ingin nama lain muncul di p
 | 57 | Resize jendela ke ukuran aneh, tutup, buka lagi | Terbuka di ukuran & posisi yang sama | ✅ 2026-07-22 |
 | 58 | **Uji ujung**: masuk mini player, tutup dari situ, buka lagi dari tray | Terbuka di ukuran **normal**, bukan 400×150 | ✅ 2026-07-22 |
 | 58b | Masuk mini player, klik restore | Kembali ke ukuran & posisi persis sebelum masuk mini player | ✅ 2026-07-22 |
-| 58c | Masuk mini player. Klik **✕**, dan perhatikan baik-baik apa yang terjadi di layar selama jendela menghilang | Jendela langsung hilang ke tray. Tidak boleh terlihat membesar, tidak boleh berkedip jadi layar penuh, dan tidak boleh melompat ke pojok layar | ❌ 2026-07-22: tidak membesar lagi, tapi jendela sempat **jadi layar penuh**, lalu mini player **melompat ke pojok kiri atas**, baru menghilang |
-| 59 | Klik tombol **Maximize**. Tutup aplikasi lewat ✕ lalu Quit dari tray. Buka lagi | Terbuka **dalam keadaan maximize** — sama seperti saat ditutup | ❌ 2026-07-22: terbuka windowed. Perilaku lama sengaja hanya menyimpan ukuran windowed; itu keputusan yang salah dan sudah diubah |
+| 58c | Masuk mini player. Klik **✕**, dan perhatikan baik-baik apa yang terjadi di layar selama jendela menghilang | Jendela langsung hilang ke tray. Tidak boleh terlihat membesar, tidak boleh berkedip jadi layar penuh, dan tidak boleh melompat ke pojok layar | ❌ 2026-07-22: tidak membesar lagi, tapi jendela sempat **jadi layar penuh**, lalu mini player **melompat ke pojok kiri atas**, baru menghilang → ✅ 2026-07-23 |
+| 59 | Klik tombol **Maximize**. Tutup aplikasi lewat ✕ lalu Quit dari tray. Buka lagi | Terbuka **dalam keadaan maximize** — sama seperti saat ditutup | ❌ 2026-07-22: terbuka windowed. Perilaku lama sengaja hanya menyimpan ukuran windowed; itu keputusan yang salah dan sudah diubah → ✅ 2026-07-23 |
 
 ---
 
@@ -258,21 +264,21 @@ Application ID di bagian "Lanjutan" hanya untuk yang ingin nama lain muncul di p
 
 | # | Area | Langkah | Harapan | Hasil |
 |---|------|---------|---------|-------|
-| 60 | Login | Sign in dengan akun Google | Berhasil; nama akun muncul di sidebar | ⚠️ 2026-07-22: berhasil tapi lambat & kadang nyangkut — halaman login sempat muncul walau sudah login, dan baru masuk setelah dibatalkan lalu diklik lagi |
+| 60 | Login | Sign in dengan akun Google | Berhasil; nama akun muncul di sidebar | ⚠️ 2026-07-22: berhasil tapi lambat & kadang nyangkut — halaman login sempat muncul walau sudah login, dan baru masuk setelah dibatalkan lalu diklik lagi → ⏭️ 2026-07-23: tidak diuji ulang |
 | 61 | Pemutaran | Putar lagu dari Beranda | Audio jalan, sampul + judul benar | ✅ 2026-07-22 |
 | 62 | Antrean | Putar album, tekan Next beberapa kali | Maju sesuai urutan album | ✅ 2026-07-22 |
 | 63 | **Ulangi satu + Next** | Set Repeat One, tekan Next | **Maju ke lagu berikutnya** (Repeat One hanya untuk akhir lagu otomatis — Tugas 30.7) | ✅ 2026-07-22 |
-| 64 | Media key | Minimalkan app, tekan tombol next di keyboard | Maju, tidak mengulang lagu yang sama | ❌ 2026-07-22: tidak bereaksi sama sekali (regresi — putaran sebelumnya jalan) |
-| 65 | SMTC | Buka panel volume Windows | Kartu Now Playing menampilkan lagu + sampul yang benar | ❌ 2026-07-22: kartunya benar, tapi menemukan cacat antrean yang lebih besar — lihat di bawah |
+| 64 | Media key | Minimalkan app, tekan tombol next di keyboard | Maju, tidak mengulang lagu yang sama | ❌ 2026-07-22: tidak bereaksi sama sekali (regresi — putaran sebelumnya jalan) → ⚠️ 2026-07-23: penguji tidak paham maksud langkahnya - duplikat langkah 88, perlu digabung atau ditulis ulang |
+| 65 | SMTC | Buka panel volume Windows | Kartu Now Playing menampilkan lagu + sampul yang benar | ❌ 2026-07-22: kartunya benar, tapi menemukan cacat antrean yang lebih besar — lihat di bawah → ✅ 2026-07-23 |
 | 66 | Latar belakang | Tutup jendela (bukan quit) | Audio lanjut; ikon tray ada | ✅ 2026-07-22 |
-| 67 | Lirik | Buka panel lirik saat memutar | Lirik tersinkron, baris aktif menyala | ⚠️ 2026-07-22: jalan, tapi label "Lirik" di header menjorok ke kiri, lirik sering tidak lengkap, dan sumber liriknya tidak pernah ditampilkan |
+| 67 | Lirik | Buka panel lirik saat memutar | Lirik tersinkron, baris aktif menyala | ⚠️ 2026-07-22: jalan, tapi label "Lirik" di header menjorok ke kiri, lirik sering tidak lengkap, dan sumber liriknya tidak pernah ditampilkan → ✅ 2026-07-23 |
 | 68 | Cari | Cari artis | Hasil bertipe (teratas/artis/album/lagu) | ✅ 2026-07-22 |
 | 69 | Playlist | Buat playlist, tambah lagu, hapus | Semua tersimpan di sisi server | ✅ 2026-07-22 |
-| 70 | Podcast | Buka **satu playlist/koleksi podcast** dan putar sebuah episode | Progres tersimpan; tombol ±10s/30s muncul | ⚠️ 2026-07-22: item **Podcast di sidebar** memang tidak bisa memuat — YouTube Music tidak menyediakan Podcast untuk region Indonesia. Bukan cacat Kaset; langkah diubah agar tidak menyesatkan |
+| 70 | Podcast | Buka **satu playlist/koleksi podcast** dan putar sebuah episode | Progres tersimpan; tombol ±10s/30s muncul | ⚠️ 2026-07-22: item **Podcast di sidebar** memang tidak bisa memuat — YouTube Music tidak menyediakan Podcast untuk region Indonesia. Bukan cacat Kaset; langkah diubah agar tidak menyesatkan → ⏭️ 2026-07-23: tetap tidak bisa diuji - Podcast tidak tersedia untuk region Indonesia |
 | 71 | Ekualiser | Ubah preset saat memutar | Suara berubah | ✅ 2026-07-22 |
 | 72 | Adblock | Putar beberapa lagu | Tidak ada iklan (uBlock aktif) | ✅ 2026-07-22 |
-| 73 | Protokol | Dari PowerShell jalankan `start "kaset://play?v=BiQIc7fG9pA"` (Rejoice — Official HIGE DANDism) | Kaset muncul ke depan dan memutar lagu itu, **lengkap dengan nama artis di player bar dan lirik yang ikut termuat** | ❌ 2026-07-22: lagu diputar, tapi player bar hanya menampilkan judul (nama artis kosong) dan panel lirik tetap berkata "Putar lagu untuk melihat lirik di sini" |
-| 74 | Pintasan | Tekan Shift + / | Contekan pintasan muncul, dan **muat di jendela** — kalau jendelanya kecil, isinya bisa digulir, bukan terpotong atas-bawah | ⚠️ 2026-07-22: muncul, tapi memenuhi layar atas-bawah saat jendela kecil dan tidak bisa digulir |
+| 73 | Protokol | Dari PowerShell jalankan `start "kaset://play?v=BiQIc7fG9pA"` (Rejoice — Official HIGE DANDism) | Kaset muncul ke depan dan memutar lagu itu, **lengkap dengan nama artis di player bar dan lirik yang ikut termuat** | ❌ 2026-07-22: lagu diputar, tapi player bar hanya menampilkan judul (nama artis kosong) dan panel lirik tetap berkata "Putar lagu untuk melihat lirik di sini" → ❌ 2026-07-23: dengan `kaset://play?v=BEPSc8q6Bd8` album tidak muncul di player bar dan panel antrean menampilkan "Sedang diputar" kosong; lagu lain sama saja. Memutar track yang sama secara manual dari halaman albumnya membuat semuanya muncul normal |
+| 74 | Pintasan | Tekan Shift + / | Contekan pintasan muncul, dan **muat di jendela** — kalau jendelanya kecil, isinya bisa digulir, bukan terpotong atas-bawah | ⚠️ 2026-07-22: muncul, tapi memenuhi layar atas-bawah saat jendela kecil dan tidak bisa digulir → ❌ 2026-07-23: masih memenuhi layar atas-bawah saat windowed (ada tangkapan layar) |
 
 ### 65b — Cacat antrean yang ditemukan saat menguji SMTC
 
@@ -280,7 +286,7 @@ Cacat terpisah dan lebih besar dari langkah 65 sendiri, dicatat sebagai langkah 
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 65b | Putar album (mis. *Editorial* — Official HIGE DANDism) mulai dari track 1. Buka panel antrean. Tekan **Next** | Pindah ke track 2 album itu; antrean tetap berisi album yang sama; **Previous** mengembalikan ke track 1 | ❌ 2026-07-22: antrean tiba-tiba berganti jadi mix/queue baru; Previous tidak bisa kembali (dianggap memutar dari awal); track 1 tidak bisa diputar ulang (nyangkut); Next berikutnya mengganti antrean lagi |
+| 65b | Putar album (mis. *Editorial* — Official HIGE DANDism) mulai dari track 1. Buka panel antrean. Tekan **Next** | Pindah ke track 2 album itu; antrean tetap berisi album yang sama; **Previous** mengembalikan ke track 1 | ❌ 2026-07-22: antrean tiba-tiba berganti jadi mix/queue baru; Previous tidak bisa kembali (dianggap memutar dari awal); track 1 tidak bisa diputar ulang (nyangkut); Next berikutnya mengganti antrean lagi → ✅ 2026-07-23 |
 
 ---
 
@@ -295,60 +301,60 @@ Urutan sengaja: yang paling berisiko dan paling sering dipakai dulu.
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 75 | Buka sebuah album (mis. *Editorial*), putar dari track 1. Buka panel antrean. Tekan **Next** | Pindah ke track 2 **album yang sama**; isi panel antrean **tidak berubah** — tidak ada lagu asing yang muncul | |
-| 76 | Lanjutkan: tekan Next 3–4 kali lagi, perhatikan panel antrean tiap kali | Tetap album yang sama, urut. Tidak pernah berganti jadi mix | |
-| 77 | Sekarang tekan **Previous** | Kembali ke track sebelumnya. (Ini yang dulu mati total) | |
-| 78 | Klik track 1 di panel antrean | Track 1 diputar ulang dari awal — tidak nyangkut | |
-| 79 | Ulangi 75–78 dari **playlist**, bukan album | Perilaku sama | |
-| 80 | Putar 1 lagu saja dari kartu Beranda (bukan album), biarkan sampai habis | Boleh mengikuti autoplay YouTube — ini memang perilaku yang benar saat antrean habis | |
+| 75 | Buka sebuah album (mis. *Editorial*), putar dari track 1. Buka panel antrean. Tekan **Next** | Pindah ke track 2 **album yang sama**; isi panel antrean **tidak berubah** — tidak ada lagu asing yang muncul | ✅ 2026-07-23 |
+| 76 | Lanjutkan: tekan Next 3–4 kali lagi, perhatikan panel antrean tiap kali | Tetap album yang sama, urut. Tidak pernah berganti jadi mix | ✅ 2026-07-23 |
+| 77 | Sekarang tekan **Previous** | Kembali ke track sebelumnya. (Ini yang dulu mati total) | ✅ 2026-07-23 - catatan penguji: frasa "mati total" di kolom Harapan salah konteks. Lihat juga 77b |
+| 78 | Klik track 1 di panel antrean | Track 1 diputar ulang dari awal — tidak nyangkut | ⚠️ 2026-07-23: premis langkahnya salah - track 1 sudah tidak ada di antrean, sudah pindah ke Riwayat. Berubah jadi permintaan fitur, lihat F5 |
+| 79 | Ulangi 75–78 dari **playlist**, bukan album | Perilaku sama | ⏭️ 2026-07-23: tidak diuji |
+| 80 | Putar 1 lagu saja dari kartu Beranda (bukan album), biarkan sampai habis | Boleh mengikuti autoplay YouTube — ini memang perilaku yang benar saat antrean habis | ✅ 2026-07-23 |
 
 ### D2. Timer tidur
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 81 | Putar lagu, lompat ke ±10 detik sebelum habis. Klik timer tidur → **Akhir lagu ini**. Biarkan habis | Musik **berhenti**. Antrean **tidak** maju. Ini cacat #15 yang dulu diam-diam gagal | |
-| 82 | Lanjutan 81: tunggu 30 detik setelah berhenti | Tetap diam. Tidak ada lagu yang tiba-tiba jalan sendiri (YouTube sempat memulai lagu berikutnya di belakang layar) | |
-| 83 | Lanjutan 82: tekan tombol Play | Musik jalan lagi normal — penjagaannya lepas begitu kamu sendiri yang minta | |
-| 84 | Klik timer tidur → 15 menit. Lihat **ikon bulannya** | Ada badge angka **15** menempel di ikon. Tidak perlu hover | |
-| 85 | Tunggu ±1 menit, lihat lagi | Badge turun jadi 14 | |
-| 86 | Klik timer tidur → Nonaktif | Badge hilang, ikon kembali normal | |
-| 87 | Klik timer tidur → Akhir lagu ini | Badge menampilkan **♪** (bukan angka — mode ini tidak punya hitungan mundur) | |
+| 81 | Putar lagu, lompat ke ±10 detik sebelum habis. Klik timer tidur → **Akhir lagu ini**. Biarkan habis | Musik **berhenti**. Antrean **tidak** maju. Ini cacat #15 yang dulu diam-diam gagal | ✅ 2026-07-23 |
+| 82 | Lanjutan 81: tunggu 30 detik setelah berhenti | Tetap diam. Tidak ada lagu yang tiba-tiba jalan sendiri (YouTube sempat memulai lagu berikutnya di belakang layar) | ✅ 2026-07-23 |
+| 83 | Lanjutan 82: tekan tombol Play | Musik jalan lagi normal — penjagaannya lepas begitu kamu sendiri yang minta | ✅ 2026-07-23 |
+| 84 | Klik timer tidur → 15 menit. Lihat **ikon bulannya** | Ada badge angka **15** menempel di ikon. Tidak perlu hover | ✅ 2026-07-23 |
+| 85 | Tunggu ±1 menit, lihat lagi | Badge turun jadi 14 | ✅ 2026-07-23 |
+| 86 | Klik timer tidur → Nonaktif | Badge hilang, ikon kembali normal | ✅ 2026-07-23 |
+| 87 | Klik timer tidur → Akhir lagu ini | Badge menampilkan **♪** (bukan angka — mode ini tidak punya hitungan mundur) | ✅ 2026-07-23 |
 
 ### D3. Media key & protokol
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 88 | Putar lagu. Minimalkan Kaset. Tekan tombol **⏭ di keyboard** | Lagu maju. (Dulu tidak bereaksi — Chromium di dalam WebView2 yang merebut tombolnya) | |
-| 89 | Tekan tombol **⏯** di keyboard | Jeda, lalu tekan lagi → jalan | |
-| 90 | Buka PowerShell, jalankan `start "kaset://play?v=t82Q3f4pNUY"` | Kaset ke depan, lagu diputar, dan player bar menampilkan **nama artis** — bukan cuma judul | |
+| 88 | Putar lagu. Minimalkan Kaset. Tekan tombol **⏭ di keyboard** | Lagu maju. (Dulu tidak bereaksi — Chromium di dalam WebView2 yang merebut tombolnya) | ⚠️ 2026-07-23: lagu maju, tapi lihat 88b (sempat nyangkut) dan 88c (ikon kosong) |
+| 89 | Tekan tombol **⏯** di keyboard | Jeda, lalu tekan lagi → jalan | ✅ 2026-07-23 |
+| 90 | Buka PowerShell, jalankan `start "kaset://play?v=t82Q3f4pNUY"` | Kaset ke depan, lagu diputar, dan player bar menampilkan **nama artis** — bukan cuma judul | ❌ 2026-07-23: lihat 73 |
 
 ### D4. Aksesibilitas (Narrator: Ctrl + Win + Enter)
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 91 | Tab menyusuri player bar | Tiap tombol disebut namanya saja. **Tidak ada lagi bunyi kode/simbol** setelah nama tombol | |
-| 92 | Fokuskan tombol Ulangi, tekan **Spasi**, lalu Shift+Tab dan Tab lagi supaya fokus kembali ke tombol itu. Ulangi 3× | Namanya mengikuti mode: nonaktif → semua → satu. **Fokus harus benar-benar pindah lalu balik** — Narrator tidak membacakan ulang nama tombol yang sedang difokus | |
-| 93 | Ketik di kotak cari, tekan Enter, klik kotak cari lagi, Tab ke tombol ✕ pada baris riwayat | Disebut "Hapus dari riwayat: \<kata\>" | |
+| 91 | Tab menyusuri player bar | Tiap tombol disebut namanya saja. **Tidak ada lagi bunyi kode/simbol** setelah nama tombol | ❌ 2026-07-23: lihat 20 |
+| 92 | Fokuskan tombol Ulangi, tekan **Spasi**, lalu Shift+Tab dan Tab lagi supaya fokus kembali ke tombol itu. Ulangi 3× | Namanya mengikuti mode: nonaktif → semua → satu. **Fokus harus benar-benar pindah lalu balik** — Narrator tidak membacakan ulang nama tombol yang sedang difokus | ❌ 2026-07-23: masih tidak dibacakan |
+| 93 | Ketik di kotak cari, tekan Enter, klik kotak cari lagi, Tab ke tombol ✕ pada baris riwayat | Disebut "Hapus dari riwayat: \<kata\>" | ❌ 2026-07-23: lihat 28 |
 
 ### D5. Jendela
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 94 | Maximize jendela. Tutup ✕, lalu **Quit dari tray**. Buka Kaset lagi | Terbuka dalam keadaan **maximize** | |
-| 95 | Lanjutan 94: klik restore (un-maximize) | Kembali ke ukuran & posisi sebelum di-maximize, bukan ukuran acak | |
-| 96 | Maximize, tutup ✕ (ke tray, bukan quit), buka lagi dari tray | Masih maximize — tidak diam-diam jadi windowed | |
-| 97 | Masuk mini player, klik ✕, **perhatikan layar saat jendela menghilang** | Langsung hilang. Tidak membesar, tidak berkedip jadi layar penuh, tidak melompat ke pojok | |
-| 98 | Lanjutan 97: buka lagi dari tray | Shell penuh, ukuran sebelum mini player, chrome kembali, audio tidak putus | |
+| 94 | Maximize jendela. Tutup ✕, lalu **Quit dari tray**. Buka Kaset lagi | Terbuka dalam keadaan **maximize** | ✅ 2026-07-23 |
+| 95 | Lanjutan 94: klik restore (un-maximize) | Kembali ke ukuran & posisi sebelum di-maximize, bukan ukuran acak | ✅ 2026-07-23 |
+| 96 | Maximize, tutup ✕ (ke tray, bukan quit), buka lagi dari tray | Masih maximize — tidak diam-diam jadi windowed | ✅ 2026-07-23 |
+| 97 | Masuk mini player, klik ✕, **perhatikan layar saat jendela menghilang** | Langsung hilang. Tidak membesar, tidak berkedip jadi layar penuh, tidak melompat ke pojok | ✅ 2026-07-23 |
+| 98 | Lanjutan 97: buka lagi dari tray | Shell penuh, ukuran sebelum mini player, chrome kembali, audio tidak putus | ✅ 2026-07-23 |
 
 ### D6. Tata letak & lirik
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 99 | Kecilkan jendela sampai mentok (980 px). Lihat bagian tengah player bar | Judul, artis, dan album **tidak terpotong**. Tombol suka tetap terlihat | |
-| 100 | Di jendela mentok itu, tekan **Shift + /** | Contekan pintasan muat di jendela dan **bisa digulir** — tidak terpotong atas-bawah | |
-| 101 | Buka panel lirik saat memutar lagu | Judul "Lirik" di header sejajar dengan teks liriknya | |
-| 102 | Gulir ke bawah sampai akhir lirik | Ada baris **"Sumber: …"** yang menyebut penyedianya (LRCLib / NetEase / YouTube Music) | |
-| 103 | Putar lagu yang liriknya tidak ada | Baris "Sumber:" **tidak muncul** (bukan "Sumber: " kosong) | |
+| 99 | Kecilkan jendela sampai mentok (980 px). Lihat bagian tengah player bar | Judul, artis, dan album **tidak terpotong**. Tombol suka tetap terlihat | ⚠️ 2026-07-23: lihat 42 - sekarang teks berjalan, diterima |
+| 100 | Di jendela mentok itu, tekan **Shift + /** | Contekan pintasan muat di jendela dan **bisa digulir** — tidak terpotong atas-bawah | ❌ 2026-07-23: lihat 74 |
+| 101 | Buka panel lirik saat memutar lagu | Judul "Lirik" di header sejajar dengan teks liriknya | ✅ 2026-07-23 |
+| 102 | Gulir ke bawah sampai akhir lirik | Ada baris **"Sumber: …"** yang menyebut penyedianya (LRCLib / NetEase / YouTube Music) | ✅ 2026-07-23: barisnya tidak ikut tergulir melainkan tetap di area bawah panel - penguji justru lebih suka begini |
+| 103 | Putar lagu yang liriknya tidak ada | Baris "Sumber:" **tidak muncul** (bukan "Sumber: " kosong) | ✅ 2026-07-23: yang tampil placeholder "Play a song to see its lyrics"; baris "Sumber:" tidak muncul |
 
 ### D7. Lirik tersinkron dari YouTube Music
 
@@ -366,14 +372,14 @@ Tiga videoId di bawah sudah diverifikasi lewat API dan bisa dipakai sebagai kasu
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 104 | `start "kaset://play?v=t82Q3f4pNUY"`, buka panel lirik | Lirik muncul dan **baris aktifnya menyala mengikuti lagu** | |
-| 105 | Lanjutan 104: geser scrubber ke tengah lagu | Baris yang menyala ikut melompat ke posisi itu | |
-| 106 | Lanjutan 104: lihat akhir lirik | "Sumber: YouTube Music" | |
-| 107 | `start "kaset://play?v=mZsHggY8G6M"` (lagu LyricFind) | Sama — tersinkron. Penyedia hulu tidak boleh mengubah perilaku | |
-| 108 | `start "kaset://play?v=BiQIc7fG9pA"` (lagu tanpa versi sync) | Lirik tetap muncul sebagai **teks polos** yang bisa digulir — tidak kosong, tidak error | |
-| 109 | Putar lagu Indonesia yang dulu liriknya kosong gara-gara LRCLib | Sekarang ada liriknya. **Ini alasan utama urutannya dibalik** — kalau masih kosong, pembalikannya tidak menyelesaikan apa pun | |
-| 110 | Putar lagu yang benar-benar tidak punya lirik di mana pun | Panel bilang lirik tidak tersedia, aplikasi tidak menggantung | |
-| 111 | Matikan Wi-Fi, ganti lagu, buka panel lirik | Gagal dengan pesan, bukan crash atau loading selamanya | |
+| 104 | `start "kaset://play?v=t82Q3f4pNUY"`, buka panel lirik | Lirik muncul dan **baris aktifnya menyala mengikuti lagu** | ✅ 2026-07-23 |
+| 105 | Lanjutan 104: geser scrubber ke tengah lagu | Baris yang menyala ikut melompat ke posisi itu | ✅ 2026-07-23 |
+| 106 | Lanjutan 104: lihat akhir lirik | "Sumber: YouTube Music" | ✅ 2026-07-23 |
+| 107 | `start "kaset://play?v=mZsHggY8G6M"` (lagu LyricFind) | Sama — tersinkron. Penyedia hulu tidak boleh mengubah perilaku | ✅ 2026-07-23 |
+| 108 | `start "kaset://play?v=BiQIc7fG9pA"` (lagu tanpa versi sync) | Lirik tetap muncul sebagai **teks polos** yang bisa digulir — tidak kosong, tidak error | ✅ 2026-07-23 |
+| 109 | Putar lagu Indonesia yang dulu liriknya kosong gara-gara LRCLib | Sekarang ada liriknya. **Ini alasan utama urutannya dibalik** — kalau masih kosong, pembalikannya tidak menyelesaikan apa pun | ⏭️ 2026-07-23: terlewat saat pelaporan - tercakup oleh langkah 120 |
+| 110 | Putar lagu yang benar-benar tidak punya lirik di mana pun | Panel bilang lirik tidak tersedia, aplikasi tidak menggantung | ⏭️ 2026-07-23: tidak diuji - penguji belum menemukan lagu yang cocok |
+| 111 | Matikan Wi-Fi, ganti lagu, buka panel lirik | Gagal dengan pesan, bukan crash atau loading selamanya | ✅ 2026-07-23: gagal dengan pesan "connectivity is unavailable" - tapi memunculkan 111b |
 
 ---
 
@@ -387,9 +393,9 @@ Tiga videoId di bawah sudah diverifikasi lewat API dan bisa dipakai sebagai kasu
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 112 | Buka Kaset, diamkan **1 menit penuh** tanpa mengklik apa pun | Masih hidup. Dulu mati sendiri setelah ±20–40 detik | |
-| 113 | Kalau mati: buka `%LOCALAPPDATA%\Packages\Kaset.KasetWin_kjgd17zy2bc08\LocalState\crash.log` | Berisi exception lengkap + stack. File ini **baru ada** sejak putaran ini; sebelumnya crash tidak meninggalkan jejak apa pun | |
-| 114 | Resize jendela ke ukuran aneh, tutup, buka lagi | Ukurannya kembali — dan tidak crash. Geometri tersimpan itu justru pemicu crash-nya dulu | |
+| 112 | Buka Kaset, diamkan **1 menit penuh** tanpa mengklik apa pun | Masih hidup. Dulu mati sendiri setelah ±20–40 detik | ✅ 2026-07-23: tidak pernah mati sendiri lagi |
+| 113 | Kalau mati: buka `%LOCALAPPDATA%\Packages\Kaset.KasetWin_kjgd17zy2bc08\LocalState\crash.log` | Berisi exception lengkap + stack. File ini **baru ada** sejak putaran ini; sebelumnya crash tidak meninggalkan jejak apa pun | — 2026-07-23: tidak berlaku, tidak ada crash yang terjadi |
+| 114 | Resize jendela ke ukuran aneh, tutup, buka lagi | Ukurannya kembali — dan tidak crash. Geometri tersimpan itu justru pemicu crash-nya dulu | ✅ 2026-07-23 |
 
 ### E2. Lirik tersinkron (fitur baru, belum pernah diuji manual)
 
@@ -398,23 +404,23 @@ Tiga videoId terverifikasi: `t82Q3f4pNUY` (Musixmatch, sync), `mZsHggY8G6M` (Lyr
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 115 | `start "kaset://play?v=t82Q3f4pNUY"`, buka panel lirik | Baris lirik **menyala mengikuti lagu** | |
-| 116 | Perhatikan posisi baris aktif saat lagu berjalan | Baris aktif naik ke **atas** panel dan diam di situ, baris berikutnya di bawahnya (gaya Apple Music) — **tidak terpotong** header | |
-| 117 | Lihat label sumber di bawah panel | `Sumber: YouTube Music — Musixmatch` (atau LyricFind, tergantung lagu) | |
-| 118 | Gulir lirik sampai baris terakhir | Baris terakhir masih bisa naik sampai atas, dan **tidak ada baris berisi "Source: …"** di dalam daftar liriknya | |
-| 119 | `start "kaset://play?v=BiQIc7fG9pA"` (lagu tanpa versi sync) | Lirik tetap tampil sebagai teks polos yang bisa digulir; tidak kosong, tidak error | |
-| 120 | Putar lagu Indonesia yang dulu liriknya kosong gara-gara LRCLib | Sekarang ada liriknya. **Ini alasan utama urutan penyedia dibalik** | |
-| 121 | Pengaturan → Sumber lirik | Ada pilihan **YouTube Music**, default tetap **Otomatis**, dan ada keterangan LyricFind/Musixmatch + bahwa tidak semua lagu tersinkron | |
-| 122 | Ganti ke LRCLib, putar lagu, lihat labelnya | `Sumber: LRCLib` — pilihannya benar-benar berpengaruh | |
+| 115 | `start "kaset://play?v=t82Q3f4pNUY"`, buka panel lirik | Baris lirik **menyala mengikuti lagu** | ✅ 2026-07-23 |
+| 116 | Perhatikan posisi baris aktif saat lagu berjalan | Baris aktif naik ke **atas** panel dan diam di situ, baris berikutnya di bawahnya (gaya Apple Music) — **tidak terpotong** header | ✅ 2026-07-23 |
+| 117 | Lihat label sumber di bawah panel | `Sumber: YouTube Music — Musixmatch` (atau LyricFind, tergantung lagu) | ✅ 2026-07-23 |
+| 118 | Gulir lirik sampai baris terakhir | Baris terakhir masih bisa naik sampai atas, dan **tidak ada baris berisi "Source: …"** di dalam daftar liriknya | ✅ 2026-07-23 |
+| 119 | `start "kaset://play?v=BiQIc7fG9pA"` (lagu tanpa versi sync) | Lirik tetap tampil sebagai teks polos yang bisa digulir; tidak kosong, tidak error | ✅ 2026-07-23 |
+| 120 | Putar lagu Indonesia yang dulu liriknya kosong gara-gara LRCLib | Sekarang ada liriknya. **Ini alasan utama urutan penyedia dibalik** | ✅ 2026-07-23 |
+| 121 | Pengaturan → Sumber lirik | Ada pilihan **YouTube Music**, default tetap **Otomatis**, dan ada keterangan LyricFind/Musixmatch + bahwa tidak semua lagu tersinkron | ⚠️ 2026-07-23: pilihannya ada dan defaultnya benar, tapi keterangannya terlalu panjang |
+| 122 | Ganti ke LRCLib, putar lagu, lihat labelnya | `Sumber: LRCLib` — pilihannya benar-benar berpengaruh | ⏭️ 2026-07-23: tidak diuji |
 
 ### E3. Player bar & metadata
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 123 | Lihat player bar saat memutar lagu | Tombol **hati menempel di sebelah judul/artis**, tidak terdampar jauh ke kanan | |
-| 124 | Kecilkan jendela sampai mentok (980 px) | Judul & artis tidak terpotong, tombol hati tetap terlihat | |
-| 125 | Lebarkan jendela sampai maksimum | Grup cover+judul+hati tetap menyatu di tengah, tidak melar berjauhan | |
-| 126 | Putar lagu dengan banyak artis (mis. *attached* — Tenxi, Anangga, Suisei) | Tertulis **tiga** artis. Tidak ada artis bernama "dan …" atau "and …" | |
+| 123 | Lihat player bar saat memutar lagu | Tombol **hati menempel di sebelah judul/artis**, tidak terdampar jauh ke kanan | ✅ 2026-07-23 |
+| 124 | Kecilkan jendela sampai mentok (980 px) | Judul & artis tidak terpotong, tombol hati tetap terlihat | ✅ 2026-07-23 |
+| 125 | Lebarkan jendela sampai maksimum | Grup cover+judul+hati tetap menyatu di tengah, tidak melar berjauhan | ✅ 2026-07-23 |
+| 126 | Putar lagu dengan banyak artis (mis. *attached* — Tenxi, Anangga, Suisei) | Tertulis **tiga** artis. Tidak ada artis bernama "dan …" atau "and …" | ✅ 2026-07-23 |
 
 ---
 
@@ -422,7 +428,7 @@ Tiga videoId terverifikasi: `t82Q3f4pNUY` (Musixmatch, sync), `mZsHggY8G6M` (Lyr
 
 Dicatat jujur, bukan diklaim aman:
 
-- **ViewModel dan lapisan Platform tidak punya test sama sekali.** 424 test seluruhnya `KasetWin.Core`.
+- **ViewModel dan lapisan Platform tidak punya test sama sekali.** 497 test seluruhnya `KasetWin.Core`.
   `SearchViewModel` (724 baris) dan `PlaylistDetailViewModel` (859 baris) hanya diuji dengan tangan.
 - **Wiring timer tidur.** `SleepTimer` sendiri diuji 9 test; bahwa `PlayerService` benar-benar
   menjeda dan ticker benar-benar hidup/mati mengikuti state hanya bisa dibuktikan lewat langkah
