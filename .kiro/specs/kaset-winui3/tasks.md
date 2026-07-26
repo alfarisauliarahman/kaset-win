@@ -1052,6 +1052,31 @@ kalinya), 4 gagal. Dua ditutup langsung, dua lagi dikerjakan:
 - [ ] 88. **Loading lagu kadang stutter** — investigasi TERPISAH, belum disentuh: tersangka
   navigasi halaman penuh per track; wajib diukur dulu, area ini baru saja stabil.
 
+### PUTARAN 15–17 (2026-07-27)
+
+- [x] 89. **Versi lagu: fallback pencarian ber-pagar** — jalur album buntu by construction pada
+  album yang memuat videoId video di daftar track-nya sendiri (bukti diag: `0 title matches`).
+  Empat pagar: judul norm sama + artis norm sama + id beda + hasil ATV; tanpa artis = tanpa search.
+  LULUS uji tangan putaran 16 (langkah 210). 3 test.
+
+- [x] 90. **Saga antrean mini (3 lapis, semuanya nyata)**:
+  (a) `Unloaded` men-dispose VM di kontrol persisten → update live mati setelah sesi pertama —
+  POLA SAMA dengan bug `Expired` PlayerBar; (b) penerus roda XAML polos tidak pernah menyala
+  (gotcha LibraryPage) → 49 lagu termuat tapi tak tergulir; (c) "pancingan" = `EnsureUpNextFilled`
+  (isi radio saat UpNext<10) hanya ada di panel penuh — jejak `tracks=1..2 → 51` membongkarnya.
+  Mini kini menjalankan pengisian yang sama. ATURAN MENGERAS: kontrol persisten dilarang teardown
+  di Unloaded; penerus roda wajib AddHandler(handledEventsToo:true).
+
+- [x] 91. **Lirik mini: 20px SERAGAM** — ukuran yang diminta pemilik repo; pembesaran aktif 20→28
+  dihapus karena re-layout di tengah gulir itulah mesin clipping (lolos dari 2 tambalan).
+
+- [x] 92. **Grid artis Library: ItemHeight 236** — jumlah jujur komponen 217; nilai pertama 216
+  kurang setipis potongan yang dilihat penguji.
+
+- [ ] 93. **Scroll campur DIPARKIR** setelah 3 generasi arsitektur gagal (enumeration → kalah
+  virtualisasi; central-only → kalah rute event; PointerMoved pre-attach → masih dilaporkan kacau).
+  Generasi 4 WAJIB sesi debug live dengan penguji. Lihat known-issues.
+
 - [ ] 69. **Race laten di `LoadTrackAsync`** — `_expectedVideoId`/`CurrentTrack` diset di luar
   `_loadGate` dan tidak atomik dengan `Interlocked.Increment(_loadGeneration)`. Kelas bug yang sama
   dengan ADR 0006, di baris berbeda. **Tidak terbukti** menyebabkan gejala; jendelanya nanodetik

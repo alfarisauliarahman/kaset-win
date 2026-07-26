@@ -8,7 +8,7 @@ Dua daftar, dan keduanya sengaja ada:
 - **Ditolak / dibatalkan** — pernah dipertimbangkan, diputuskan tidak. Ditulis supaya tidak ada yang
   mengerjakannya lagi dari nol, lalu heran kenapa di-revert.
 
-Terakhir diperbarui: 2026-07-23 (putaran uji 8).
+Terakhir diperbarui: 2026-07-27 (putaran uji 17).
 
 ---
 

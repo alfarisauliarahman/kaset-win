@@ -517,11 +517,31 @@ Semantik final (koreksi pemilik repo, putaran 13): **konteks yang menentukan** �
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 210 | Putar Lemon Tang dari albumnya | Versi LAGU. diag.log: `song-version … -> … (search: …)` | |
-| 211 | Mini player → lirik → tunggu baris panjang yang membungkus 2 baris jadi aktif | Tidak terpotong | |
-| 212 | Library → Artists | 1-baris rapat, 2-baris utuh, baris grid rapi | |
-| 213 | Roda mouse di atas shelf horizontal (Home/Explore) | HANYA halaman yang bergulir vertikal; kartu tidak geser sideways; satu gerakan satu efek | |
-| 214 | Antrean habis → autoplay lanjut → langsung buka mini player → tab antrean | "Selanjutnya"/"Sedang diputar" segar tanpa mampir full mode | |
+| 210 | Putar Lemon Tang dari albumnya | Versi LAGU. diag.log: `song-version … -> … (search: …)` | ✅ 2026-07-27 (putaran 16) — fallback pencarian bekerja di album yang mengalahkan jalur album |
+| 211 | Mini player → lirik → tunggu baris panjang yang membungkus 2 baris jadi aktif | Tidak terpotong | ❌ 2026-07-27 (putaran 16): masih terpotong → putaran 17: tipografi final 20px SERAGAM (tanpa pembesaran aktif — itu mesin clipping-nya). Salah tangkap revert-ke-kecil diperbaiki |
+| 212 | Library → Artists | 1-baris rapat, 2-baris utuh, baris grid rapi | ❌ 2026-07-27 (putaran 16): masih terpotong — ItemHeight 216 kurang persis 1px+ dari jumlah jujur 217 → dinaikkan ke 236 |
+| 213 | Roda mouse di atas shelf horizontal (Home/Explore) | HANYA halaman yang bergulir vertikal; kartu tidak geser sideways; satu gerakan satu efek | ❌ 2026-07-27 (putaran 16): masih kacau — DIPARKIR atas keputusan penguji setelah 3 generasi arsitektur gagal; generasi 4 = sesi debug live |
+| 214 | Antrean habis → autoplay lanjut → langsung buka mini player → tab antrean | "Selanjutnya"/"Sedang diputar" segar tanpa mampir full mode | ❌ 2026-07-27 (putaran 16→17): tiga lapis bug saling menutupi, semuanya nyata: (1) Unloaded men-dispose VM → update live mati setelah sesi mini pertama; (2) wheel handler XAML polos → strip 49 lagu tak bisa digulir; (3) pengisian radio (EnsureUpNextFilled) hanya ada di panel penuh — ITULAH "pancingan"-nya. Ketiganya ditutup; verifikasi = langkah 215 |
+
+## P. Putaran 17 (2026-07-27) — saga antrean mini tuntas
+
+Kuitansi lengkap sebuah bug tiga lapis (tiap lapis nyata, tiap perbaikan memunculkan lapis di
+bawahnya): (1) `Unloaded` men-dispose ViewModel pada kontrol yang hidup seumur jendela — pola yang
+SAMA dengan bug bunyi timer dulu — sehingga sesi mini kedua dst. hanya mendapat potret pintu masuk;
+(2) penerus roda dipasang sebagai atribut XAML polos yang tidak pernah menyala (gotcha yang sudah
+terdokumentasi di LibraryPage) — 49 lagu termuat tapi tak bisa digulir; (3) "pancingan" yang
+sebenarnya: `EnsureUpNextFilledAsync` — pengisian radio saat "Berikutnya" < 10 — hanya ada di panel
+penuh. Jejak `tracks=1..2` vs `tracks=51` yang membongkarnya. Mini kini menjalankan pengisian yang
+sama (pagar sama: sekali per lagu, <10, dedup, best-effort).
+
+**Aturan yang mengeras dari saga ini:** kontrol persisten DILARANG teardown di `Unloaded` (dua bug
+identik); penerus roda WAJIB `AddHandler(handledEventsToo: true)`, bukan atribut XAML.
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 215 | Putar SATU lagu dari Home → langsung mini player → tab antrean (tanpa menyentuh full mode) | Daftar terisi radio (±10+), bisa digulir sampai bawah, dan ikut bergerak saat lagu berganti | |
+| 216 | Mini player → lirik, tunggu baris panjang | 20px seragam, tidak ada yang terpotong | |
+| 217 | Library → Artists | Tidak ada nama/hitungan yang terpotong di baris mana pun | |
 
 ## F. Cacat terbuka dari putaran 4 (2026-07-23)
 
