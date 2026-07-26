@@ -16,7 +16,7 @@
     <RootNamespace>KasetWin.App</RootNamespace>
     <AssemblyName>KasetWin.App</AssemblyName>
     <!-- App version (SemVer). Keep in sync with the git tag and the Velopack pack version. -->
-    <Version>0.2.1</Version>
+    <Version>0.3.0</Version>
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
     <WindowsPackageType>MSIX</WindowsPackageType>
