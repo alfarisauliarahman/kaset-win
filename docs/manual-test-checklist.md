@@ -539,9 +539,9 @@ identik); penerus roda WAJIB `AddHandler(handledEventsToo: true)`, bukan atribut
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 215 | Putar SATU lagu dari Home → langsung mini player → tab antrean (tanpa menyentuh full mode) | Daftar terisi radio (±10+), bisa digulir sampai bawah, dan ikut bergerak saat lagu berganti | |
-| 216 | Mini player → lirik, tunggu baris panjang | 20px seragam, tidak ada yang terpotong | |
-| 217 | Library → Artists | Tidak ada nama/hitungan yang terpotong di baris mana pun | |
+| 215 | Putar SATU lagu dari Home → langsung mini player → tab antrean (tanpa menyentuh full mode) | Daftar terisi radio (±10+), bisa digulir sampai bawah, dan ikut bergerak saat lagu berganti | ✅ 2026-07-27 (putaran 18) — saga antrean mini TUTUP: langsung ke mini, terisi radio, tergulir, hidup |
+| 216 | Mini player → lirik, tunggu baris panjang | 20px seragam, tidak ada yang terpotong | ⚠️ 2026-07-27 (putaran 18): lulus dengan catatan — penguji menerima 20px seragam tapi menyatakan "sebenarnya bukan ini yang aku mau". Kalau nanti mau dirinci ulang (mis. baris aktif sedikit lebih besar TANPA re-layout — pakai scale transform, bukan font size), itu satu iterasi kecil; menunggu penguji mood |
+| 217 | Library → Artists | Tidak ada nama/hitungan yang terpotong di baris mana pun | ✅ 2026-07-27 (putaran 18) |
 
 ## F. Cacat terbuka dari putaran 4 (2026-07-23)
 
