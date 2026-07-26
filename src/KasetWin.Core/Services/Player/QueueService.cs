@@ -126,6 +126,31 @@ public sealed class QueueService : ObservableObject, IQueueService
         RaiseQueueChanged();
     }
 
+    /// <summary>
+    /// Merge rule for thumbnails: keep what exists, except that proper artwork may replace a
+    /// bare video frame (an <c>i.ytimg.com/vi/…</c> URL — the player page's 16:9 still). Frames
+    /// never replace artwork, and null never replaces anything.
+    /// </summary>
+    private static Uri? PickThumbnail(Uri? existing, Uri? incoming)
+    {
+        if (existing is null)
+        {
+            return incoming;
+        }
+
+        if (incoming is not null && IsVideoFrame(existing) && !IsVideoFrame(incoming))
+        {
+            return incoming;
+        }
+
+        return existing;
+    }
+
+    /// <summary>Whether <paramref name="url"/> is a video-frame still rather than album artwork.</summary>
+    private static bool IsVideoFrame(Uri url) =>
+        url.Host.EndsWith("ytimg.com", StringComparison.OrdinalIgnoreCase)
+        && url.AbsolutePath.StartsWith("/vi/", StringComparison.Ordinal);
+
     /// <inheritdoc />
     public bool TryEnrichTrack(string videoId, Song metadata)
     {
@@ -147,7 +172,12 @@ public sealed class QueueService : ObservableObject, IQueueService
                 Album = existing.Album ?? metadata.Album,
                 Artists = existing.Artists is { Count: > 0 } ? existing.Artists : metadata.Artists,
                 VideoType = existing.VideoType ?? metadata.VideoType,
-                ThumbnailUrl = existing.ThumbnailUrl ?? metadata.ThumbnailUrl,
+                // Thumbnails are gaps-only PLUS one upgrade: real square art may replace a video
+                // frame. On a `kaset://` launch the first thumbnail to arrive is the player page's
+                // 16:9 frame (i.ytimg.com/vi/…), and "first URL wins" then locked the proper album
+                // art out forever — the now-playing card showed a cropped video still for the whole
+                // song. The reverse is never allowed: a frame cannot replace square art.
+                ThumbnailUrl = PickThumbnail(existing.ThumbnailUrl, metadata.ThumbnailUrl),
                 // A track queued from nothing but a videoId (a `kaset://play?v=…` launch) has no
                 // title and no duration either, and the queue is what the queue panel renders — so
                 // leaving those blank showed an empty "Now playing" row. Gaps only: a queue entry

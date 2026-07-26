@@ -307,20 +307,65 @@ hr=0x00000000 added=True` — shell menerima tombolnya. Yang tersisa hanya mata 
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 167 | Timer "Akhir lagu ini", biarkan habis, tunggu 2–3 menit, tekan **Play** | Lagu yang ditinggal tidur diputar ulang dari awal. Tidak meloncat ke lagu lain | |
-| 168 | Timer "Akhir lagu ini", biarkan habis, langsung tekan **Play** (halaman belum sempat kabur) | Lagu resume dari posisi berhenti — tidak mengulang dari 0:00 | |
-| 169 | `start "kaset://play?v=BEPSc8q6Bd8"`, biarkan lagunya habis dan autoplay mengambil alih | Lagu berikutnya menampilkan judul, artis, **album, dan sampul** tanpa menyentuh apa pun | |
-| 170 | (= 166, ditulis ulang) Putar lagu. Matikan Wi-Fi. **Klik lagu yang sama di halaman album** — layar akan blank, itu memang keadaan awalnya. Sekarang nyalakan Wi-Fi, **diamkan ±10 detik tanpa mengklik apa pun** | Halaman pulih sendiri (tidak blank lagi). Lalu tekan Play → lagunya berbunyi. Musik memang **tidak** menyala sendiri — itu disengaja | |
-| 171 | Hover ikon Kaset di taskbar (tema gelap DAN terang) | Tiga tombol tampak ikonnya, terbaca jelas. Kalau masih kosong: buka `diag.log`, cari baris `thumbbar:` — baris itu sekarang menyebut persis langkah mana yang gagal | |
-| 172 | Kecilkan jendela di bawah ±1200 px lebar | Sidebar menyempit jadi ikon saja + hamburger muncul; lebarkan lagi → terbuka penuh. Bolak-balik tanpa nyangkut | |
-| 173 | Jendela lebar, buka panel antrean → sidebar compact. **Sambil panel terbuka**, lebarkan jendela maksimum | Sidebar TETAP compact (panel menang). Tutup panel → terbuka penuh lagi | |
-| 174 | Jendela sempit (< 1200), buka lalu tutup panel antrean | Sidebar tetap compact setelah panel ditutup — tidak melompat terbuka | |
-| 175 | Klik kanan baris lagu di halaman **album** dan halaman **playlist** | Menu konteks muncul, isinya sama persis dengan menu titik-tiga (7 item) | |
-| 176 | Putar **episode podcast** tanpa CC, buka panel lirik | "Subtitel tidak tersedia untuk episode ini" — bukan menyebut "lagu" | |
+| 167 | Timer "Akhir lagu ini", biarkan habis, tunggu 2–3 menit, tekan **Play** | Lagu yang ditinggal tidur diputar ulang dari awal. Tidak meloncat ke lagu lain | ✅ 2026-07-23 (putaran 9) — penguji mempertanyakan kenapa mengulang dari awal, bukan melanjutkan posisi. Jawaban + perbaikan: lihat J1 |
+| 168 | Timer "Akhir lagu ini", biarkan habis, langsung tekan **Play** (halaman belum sempat kabur) | Lagu resume dari posisi berhenti — tidak mengulang dari 0:00 | ⚠️ 2026-07-23 (putaran 9): hasilnya sama dengan 167 — wajar: YouTube mulai kabur beberapa detik setelah lagu habis, jadi jendela "belum drift" nyaris mustahil ditangkap tangan. Langkah ini dihapus dari daftar wajib |
+| 169 | `start "kaset://play?v=BEPSc8q6Bd8"`, biarkan lagunya habis dan autoplay mengambil alih | Lagu berikutnya menampilkan judul, artis, **album, dan sampul** tanpa menyentuh apa pun | ⚠️ 2026-07-23 (putaran 9): autoplay aman, lagu berikutnya aman — tapi **sampul lagu yang diputar lewat link justru ngawur** (frame video, bukan art album). Lihat J2 |
+| 170 | (= 166, ditulis ulang) Putar lagu. Matikan Wi-Fi. **Klik lagu yang sama di halaman album** — layar akan blank, itu memang keadaan awalnya. Sekarang nyalakan Wi-Fi, **diamkan ±10 detik tanpa mengklik apa pun** | Halaman pulih sendiri (tidak blank lagi). Lalu tekan Play → lagunya berbunyi. Musik memang **tidak** menyala sendiri — itu disengaja | ⏭️ 2026-07-23 (putaran 9): instruksi masih membingungkan penguji — dua kali gagal ditulis dengan jelas; diganti verifikasi lewat diag.log saja |
+| 171 | Hover ikon Kaset di taskbar (tema gelap DAN terang) | Tiga tombol tampak ikonnya, terbaca jelas. Kalau masih kosong: buka `diag.log`, cari baris `thumbbar:` — baris itu sekarang menyebut persis langkah mana yang gagal | ⚠️ 2026-07-23 (putaran 9): ikon MUNCUL (regresi hilang-total beres) tapi jelek sekali menurut penguji. Lihat J3 |
+| 172 | Kecilkan jendela di bawah ±1200 px lebar | Sidebar menyempit jadi ikon saja + hamburger muncul; lebarkan lagi → terbuka penuh. Bolak-balik tanpa nyangkut | ✅ 2026-07-23 (putaran 9) |
+| 173 | Jendela lebar, buka panel antrean → sidebar compact. **Sambil panel terbuka**, lebarkan jendela maksimum | Sidebar TETAP compact (panel menang). Tutup panel → terbuka penuh lagi | ✅ 2026-07-23 (putaran 9) |
+| 174 | Jendela sempit (< 1200), buka lalu tutup panel antrean | Sidebar tetap compact setelah panel ditutup — tidak melompat terbuka | ✅ 2026-07-23 (putaran 9) |
+| 175 | Klik kanan baris lagu di halaman **album** dan halaman **playlist** | Menu konteks muncul, isinya sama persis dengan menu titik-tiga (7 item) | ✅ 2026-07-23 (putaran 9) — permintaan lanjutan: terapkan di semua halaman sesuai konteks, seperti YT Music asli. Tercatat di known-issues sebagai kerja lanjutan |
+| 176 | Putar **episode podcast** tanpa CC, buka panel lirik | "Subtitel tidak tersedia untuk episode ini" — bukan menyebut "lagu" | ✅ 2026-07-23 (putaran 9) |
 
 > Catatan sadar-risiko dari perbaikan sidebar: dengan ambang 1200, aplikasi pada ukuran default
 > (1100 px) kini **lahir dalam keadaan compact**. Kalau itu terasa salah, ubah satu angka
 > `ExpandedModeThresholdWidth` di `MainWindow.xaml` (mis. 1080) — tanpa menyentuh kode.
+
+## J. Putaran 9 (2026-07-23) — temuan & jawaban
+
+### J1. Kenapa Play pasca timer mengulang dari awal (#167) — bukan cacat
+
+Mode timernya "akhir lagu ini": lagunya memang sudah **tamat** saat musik berhenti. Melanjutkan dari
+posisi = melanjutkan dari detik terakhir = langsung tamat lagi. Dari-awal adalah satu-satunya
+perilaku yang masuk akal untuk mode ini. (#168 dihapus: jendela "halaman belum kabur" mustahil
+ditangkap tangan — YouTube mulai kabur beberapa detik setelah lagu habis.)
+
+### J2. Sampul lagu ber-link jadi frame video (#169) — **diperbaiki**
+
+Persis peringatan agent putaran 8 soal "URL pertama menang": pada peluncuran `kaset://`, thumbnail
+pertama yang tiba adalah **frame 16:9 halaman player** (`i.ytimg.com/vi/…`), dan aturan merge
+gaps-only lalu mengunci art album persegi dari enrichment selamanya. Kini merge-nya punya satu
+pengecualian searah: art sungguhan boleh menggantikan frame video, frame tidak pernah boleh
+menggantikan art. 2 test. Uji ulang: langkah 177.
+
+### J3. Ikon taskbar muncul tapi jelek (#171) — sedang dirapikan
+
+Regresi hilang-total beres (jejak sehat, shell menerima). Estetikanya yang ditolak penguji —
+halo hitam di ikon 16px kemungkinan terlihat kotor. Digambar ulang flat putih tanpa halo,
+geometri proporsional. Uji ulang: langkah 178.
+
+### J4. Permintaan baru putaran 9 — sedang dikerjakan
+
+| Hal | Status |
+|---|---|
+| Klik item sidebar yang sedang aktif → kembali ke akar halaman itu | dikerjakan (ItemInvoked) |
+| Playlist di sidebar tidak ter-highlight saat dipilih | dikerjakan |
+| Pane hamburger (overlay) tidak menutup setelah memilih | dikerjakan |
+| Kartu artis di tab Terkait tidak rata tengah | dikerjakan |
+| Mode terang: putihnya tidak nyaman, birunya terlalu kontras | audit mekanis warna hardcoded; keputusan estetika menunggu screenshot penguji |
+| Klik kanan di semua halaman sesuai konteks (Search/LikedSongs/History/Artist) | kerja lanjutan — butuh command baru di VM, tercatat di known-issues |
+
+### Langkah uji putaran 10
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 177 | `start "kaset://play?v=BEPSc8q6Bd8"`, lihat sampul di player bar + kartu "Sedang diputar" | **Art album persegi**, bukan frame video 16:9 | |
+| 178 | Hover ikon Kaset di taskbar | Tiga ikon flat putih bersih, tidak berbayang/halo | |
+| 179 | Dari Home, buka sebuah album, lalu klik **Home** di sidebar | Kembali ke Home | |
+| 180 | Klik playlist di sidebar | Playlist terbuka DAN itemnya ter-highlight di sidebar | |
+| 181 | Jendela sempit → klik hamburger → pilih halaman/playlist | Pane menutup sendiri setelah memilih | |
+| 182 | Panel Terkait → bagian artis serupa | Avatar + nama rata tengah, seperti halaman artis | |
 
 ## F. Cacat terbuka dari putaran 4 (2026-07-23)
 
@@ -370,11 +415,12 @@ hr=0x00000000 added=True` — shell menerima tombolnya. Yang tersisa hanya mata 
 
 ### F5. Permintaan fitur (bukan cacat)
 
-| Asal | Permintaan |
-|---|---|
-| 17 | Bunyi notifikasi saat timer tidur habis |
-| 78 | Antrean menampilkan lagu yang **sudah** diputar, bukan memindahkannya ke Riwayat — kelompokkan jadi "telah diputar / sedang diputar / selanjutnya" seperti YouTube Music |
-| 42, 99 | Teks now-playing kini berjalan (marquee); masih kurang sreg tapi diterima |
+| Asal | Permintaan | Status |
+|---|---|---|
+| 17 | Bunyi notifikasi saat timer tidur habis | ✅ **JADI** — dibangun putaran 5, ternyata tidak pernah hidup (langganan `Expired` copot), dihidupkan putaran 7, **lulus uji tangan putaran 8–9** (#152–154) |
+| 78 | Antrean "telah diputar / sedang diputar / selanjutnya" seperti YouTube Music | ✅ **JADI** — dibangun putaran 5, **lulus uji tangan putaran 7** (#135–136) |
+| 42, 99 | Teks now-playing berjalan (marquee) | ✅ diterima penguji dengan catatan "masih kurang sreg" — dibiarkan sampai ada keluhan konkret |
+| H7 | Panel lirik + antrean **di dalam mini player** (ala Apple Music) | ⏳ belum dikerjakan — antre setelah perbaikan putaran 9 |
 
 ---
 

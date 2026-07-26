@@ -121,6 +121,10 @@ public sealed partial class MainWindow
             // with 0xc000027b (composition failure).
             // The rebuilt "All Playlists" child must re-pick the language-dependent label.
             ApplySidebarLanguage();
+
+            // Clear+rebuild threw away any selected child; if a playlist page is showing, put the
+            // highlight back on its (new) sidebar item.
+            SyncSidebarPlaylistSelection();
         });
     }
 

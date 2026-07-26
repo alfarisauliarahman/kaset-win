@@ -170,6 +170,14 @@ public sealed partial class MainWindow
 
         if (args.SelectedItem is NavigationViewItem { Tag: string tag })
         {
+            // Playlist children are selected PROGRAMMATICALLY by SyncSidebarPlaylistSelection
+            // (after their id-based navigation already happened in ItemInvoked). Their tag is not
+            // in the page map, so letting it through would drop the shell onto the placeholder.
+            if (tag.StartsWith("Playlist:", StringComparison.Ordinal))
+            {
+                return;
+            }
+
             NavigateToTag(tag);
         }
     }
@@ -197,16 +205,62 @@ public sealed partial class MainWindow
     }
 
     /// <summary>
+    /// The navigation parameter of the page currently in the content frame (null for parameterless
+    /// pages). <see cref="Frame.CurrentSourcePageType"/> alone cannot distinguish two instances of a
+    /// shared page (PlaylistPage per playlist id, YouTubeFeedPage per feed), so the "already showing
+    /// this page" no-op guards need the parameter too.
+    /// </summary>
+    private object? _currentNavParameter;
+
+    /// <summary>
     /// Keeps the back button enabled state in sync with the content frame's back stack after every
-    /// navigation (forward navigations push detail pages onto the stack; GoBack pops them).
+    /// navigation (forward navigations push detail pages onto the stack; GoBack pops them), tracks
+    /// the current page's navigation parameter, and highlights the sidebar playlist when a playlist
+    /// page loads.
     /// </summary>
     private void OnContentFrameNavigated(object sender, Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
     {
+        _currentNavParameter = e.Parameter;
         NavView.IsBackEnabled = ContentFrame.CanGoBack;
         // The title-bar back button only shows once there is somewhere to go back to (starts hidden,
         // like Media Player: no back on the landing page, appears after navigating into a detail).
         TitleBarBackButton.Visibility = ContentFrame.CanGoBack ? Visibility.Visible : Visibility.Collapsed;
+        SyncSidebarPlaylistSelection();
         HookPageScrolling();
+    }
+
+    /// <summary>
+    /// Highlights the sidebar playlist matching a playlist page that just loaded. The dynamic
+    /// playlist children are built with <c>SelectsOnInvoked=false</c> (their click navigates by id
+    /// from ItemInvoked, not via the tag→page map), so NavigationView never marks them selected on
+    /// its own; this post-navigation sync does — and, running on every navigation, it also covers
+    /// arrivals from elsewhere (Library tiles, kaset:// protocol) and Back into a playlist page.
+    /// The programmatic selection re-raises SelectionChanged, which ignores <c>Playlist:</c> tags,
+    /// so it can never re-navigate or fall through to the placeholder. Reads the CURRENT frame
+    /// state (not event args) so the sidebar rebuild in <c>LoadSidebarPlaylistsAsync</c> — which
+    /// clears and re-creates the children, losing any selection — can call it too.
+    /// </summary>
+    private void SyncSidebarPlaylistSelection()
+    {
+        if (ContentFrame.CurrentSourcePageType?.FullName != PlaylistPageTypeName
+            || _currentNavParameter is not string playlistId)
+        {
+            return;
+        }
+
+        var tag = $"Playlist:{playlistId}";
+        foreach (var item in PlaylistsNavItem.MenuItems)
+        {
+            if (item is NavigationViewItem child && child.Tag as string == tag)
+            {
+                if (!ReferenceEquals(NavView.SelectedItem, child))
+                {
+                    NavView.SelectedItem = child;
+                }
+
+                return;
+            }
+        }
     }
 
     /// <summary>
@@ -238,18 +292,29 @@ public sealed partial class MainWindow
 
         if (args.InvokedItemContainer is NavigationViewItem { Tag: "AllPlaylists" })
         {
-            if (Navigation.NavigationHelper.ResolvePageType(PageTypeNamesByTag["Library"]) is { } libraryType)
-            {
-                ContentFrame.Navigate(libraryType);
-            }
-
+            // Same tag→page route as the sidebar's own Library item, including its "already
+            // showing" no-op guard (a second click must not stack Library onto the back stack).
+            NavigateToTag("Library");
+            CloseOverlayPaneAfterInvoke();
             return;
         }
 
         if (args.InvokedItemContainer is NavigationViewItem { Tag: string playlistTag }
             && playlistTag.StartsWith("Playlist:", StringComparison.Ordinal))
         {
-            Navigation.NavigationHelper.NavigateToPlaylist(playlistTag["Playlist:".Length..]);
+            var playlistId = playlistTag["Playlist:".Length..];
+
+            // Clicking the playlist that is already open is a no-op (mirrors behaviour (b) for the
+            // tag pages): PlaylistPage is one shared type, so the id parameter — tracked by
+            // OnContentFrameNavigated — is what identifies "this playlist is already showing".
+            if (Navigation.NavigationHelper.ResolvePageType(PlaylistPageTypeName) is not { } playlistPage
+                || ContentFrame.CurrentSourcePageType != playlistPage
+                || !Equals(_currentNavParameter, playlistId))
+            {
+                Navigation.NavigationHelper.NavigateToPlaylist(playlistId);
+            }
+
+            CloseOverlayPaneAfterInvoke();
             return;
         }
 
@@ -261,12 +326,52 @@ public sealed partial class MainWindow
                 // Already signed in: show the account card instead of re-opening the Google login
                 // dialog. Re-opening it caused the flyout to flash openâ†’auto-close repeatedly (the
                 // dialog detects the live session and closes itself immediately).
+                // The pane is deliberately NOT closed here: the account flyout anchors to this item.
                 ShowAccountFlyout(item);
             }
             else
             {
                 _ = SignInAsync();
             }
+
+            return;
+        }
+
+        // Defensive: the built-in Settings item is hidden (IsSettingsVisible=False), but ItemInvoked
+        // would report it here rather than as a tagged container if it ever comes back.
+        if (args.IsSettingsInvoked)
+        {
+            NavigateToTag("Settings");
+            CloseOverlayPaneAfterInvoke();
+            return;
+        }
+
+        // Regular nav items. SelectionChanged does not fire for an item that is ALREADY selected,
+        // so this is what makes "click the active section → return to its root page" work (e.g.
+        // Home → AlbumPage → click Home again). For a click on a DIFFERENT item both events fire;
+        // NavigateToTag is safe to run twice because every route in it no-ops when the target page
+        // (and, for YouTube feeds, its parameter) is already showing — the second call from
+        // SelectionChanged lands after this one has navigated and does nothing.
+        if (args.InvokedItemContainer is NavigationViewItem { Tag: string tag })
+        {
+            NavigateToTag(tag);
+            CloseOverlayPaneAfterInvoke();
+        }
+    }
+
+    /// <summary>
+    /// Closes the pane after an item invoke, but only while it is OVERLAYING the content — compact
+    /// or minimal display mode, where the hamburger opened it and leaving it open covers the page
+    /// (standard Windows 11 behaviour: pick, then the flyout pane goes away). An expanded pane is
+    /// inline and always open, so it is left alone; the display-mode logic itself
+    /// (Auto / side-panel pinning / UpdatePaneChrome) is untouched because this only flips
+    /// <see cref="NavigationView.IsPaneOpen"/>, never <see cref="NavigationView.PaneDisplayMode"/>.
+    /// </summary>
+    private void CloseOverlayPaneAfterInvoke()
+    {
+        if (NavView.DisplayMode != NavigationViewDisplayMode.Expanded && NavView.IsPaneOpen)
+        {
+            NavView.IsPaneOpen = false;
         }
     }
 
@@ -356,6 +461,17 @@ public sealed partial class MainWindow
     {
         if (Navigation.NavigationHelper.ResolvePageType(pageTypeName) is { } pageType)
         {
+            // Already showing this exact page? No-op — same rule the music tags get in
+            // NavigateToTag. The parameter must be part of the check because YouTubeFeedPage is one
+            // shared type serving three feeds; YouTubeFeedRequest is a record, so Equals compares
+            // by value (and null==null covers the parameterless Home/Shorts pages). Without this,
+            // a sidebar click routed through BOTH ItemInvoked and SelectionChanged would navigate
+            // the same feed twice and stack a duplicate on the back stack.
+            if (ContentFrame.CurrentSourcePageType == pageType && Equals(_currentNavParameter, parameter))
+            {
+                return;
+            }
+
             ContentFrame.Navigate(pageType, parameter);
         }
     }

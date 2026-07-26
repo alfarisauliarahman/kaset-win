@@ -346,7 +346,7 @@
                                     Opacity="0.55"
                                     Visibility="{x:Bind LikeStatus, Converter={StaticResource LikeStatusToVisibility}, ConverterParameter=like-off, Mode=OneWay}" />
                                 <Viewbox Visibility="{x:Bind LikeStatus, Converter={StaticResource LikeStatusToVisibility}, ConverterParameter=like-on, Mode=OneWay}">
-                                    <PathIcon Data="{StaticResource ThumbUpPath}" Foreground="White" />
+                                    <PathIcon Data="{StaticResource ThumbUpPath}" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                 </Viewbox>
                             </Grid>
                         </Button>
@@ -364,7 +364,7 @@
                                     Opacity="0.55"
                                     Visibility="{x:Bind LikeStatus, Converter={StaticResource LikeStatusToVisibility}, ConverterParameter=dislike-off, Mode=OneWay}" />
                                 <Viewbox Visibility="{x:Bind LikeStatus, Converter={StaticResource LikeStatusToVisibility}, ConverterParameter=dislike-on, Mode=OneWay}">
-                                    <PathIcon Data="{StaticResource ThumbDownPath}" Foreground="White" />
+                                    <PathIcon Data="{StaticResource ThumbDownPath}" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                 </Viewbox>
                             </Grid>
                         </Button>

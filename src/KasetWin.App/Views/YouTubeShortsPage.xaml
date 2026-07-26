@@ -64,7 +64,7 @@
             Margin="24,24,0,0"
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
-            Foreground="White"
+            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
             Text="Shorts"
             Style="{StaticResource TitleTextBlockStyle}" />
 

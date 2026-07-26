@@ -316,15 +316,19 @@
                                                     <Image AutomationProperties.AccessibilityView="Raw" Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
                                                 </Border>
                                                 <TextBlock
+                                                    HorizontalAlignment="Stretch"
                                                     MaxLines="2"
                                                     Text="{x:Bind Title}"
+                                                    TextAlignment="{x:Bind CardTextAlignment}"
                                                     TextTrimming="CharacterEllipsis"
                                                     TextWrapping="Wrap"
                                                     Style="{StaticResource CaptionTextBlockStyle}" />
                                                 <TextBlock
+                                                    HorizontalAlignment="Stretch"
                                                     MaxLines="1"
                                                     Opacity="0.6"
                                                     Text="{x:Bind Subtitle}"
+                                                    TextAlignment="{x:Bind CardTextAlignment}"
                                                     TextTrimming="CharacterEllipsis"
                                                     Style="{StaticResource CaptionTextBlockStyle}" />
                                             </StackPanel>

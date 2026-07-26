@@ -264,44 +264,55 @@ public sealed class TaskbarMediaControls : IDisposable
     }
 
     /// <summary>
-    /// Builds the outline of a transport glyph, sized to <paramref name="size"/>. Deliberately
-    /// chunky — at 16 px each triangle is ~5 px of solid ink, where the Segoe Fluent glyphs this
-    /// replaces are hairline *outline* glyphs that all but vanish once the shell scales them down.
+    /// Builds the outline of a transport glyph, sized to <paramref name="size"/>. The shapes follow
+    /// the standard media thumb-bar vocabulary (Media Player, Spotify): play = one solid isosceles
+    /// triangle, pause = two bars, prev/next = a skip triangle plus a thin end-bar. Everything is
+    /// snapped to whole pixels — at 16 px a fractional edge smears across two columns and reads as
+    /// a blurry, lopsided glyph.
     /// </summary>
     private static GraphicsPath BuildGlyphPath(TransportGlyph glyph, int size)
     {
-        // Whole-pixel coordinates on purpose. Placing the two halves of the prev/next glyph at a
-        // fractional offset from each other spreads one of them across two pixel columns, and at
-        // 16 px that reads as "one arrow is bolder than the other".
-        var pad = Math.Max(2, (int)MathF.Round(size * 0.13f)); // leaves room for the dark halo
-        var gap = Math.Max(1, (int)MathF.Round(size * 0.055f)); // half-gap between the two halves
+        // ~15% margin on every side (min 2 px). 16 px → pad 2, 24 px → 4, 32 px → 5.
+        var pad = Math.Max(2, (int)MathF.Round(size * 0.15f));
         var mid = size / 2;
         var top = pad;
         var bottom = size - pad;
         var left = pad;
         var right = size - pad;
 
+        // Skip glyphs: thin end-bar ~12% of the canvas, ~8% of clear air before the triangle tip.
+        // 16 px → bar 2, gap 1; 24 px → bar 3, gap 2; 32 px → bar 4, gap 3.
+        var skipBar = Math.Max(2, (int)MathF.Round(size * 0.12f));
+        var skipGap = Math.Max(1, (int)MathF.Round(size * 0.08f));
+
         var path = new GraphicsPath();
         switch (glyph)
         {
-            case TransportGlyph.Previous: // two left-pointing triangles
-                path.AddPolygon(new[] { new PointF(mid - gap, top), new PointF(mid - gap, bottom), new PointF(left, mid) });
-                path.AddPolygon(new[] { new PointF(right, top), new PointF(right, bottom), new PointF(mid + gap, mid) });
+            case TransportGlyph.Previous: // thin bar at the left edge + left-pointing triangle
+                path.AddRectangle(new Rectangle(left, top, skipBar, bottom - top));
+                path.AddPolygon(new[] { new PointF(right, top), new PointF(right, bottom), new PointF(left + skipBar + skipGap, mid) });
                 break;
 
-            case TransportGlyph.Next: // two right-pointing triangles
-                path.AddPolygon(new[] { new PointF(left, top), new PointF(left, bottom), new PointF(mid - gap, mid) });
-                path.AddPolygon(new[] { new PointF(mid + gap, top), new PointF(mid + gap, bottom), new PointF(right, mid) });
+            case TransportGlyph.Next: // right-pointing triangle + thin bar at the right edge
+                path.AddPolygon(new[] { new PointF(left, top), new PointF(left, bottom), new PointF(right - skipBar - skipGap, mid) });
+                path.AddRectangle(new Rectangle(right - skipBar, top, skipBar, bottom - top));
                 break;
 
-            case TransportGlyph.Play: // one wide right-pointing triangle
-                path.AddPolygon(new[] { new PointF(left + 1, top), new PointF(left + 1, bottom), new PointF(right, mid) });
+            case TransportGlyph.Play: // one right-pointing isosceles triangle
+                path.AddPolygon(new[] { new PointF(left, top), new PointF(left, bottom), new PointF(right, mid) });
                 break;
 
-            case TransportGlyph.Pause: // two bars
-                var barWidth = Math.Max(2, (int)MathF.Round(size * 0.20f));
-                path.AddRectangle(new RectangleF(mid - gap - barWidth, top, barWidth, bottom - top));
-                path.AddRectangle(new RectangleF(mid + gap, top, barWidth, bottom - top));
+            case TransportGlyph.Pause: // two bars, ~22% wide with an ~18% gap
+                var barWidth = Math.Max(2, (int)MathF.Round(size * 0.22f));
+                var gap = Math.Max(2, (int)MathF.Round(size * 0.18f));
+                if (((2 * barWidth + gap) & 1) != (size & 1))
+                {
+                    gap++; // match parity with the canvas so the pair centres on a whole pixel
+                }
+
+                var barLeft = (size - (2 * barWidth + gap)) / 2;
+                path.AddRectangle(new Rectangle(barLeft, top, barWidth, bottom - top));
+                path.AddRectangle(new Rectangle(barLeft + barWidth + gap, top, barWidth, bottom - top));
                 break;
         }
 
@@ -309,22 +320,17 @@ public sealed class TaskbarMediaControls : IDisposable
     }
 
     /// <summary>
-    /// Draws the glyph — solid white fill over a dark halo, so the button reads on both a dark and
-    /// a light thumbnail flyout without the app tracking the system theme — onto an already-cleared
-    /// transparent surface. Shared by the DIB path and the GDI+ fallback so the two can never drift.
+    /// Draws the glyph — a flat, solid-white fill, the same treatment Media Player and Spotify use
+    /// for their thumb-bar icons — onto an already-cleared transparent surface. No outline or halo:
+    /// the thumbnail flyout background is always mid-to-dark regardless of app/system theme, and at
+    /// 16 px any stroke around the shape just reads as smearing. Shared by the DIB path and the
+    /// GDI+ fallback so the two can never drift.
     /// </summary>
     private static void DrawGlyph(Graphics g, TransportGlyph glyph, int size)
     {
         using var path = BuildGlyphPath(glyph, size);
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-
-        // Halo first, fill second: FillPath covers the inner half of the stroke, leaving a
-        // ~1 px dark rim that carries the shape on a light background.
-        using (var halo = new Pen(Color.FromArgb(215, 0, 0, 0), Math.Max(1.25f, size / 5.5f)) { LineJoin = LineJoin.Round })
-        {
-            g.DrawPath(halo, path);
-        }
 
         using var fill = new SolidBrush(Color.White);
         g.FillPath(fill, path);

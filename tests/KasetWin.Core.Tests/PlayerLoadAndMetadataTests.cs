@@ -446,6 +446,34 @@ public class PlayerLoadAndMetadataTests
         Assert.Equal(["auto1"], requested);
     }
 
+    // ── 169 (putaran 9): album art must beat a video-frame thumbnail, never lose to it ─
+
+    [Fact]
+    public void Enrichment_UpgradesAVideoFrameThumbnail_ToRealArtwork()
+    {
+        var queue = new QueueService(bound => 0);
+        var frame = new Uri("https://i.ytimg.com/vi/BEPSc8q6Bd8/hqdefault.jpg");
+        var art = new Uri("https://yt3.googleusercontent.com/abc=w544-h544-l90-rj");
+        queue.SetQueue([new Song { Id = "v1", VideoId = "v1", Title = "T", ThumbnailUrl = frame }], 0);
+
+        // The page's 16:9 still arrived first and used to win forever; the square art from
+        // metadata enrichment was discarded and the now-playing card showed a cropped video frame.
+        Assert.True(queue.TryEnrichTrack("v1", new Song { Id = "v1", VideoId = "v1", Title = "T", ThumbnailUrl = art }));
+        Assert.Equal(art, queue.CurrentTrack?.ThumbnailUrl);
+    }
+
+    [Fact]
+    public void Enrichment_NeverDowngradesArtwork_ToAVideoFrame()
+    {
+        var queue = new QueueService(bound => 0);
+        var art = new Uri("https://yt3.googleusercontent.com/abc=w544-h544-l90-rj");
+        var frame = new Uri("https://i.ytimg.com/vi/BEPSc8q6Bd8/hqdefault.jpg");
+        queue.SetQueue([new Song { Id = "v1", VideoId = "v1", Title = "T", ThumbnailUrl = art }], 0);
+
+        queue.TryEnrichTrack("v1", new Song { Id = "v1", VideoId = "v1", Title = "T", ThumbnailUrl = frame });
+        Assert.Equal(art, queue.CurrentTrack?.ThumbnailUrl);
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────────
 
     /// <summary>Polls <paramref name="condition"/> briefly; fails the test if it never holds.</summary>
