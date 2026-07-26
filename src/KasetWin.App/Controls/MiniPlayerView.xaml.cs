@@ -104,25 +104,14 @@ public sealed partial class MiniPlayerView : UserControl
         RefreshPlayedTail();
         UpdateQueueEmptyVisual();
         ApplyLanguage();
-        Unloaded += (_, _) =>
-        {
-            if (_player is not null)
-            {
-                _player.PropertyChanged -= OnPlayerPropertyChanged;
-            }
-
-            if (Lyrics is not null)
-            {
-                Lyrics.ActiveLineChanged -= OnActiveLineChanged;
-                Lyrics.Dispose();
-            }
-
-            if (Queue is not null)
-            {
-                Queue.PropertyChanged -= OnQueueVmPropertyChanged;
-                Queue.Dispose();
-            }
-        };
+        // NO Unloaded teardown — deliberately, and this exact line has a body count. This control
+        // is constructed once and lives inside MainWindow for the window's whole lifetime; Unloaded
+        // fires every time the mini layout leaves the visual tree, NOT at shutdown. Disposing the
+        // view models here unsubscribed them from the queue/lyrics services after the FIRST mini
+        // session, so every later session only ever saw the snapshot taken on entry ("Selanjutnya
+        // ga ngeload" — round 14 through 16; the diag trace proved the data fresh at open and the
+        // updates dead after). Same failure shape as PlayerBar's sleep-timer Expired handler.
+        // The subscriptions' lifetime IS the window's lifetime; the OS reclaims it all at exit.
     }
 
     /// <summary>Applies the app language to this view's labels (see <see cref="PlayerBar.ApplyLanguage"/>).</summary>

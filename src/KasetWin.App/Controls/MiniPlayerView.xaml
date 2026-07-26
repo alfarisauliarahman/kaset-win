@@ -259,19 +259,18 @@
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="vm:LyricLineItem">
-                            <!-- REVERTED to the original body-sized typography at the owner's
-                                 explicit request (round 16): the enlarged active line (20→28px)
-                                 kept clipping when it wrapped, twice, and the small version had
-                                 never clipped at all. Uniform size also removes the mid-glide
-                                 re-layout entirely — the enlargement was the cause of the stale
-                                 measurements. The active line still brightens and turns semibold. -->
+                            <!-- UNIFORM 20px (Subtitle) — the size the owner asked for ("yang
+                                 sesudah aku suruh gedein"), WITHOUT the active-line growth: the
+                                 20→28 enlargement re-laid the list out mid-glide and that is what
+                                 kept clipping wrapped lines, twice. One size = no re-layout = no
+                                 clipping mechanism left. The active line brightens + semibold. -->
                             <TextBlock
-                                Margin="0,2"
+                                Margin="0,4"
                                 FontWeight="{x:Bind IsActive, Converter={StaticResource ActiveLineToFontWeight}, Mode=OneWay}"
                                 Opacity="{x:Bind IsActive, Converter={StaticResource BoolToOpacity}, Mode=OneWay}"
                                 Text="{x:Bind Text}"
                                 TextWrapping="Wrap"
-                                Style="{StaticResource BodyTextBlockStyle}">
+                                Style="{StaticResource SubtitleTextBlockStyle}">
                                 <TextBlock.OpacityTransition>
                                     <ScalarTransition Duration="0:0:0.35" />
                                 </TextBlock.OpacityTransition>
