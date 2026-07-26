@@ -100,6 +100,16 @@ public sealed partial class MiniPlayerView : UserControl
         MiniSeekSlider.AddHandler(PointerReleasedEvent, new PointerEventHandler(OnSeekPointerReleased), handledEventsToo: true);
         MiniSeekSlider.AddHandler(PointerCaptureLostEvent, new PointerEventHandler(OnSeekPointerReleased), handledEventsToo: true);
 
+        // Wheel forwarding for the mini queue strip must observe HANDLED events too: the lists'
+        // inner (disabled) ScrollViewer marks the wheel handled before a plain XAML handler would
+        // ever fire — the exact gotcha LibraryPage documented — so with the plain attribute the
+        // strip simply could not be scrolled and 49 queued tracks read as "ga ngeload banyak".
+        // Attached on the whole panel so the card and headers forward too, not just the lists.
+        MiniQueuePanel.AddHandler(
+            PointerWheelChangedEvent,
+            new PointerEventHandler(OnMiniQueueWheel),
+            handledEventsToo: true);
+
         ApplyToggleTints();
         RefreshPlayedTail();
         UpdateQueueEmptyVisual();

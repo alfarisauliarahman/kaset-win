@@ -328,7 +328,6 @@
                             ItemClick="OnQueueTrackClick"
                             ItemTemplate="{StaticResource MiniQueueRowTemplate}"
                             Opacity="0.5"
-                            PointerWheelChanged="OnMiniQueueWheel"
                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
                             ScrollViewer.VerticalScrollMode="Disabled"
                             SelectionMode="None"
@@ -393,7 +392,6 @@
                             ItemClick="OnQueueTrackClick"
                             ItemTemplate="{StaticResource MiniQueueRowTemplate}"
                             ItemsSource="{x:Bind Queue.UpNext, Mode=OneWay}"
-                            PointerWheelChanged="OnMiniQueueWheel"
                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
                             ScrollViewer.VerticalScrollMode="Disabled"
                             SelectionMode="None" />
