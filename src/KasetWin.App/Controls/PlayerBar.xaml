@@ -11,6 +11,7 @@
 
     <UserControl.Resources>
         <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
+        <converters:CoverArtConverter x:Key="CoverArt" />
         <converters:PlayPauseGlyphConverter x:Key="PlayPauseGlyph" />
         <converters:RepeatGlyphConverter x:Key="RepeatGlyph" />
         <converters:RepeatModeToOpacityConverter x:Key="RepeatOpacity" />
@@ -197,10 +198,12 @@
                         </MenuFlyout>
                     </Border.ContextFlyout>
                             <!-- Decorative: the title/artist right next to it already carry the
-                                 information, so Narrator should not stop on the artwork. -->
+                                 information, so Narrator should not stop on the artwork.
+                                 Bound to the whole Song (not .ThumbnailUrl) so the converter can
+                                 fall back to FallbackThumbnailUrl and log load failures (#150). -->
                             <Image
                                 AutomationProperties.AccessibilityView="Raw"
-                                Source="{Binding CurrentTrack.ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
+                                Source="{Binding CurrentTrack, Converter={StaticResource CoverArt}}"
                                 Stretch="UniformToFill" />
                         </Border>
                         <controls:TrackInfo

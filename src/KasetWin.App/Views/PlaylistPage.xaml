@@ -18,6 +18,32 @@
         <converters:TrendToGlyphConverter x:Key="TrendToGlyph" />
         <converters:TrendToBrushConverter x:Key="TrendToBrush" />
         <converters:RankToVisibilityConverter x:Key="RankToVisibility" />
+        <converters:LibraryToggleTextConverter x:Key="LibraryToggleText" />
+
+        <!-- Row in the "Save to playlist" picker: cover + title (mirrors AlbumPage). -->
+        <DataTemplate x:Key="PlaylistPickerItemTemplate" x:DataType="models:Playlist">
+            <Grid Padding="0,6" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border
+                    Grid.Column="0"
+                    Width="64"
+                    Height="64"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    CornerRadius="4">
+                    <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
+                </Border>
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    MaxLines="2"
+                    Text="{x:Bind Title}"
+                    TextTrimming="CharacterEllipsis"
+                    TextWrapping="Wrap" />
+            </Grid>
+        </DataTemplate>
     </Page.Resources>
 
     <Grid>
@@ -215,8 +241,12 @@
             SelectionMode="None">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="models:Song">
+                    <!-- Background=Transparent: without it the row's empty space is not
+                         hit-testable, so right-click would only work directly over text/thumbnail
+                         (same gotcha as PodcastShowPage). -->
                     <Grid
                         Padding="8,6"
+                        Background="Transparent"
                         ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -224,6 +254,22 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
+                        <!-- Right-click menu: the same per-track menu as AlbumPage's three-dot
+                             (both pages share PlaylistDetailViewModel). -->
+                        <Grid.ContextFlyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackStartMixClick" Text="{x:Bind loc:UiStrings.MenuStartMix}" />
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackPlayNextClick" Text="{x:Bind loc:UiStrings.MenuPlayNext}" />
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackAddToQueueClick" Text="{x:Bind loc:UiStrings.MenuAddToQueue}" />
+                                <MenuFlyoutItem
+                                    Tag="{x:Bind}"
+                                    Click="OnTrackToggleCollectionClick"
+                                    Text="{x:Bind IsInLibrary, Converter={StaticResource LibraryToggleText}, Mode=OneWay}" />
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackSaveToPlaylistClick" Text="{x:Bind loc:UiStrings.MenuSaveToPlaylist}" />
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackOpenArtistClick" Text="{x:Bind loc:UiStrings.MenuGoToArtist}" />
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackShareClick" Text="{x:Bind loc:UiStrings.MenuShare}" />
+                            </MenuFlyout>
+                        </Grid.ContextFlyout>
                         <!-- Chart rank + trend arrow (only shown for chart playlist rows). -->
                         <StackPanel
                             Grid.Column="0"

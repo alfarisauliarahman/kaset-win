@@ -128,8 +128,8 @@ untuk track yang dihentikan tetap dihormati (kalau tidak, posisi di UI beku). Di
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 147 | Timer "Akhir lagu ini" di tengah album, biarkan habis, tunggu 2 menit, lalu buka panel antrean | Antrean **persis** seperti sebelum tidur; lagu yang berhenti masih yang ditandai sedang diputar | |
-| 148 | Lanjutan 147: tekan Play | Lagu itu jalan lagi, dan antrean kembali mengikuti seperti biasa | |
+| 147 | Timer "Akhir lagu ini" di tengah album, biarkan habis, tunggu 2 menit, lalu buka panel antrean | Antrean **persis** seperti sebelum tidur; lagu yang berhenti masih yang ditandai sedang diputar | ✅ 2026-07-23 (putaran 8) |
+| 148 | Lanjutan 147: tekan Play | Lagu itu jalan lagi, dan antrean kembali mengikuti seperti biasa | ❌ 2026-07-23 (putaran 8): kacau — begitu Play ditekan, pemutaran meloncat jauh (lagu yang sedang aktif bukan yang ditinggal tidur). Lihat I1 |
 
 ### H2. `kaset://` masih tanpa album, dan sekarang tanpa sampul juga — **diperbaiki, sebab terbukti**
 
@@ -171,8 +171,8 @@ enrich album MPREb_I7Jb8zS9tBs title=Beautiful Mind
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 150 | `start "kaset://play?v=BEPSc8q6Bd8"` | Judul, **album**, dan **sampul** muncul di player bar, dan kartu "Sedang diputar" di antrean punya sampul | |
-| 151 | Putar lagu dari kartu Beranda (bukan dari album) | Baris album ikut terisi — jalur yang sama, penerima manfaat yang sama | |
+| 150 | `start "kaset://play?v=BEPSc8q6Bd8"` | Judul, **album**, dan **sampul** muncul di player bar, dan kartu "Sedang diputar" di antrean punya sampul | ❌ 2026-07-23 (putaran 8): album muncul, tapi **sampul tetap tidak muncul**. Lihat I2 |
+| 151 | Putar lagu dari kartu Beranda (bukan dari album) | Baris album ikut terisi — jalur yang sama, penerima manfaat yang sama | ⚠️ 2026-07-23 (putaran 8): baris album muncul, tapi saat lagu berganti otomatis, metadata lagu berikutnya **tidak diperbarui** sampai prev/next manual. Lihat I3 |
 
 ### H3. Timer tidur tidak berbunyi dan tidak memunculkan toast — **diperbaiki, dua sebab**
 
@@ -219,21 +219,21 @@ untuk sekarang, jadi ini menunggu, bukan diam-diam dianggap beres.
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 152 | Set timer "Akhir lagu ini", biarkan lagu habis | Musik berhenti, **toast muncul, DAN terdengar satu bunyi** | |
-| 153 | Set timer 1 menit (`SleepTimerPresets` → `[1]`), biarkan habis | Toast + bunyi yang sama | |
-| 154 | Set timer lalu **batalkan** | Tidak ada bunyi sama sekali | |
-| 155 | Di halaman Home, klik tombol sumber **Music** (yang sedang aktif) 2–3 kali | Tidak terjadi apa-apa. Tidak ada "Coming soon" | |
-| 156 | Klik **YouTube**, lalu klik **YouTube** lagi | Pindah sekali, klik kedua tidak melakukan apa pun | |
-| 157 | Buka Pengaturan, tekan **Ctrl+,** sekali lagi | Tetap di Pengaturan; tidak muncul placeholder | |
-| 158 | Kecilkan jendela ke ukuran minimum, tekan **Shift + /** | Contekan **muat**, ada jarak ke tepi atas-bawah, dan bilah gulir vertikal **terlihat** | |
-| 159 | Lanjutan 158: putar roda mouse di atas daftar | Isinya benar-benar bergulir. Kalau bilahnya terlihat tapi tidak bergeser, sebabnya input routing — jejak berbeda | |
-| 160 | Hover ikon Kaset di taskbar | Tiga tombol tampak **padat**, bukan kerangka tipis | |
-| 161 | Ulangi 160 dengan tema Windows terang **dan** gelap | Terbaca jelas di kedua tema (ikonnya punya halo gelap) | |
-| 162 | Tekan play/pause, lihat tombol tengah thumbnail | Berganti antara ▶ dan ‖ | |
-| 163 | Putar lagu yang tidak punya lirik, buka panel lirik | Tertulis "Lirik tidak tersedia untuk lagu ini", **bukan** "Putar lagu untuk melihat lirik" | |
-| 164 | Pengaturan → Sumber lirik | Keterangannya **satu baris pendek** | |
-| 165 | Matikan Wi-Fi saat memutar, tunggu lirik gagal, nyalakan Wi-Fi, **buka/tutup panel lirik** | Liriknya muncul — panel bertanya lagi alih-alih menganggapnya sudah dimuat | |
-| 166 | Matikan Wi-Fi, klik lagu yang sama (halaman jadi blank), lalu nyalakan Wi-Fi dan **tunggu** | Halaman dimuat ulang sendiri; menekan Play memutar lagunya. (Musik sengaja **tidak** jalan sendiri) | |
+| 152 | Set timer "Akhir lagu ini", biarkan lagu habis | Musik berhenti, **toast muncul, DAN terdengar satu bunyi** | ✅ 2026-07-23 (putaran 8) — toast + bunyi akhirnya hidup |
+| 153 | Set timer 1 menit (`SleepTimerPresets` → `[1]`), biarkan habis | Toast + bunyi yang sama | ✅ 2026-07-23 (putaran 8) |
+| 154 | Set timer lalu **batalkan** | Tidak ada bunyi sama sekali | ✅ 2026-07-23 (putaran 8) |
+| 155 | Di halaman Home, klik tombol sumber **Music** (yang sedang aktif) 2–3 kali | Tidak terjadi apa-apa. Tidak ada "Coming soon" | ✅ 2026-07-23 (putaran 8) |
+| 156 | Klik **YouTube**, lalu klik **YouTube** lagi | Pindah sekali, klik kedua tidak melakukan apa pun | ✅ 2026-07-23 (putaran 8) |
+| 157 | Buka Pengaturan, tekan **Ctrl+,** sekali lagi | Tetap di Pengaturan; tidak muncul placeholder | ✅ 2026-07-23 (putaran 8) — catatan: langkah ini menguji fall-through yang sama dengan 155, lewat Ctrl+, di halaman Pengaturan |
+| 158 | Kecilkan jendela ke ukuran minimum, tekan **Shift + /** | Contekan **muat**, ada jarak ke tepi atas-bawah, dan bilah gulir vertikal **terlihat** | ✅ 2026-07-23 (putaran 8): muat, dengan catatan penguji ragu-ragu kecil yang tidak dirinci |
+| 159 | Lanjutan 158: putar roda mouse di atas daftar | Isinya benar-benar bergulir. Kalau bilahnya terlihat tapi tidak bergeser, sebabnya input routing — jejak berbeda | ✅ 2026-07-23 (putaran 8) |
+| 160 | Hover ikon Kaset di taskbar | Tiga tombol tampak **padat**, bukan kerangka tipis | ❌ 2026-07-23 (putaran 8): ikon **hilang sama sekali** — regresi: sebelumnya tipis, sekarang tidak ada. Lihat I4 |
+| 161 | Ulangi 160 dengan tema Windows terang **dan** gelap | Terbaca jelas di kedua tema (ikonnya punya halo gelap) | ⏭️ 2026-07-23 (putaran 8): tidak bisa dinilai selama 160 gagal |
+| 162 | Tekan play/pause, lihat tombol tengah thumbnail | Berganti antara ▶ dan ‖ | ⏭️ 2026-07-23 (putaran 8): tidak bisa dinilai selama 160 gagal |
+| 163 | Putar lagu yang tidak punya lirik, buka panel lirik | Tertulis "Lirik tidak tersedia untuk lagu ini", **bukan** "Putar lagu untuk melihat lirik" | ✅ 2026-07-23 (putaran 8) |
+| 164 | Pengaturan → Sumber lirik | Keterangannya **satu baris pendek** | ✅ 2026-07-23 (putaran 8) |
+| 165 | Matikan Wi-Fi saat memutar, tunggu lirik gagal, nyalakan Wi-Fi, **buka/tutup panel lirik** | Liriknya muncul — panel bertanya lagi alih-alih menganggapnya sudah dimuat | ✅ 2026-07-23 (putaran 8) |
+| 166 | Matikan Wi-Fi, klik lagu yang sama (halaman jadi blank), lalu nyalakan Wi-Fi dan **tunggu** | Halaman dimuat ulang sendiri; menekan Play memutar lagunya. (Musik sengaja **tidak** jalan sendiri) | ⏭️ 2026-07-23 (putaran 8): penguji tidak memahami langkahnya — cacat checklist, ditulis ulang di bawah |
 
 ### H6. Yang sudah beres menurut penguji
 
@@ -254,7 +254,73 @@ untuk sekarang, jadi ini menunggu, bukan diam-diam dianggap beres.
 | **Pesan lirik kosong untuk podcast** | Berbunyi "Lirik tidak tersedia untuk **lagu** ini" padahal header panelnya "Subtitel (CC)". Ditemukan agent sendiri, di luar cakupan yang diminta |
 | **Race laten di `LoadTrackAsync`** | `_expectedVideoId` dan `CurrentTrack` diset **di luar** `_loadGate` dan tidak atomik dengan `Interlocked.Increment(_loadGeneration)`. Dua pemuatan dari thread berbeda (media key vs klik UI) bisa membuat pemuatan lama menimpa penjaga milik yang baru — kelas bug yang sama dengan yang ditutup ADR 0006, di baris berbeda. **Tidak terbukti** menyebabkan gejala apa pun, dan jendelanya nanodetik sehingga tidak bisa dibuatkan test deterministik. Dicatat, sengaja tidak diubah |
 
+## I. Cacat dari putaran 8 (2026-07-23)
 
+Putaran 8 menjalankan seluruh H5b. 11 lulus — termasuk bunyi timer (#152) yang tidak pernah hidup
+sebelumnya — dan 4 gagal:
+
+### I1. Play setelah sleep stop meloncat jauh (#148) — **diperbaiki**
+
+Antreannya selamat (#147 lulus), tapi menekan Play melemparkan pemutaran belasan lagu ke depan.
+Sebabnya konsekuensi langsung dari perbaikan H1: laporan halaman yang berkelana *diabaikan*, tapi
+halamannya sendiri tetap berkelana menyusuri rantai autoplay. Play polos = `play()` pada halaman
+yang sudah jauh, dan begitu penekanan dilepas, track asing itu langsung diadopsi — antrean selamat
+semalaman cuma untuk dibuang pada tekanan tombol pertama.
+
+Perbaikan: drift-nya dilacak. Kalau halaman sempat melapor video lain selama stop, Play memuat ulang
+track yang ditinggal tidur (paksa); kalau halaman tidak ke mana-mana, Play tetap resume di tempat
+(tanpa reload, supaya tidak mengulang dari 0:00 tanpa alasan). Dikunci 2 test.
+
+### I2. Sampul tetap tidak muncul di jalur `kaset://` (#150) — **diperbaiki, terverifikasi di level jejak**
+
+Binding-nya terbukti BUKAN masalahnya (kalau tidak refresh, baris album juga tidak akan tampil).
+Dua celah nyata: (1) XAML hanya bind `ThumbnailUrl` — `FallbackThumbnailUrl` yang selalu ada tidak
+pernah dipakai satu XAML pun, jadi Song telanjang dari `kaset://` tidak punya apa pun untuk
+dirender; (2) `BitmapImage` yang gagal memuat URL gagal TANPA SUARA — nol handler `ImageFailed`
+di seluruh App, pola ADR 0007 persis.
+
+Perbaikan: `CoverArtConverter` menerima `Song` utuh, memakai `ThumbnailUrl ?? FallbackThumbnailUrl`,
+menukar ke fallback saat gagal muat, dan menjejak tiap hasil ke `diag.log`. Terverifikasi dari
+menjalankan aplikasi: `cover art OK url=https://i.ytimg.com/vi/…` (fallback tampil seketika) disusul
+`cover art OK url=https://yt3.googleusercontent.com/…` (thumb enrichment). Mata manusia tetap
+penentu terakhir — langkah 169.
+
+### I3. Metadata tidak diperbarui saat lagu berganti otomatis (#151) — **diperbaiki**
+
+Track hasil adopsi autoplay tidak pernah melewati `LoadTrackAsync` — satu-satunya tempat enrichment
+dipasang — jadi ia diputar sampai habis tanpa album/sampul penuh, sampai prev/next manual yang
+kebetulan memuat ulang dan meng-enrich-nya ("tbtb muncul"). Kini jalur adopsi juga meminta
+enrichment, sekali per videoId (state update berdetak tiap detik; tanpa pagar itu, lagu yang memang
+tak punya album akan di-fetch ulang selamanya). Dikunci 1 test.
+
+### I4. Ikon thumbnail taskbar HILANG SAMA SEKALI (#160) — **ditangani; jejak runtime sehat**
+
+Jalur DIB-nya sendiri terbukti benar dalam isolasi. Cacat sesungguhnya: LIMA `catch` kosong menelan
+kegagalan apa pun tanpa jejak (pola ADR 0007), `SetLastError` tidak pernah diminta, hasil
+`SetWindowSubclass`/`ThumbBarAddButtons` dibuang. Kini setiap langkah menjejak ke `diag.log`
+(prefix `thumbbar:`) dan ada fallback ke mekanisme `GetHicon` yang terbukti tampil di putaran 6.
+
+Terverifikasi dari menjalankan aplikasi: empat handle ikon non-nol dan `ThumbBarAddButtons
+hr=0x00000000 added=True` — shell menerima tombolnya. Yang tersisa hanya mata manusia: langkah 171.
+
+### Langkah uji putaran 9
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 167 | Timer "Akhir lagu ini", biarkan habis, tunggu 2–3 menit, tekan **Play** | Lagu yang ditinggal tidur diputar ulang dari awal. Tidak meloncat ke lagu lain | |
+| 168 | Timer "Akhir lagu ini", biarkan habis, langsung tekan **Play** (halaman belum sempat kabur) | Lagu resume dari posisi berhenti — tidak mengulang dari 0:00 | |
+| 169 | `start "kaset://play?v=BEPSc8q6Bd8"`, biarkan lagunya habis dan autoplay mengambil alih | Lagu berikutnya menampilkan judul, artis, **album, dan sampul** tanpa menyentuh apa pun | |
+| 170 | (= 166, ditulis ulang) Putar lagu. Matikan Wi-Fi. **Klik lagu yang sama di halaman album** — layar akan blank, itu memang keadaan awalnya. Sekarang nyalakan Wi-Fi, **diamkan ±10 detik tanpa mengklik apa pun** | Halaman pulih sendiri (tidak blank lagi). Lalu tekan Play → lagunya berbunyi. Musik memang **tidak** menyala sendiri — itu disengaja | |
+| 171 | Hover ikon Kaset di taskbar (tema gelap DAN terang) | Tiga tombol tampak ikonnya, terbaca jelas. Kalau masih kosong: buka `diag.log`, cari baris `thumbbar:` — baris itu sekarang menyebut persis langkah mana yang gagal | |
+| 172 | Kecilkan jendela di bawah ±1200 px lebar | Sidebar menyempit jadi ikon saja + hamburger muncul; lebarkan lagi → terbuka penuh. Bolak-balik tanpa nyangkut | |
+| 173 | Jendela lebar, buka panel antrean → sidebar compact. **Sambil panel terbuka**, lebarkan jendela maksimum | Sidebar TETAP compact (panel menang). Tutup panel → terbuka penuh lagi | |
+| 174 | Jendela sempit (< 1200), buka lalu tutup panel antrean | Sidebar tetap compact setelah panel ditutup — tidak melompat terbuka | |
+| 175 | Klik kanan baris lagu di halaman **album** dan halaman **playlist** | Menu konteks muncul, isinya sama persis dengan menu titik-tiga (7 item) | |
+| 176 | Putar **episode podcast** tanpa CC, buka panel lirik | "Subtitel tidak tersedia untuk episode ini" — bukan menyebut "lagu" | |
+
+> Catatan sadar-risiko dari perbaikan sidebar: dengan ambang 1200, aplikasi pada ukuran default
+> (1100 px) kini **lahir dalam keadaan compact**. Kalau itu terasa salah, ubah satu angka
+> `ExpandedModeThresholdWidth` di `MainWindow.xaml` (mis. 1080) — tanpa menyentuh kode.
 
 ## F. Cacat terbuka dari putaran 4 (2026-07-23)
 

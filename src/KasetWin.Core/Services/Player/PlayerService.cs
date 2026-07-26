@@ -156,6 +156,13 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     private string? _sleepStoppedVideoId;
 
     /// <summary>
+    /// Whether the page reported a different video at least once while the sleep stop held —
+    /// i.e. YouTube kept walking its autoplay chain underneath the stop. Decides what "play" means
+    /// afterwards: resume in place (no drift) or reload the stopped track (drifted).
+    /// </summary>
+    private bool _pageDriftedDuringSleepStop;
+
+    /// <summary>
     /// Creates a player wired to the queue, the playback controller, and the JS bridge. The
     /// constructor subscribes to <see cref="IJsBridge.StateUpdated"/> and
     /// <see cref="IJsBridge.TrackEnded"/>; call <see cref="Dispose"/> to unsubscribe.
@@ -385,8 +392,21 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// <inheritdoc />
     public async Task TogglePlayPauseAsync()
     {
-        // Asking for playback is the user overruling a fired sleep timer.
+        // Asking for playback is the user overruling a fired sleep timer. But a bare play() is only
+        // right when the page is still ON the track the user fell asleep to. Ignoring the page's
+        // reports during the stop kept OUR queue intact — it did not stop the page itself from
+        // walking its autoplay chain underneath us. Pressing play then resumed whatever the page had
+        // wandered to, a dozen songs away, and with the suppression lifted that wrong track was
+        // immediately adopted: the queue survived the night only to be thrown away at the first
+        // keypress. If the page drifted, reload the track we actually stopped on instead.
+        bool pageDrifted = _sleepStopEnforced && _pageDriftedDuringSleepStop;
         ReleaseSleepStop();
+
+        if (!IsPlaying && pageDrifted && CurrentTrack is { } stoppedOn)
+        {
+            await LoadTrackAsync(stoppedOn, forceReload: true).ConfigureAwait(false);
+            return;
+        }
 
         // Involution: two toggles return to the original state (Property 9).
         if (IsPlaying)
@@ -542,6 +562,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     {
         _sleepStopEnforced = false;
         _sleepStoppedVideoId = null;
+        _pageDriftedDuringSleepStop = false;
     }
 
     /// <inheritdoc />
@@ -664,6 +685,7 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
                 && _sleepStoppedVideoId is { } stopped
                 && !string.Equals(message.VideoId, stopped, StringComparison.Ordinal))
             {
+                _pageDriftedDuringSleepStop = true;
                 return;
             }
         }
@@ -734,8 +756,28 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
             }
 
             CurrentTrack = resolved;
+
+            // A track that arrived by adoption never went through LoadTrackAsync, which is where
+            // background enrichment lives — so an autoplay pick played to the end with no album
+            // (and no full artwork) until the user happened to press prev/next, whose manual load
+            // finally enriched it. Once per videoId: state updates tick every second, and the
+            // fetcher's own failure path already logs.
+            if (_metadataFetcher is not null
+                && resolved.Album is null
+                && !string.Equals(message.VideoId, _lastEnrichmentRequestedFor, StringComparison.Ordinal))
+            {
+                _lastEnrichmentRequestedFor = message.VideoId;
+                _ = EnrichTrackMetadataAsync(message.VideoId);
+            }
         }
     }
+
+    /// <summary>
+    /// The last videoId background enrichment was requested for from the adoption path, so a
+    /// once-a-second STATE_UPDATE stream asks at most once per track — including for tracks whose
+    /// metadata genuinely has no album, which would otherwise re-fetch every tick forever.
+    /// </summary>
+    private string? _lastEnrichmentRequestedFor;
 
     /// <summary>
     /// Builds the current track from a state-update message, enriching from the queue when a

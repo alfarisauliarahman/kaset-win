@@ -14,6 +14,7 @@
 
     <UserControl.Resources>
         <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
+        <converters:CoverArtConverter x:Key="CoverArt" />
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
         <converters:DurationToTextConverter x:Key="DurationToText" />
         <converters:BoolToOpacityConverter x:Key="BoolToOpacity" />
@@ -172,7 +173,9 @@
                         </Grid.ColumnDefinitions>
                         <Border Grid.Column="0" Width="4" Height="40" VerticalAlignment="Center" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="2" />
                         <Border Grid.Column="1" Width="48" Height="48" CornerRadius="4">
-                            <Image AutomationProperties.AccessibilityView="Raw" Source="{x:Bind Queue.NowPlaying.ThumbnailUrl, Converter={StaticResource UriToImageSource}, Mode=OneWay}" Stretch="UniformToFill" />
+                            <!-- Bound to the whole Song (not .ThumbnailUrl) so the converter can
+                                 fall back to FallbackThumbnailUrl and log load failures (#150). -->
+                            <Image AutomationProperties.AccessibilityView="Raw" Source="{x:Bind Queue.NowPlaying, Converter={StaticResource CoverArt}, Mode=OneWay}" Stretch="UniformToFill" />
                         </Border>
                         <controls:TrackInfo x:Name="NowPlayingTrackInfo" Grid.Column="2" VerticalAlignment="Center" Song="{x:Bind Queue.NowPlaying, Mode=OneWay}" />
                     </Grid>

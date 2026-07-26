@@ -291,6 +291,23 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
+                        <!-- Right-click mirrors the row's three-dot menu below (same items, same
+                             handlers). The row Grid's Background="Transparent" is what makes the
+                             whole row hit-testable for ContextRequested (see PodcastShowPage). -->
+                        <Grid.ContextFlyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackStartMixClick" Text="{x:Bind loc:UiStrings.MenuStartMix}" />
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackPlayNextClick" Text="{x:Bind loc:UiStrings.MenuPlayNext}" />
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackAddToQueueClick" Text="{x:Bind loc:UiStrings.MenuAddToQueue}" />
+                                <MenuFlyoutItem
+                                    Tag="{x:Bind}"
+                                    Click="OnTrackToggleCollectionClick"
+                                    Text="{x:Bind IsInLibrary, Converter={StaticResource LibraryToggleText}, Mode=OneWay}" />
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackSaveToPlaylistClick" Text="{x:Bind loc:UiStrings.MenuSaveToPlaylist}" />
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackOpenArtistClick" Text="{x:Bind loc:UiStrings.MenuGoToArtist}" />
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackShareClick" Text="{x:Bind loc:UiStrings.MenuShare}" />
+                            </MenuFlyout>
+                        </Grid.ContextFlyout>
                         <Grid Grid.Column="0" Tag="numcell">
                             <TextBlock
                                 Tag="num"

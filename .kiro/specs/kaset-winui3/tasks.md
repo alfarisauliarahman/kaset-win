@@ -923,6 +923,51 @@ ditebak.
   - **PERBAIKAN**: hasil kosong tidak lagi mengunci; controller memuat ulang saat konektivitas
     kembali, **tanpa** melanjutkan pemutaran sendiri.
 
+### PERBAIKAN PUTARAN UJI 8 (2026-07-23)
+
+Putaran 8 menjalankan seluruh H5b: 11 lulus (termasuk bunyi timer #152 — hidup untuk pertama
+kalinya), 4 gagal. Dua ditutup langsung, dua lagi dikerjakan:
+
+- [x] 70. **Play setelah sleep stop meloncat jauh** (#148)
+  - **SEBAB**: konsekuensi langsung task 62 — laporan halaman yang berkelana diabaikan, tapi
+    halamannya sendiri tetap menyusuri rantai autoplay. Play polos = `play()` pada halaman yang
+    sudah jauh, lalu track asing itu diadopsi begitu penekanan dilepas.
+  - **PERBAIKAN**: drift dilacak (`_pageDriftedDuringSleepStop`). Drift → Play memuat ulang track
+    yang ditinggal tidur (paksa); tanpa drift → resume di tempat, tanpa reload. 2 test.
+
+- [x] 71. **Metadata tidak diperbarui saat lagu berganti otomatis** (#151)
+  - **SEBAB**: track hasil adopsi autoplay tidak pernah melewati `LoadTrackAsync` — satu-satunya
+    tempat enrichment dipasang. Prev/next manual yang "tiba-tiba memunculkan" datanya.
+  - **PERBAIKAN**: jalur adopsi di `HandleStateUpdate` ikut meminta enrichment, sekali per videoId
+    (dipagari `_lastEnrichmentRequestedFor` — tanpa itu, lagu yang memang tak beralbum di-fetch
+    ulang tiap detik selamanya). 1 test.
+
+- [x] 72. **Sampul tetap tidak muncul di jalur `kaset://`** (#150)
+  - **SEBAB**: XAML hanya bind `ThumbnailUrl` (Song telanjang dari `kaset://` tidak punya), dan
+    `BitmapImage` yang gagal memuat gagal tanpa suara — nol `ImageFailed` handler di seluruh App.
+  - **PERBAIKAN**: `CoverArtConverter` (Song utuh, `ThumbnailUrl ?? FallbackThumbnailUrl`, fallback
+    saat gagal, jejak `cover art OK/FAILED` di diag.log). Terverifikasi runtime di level jejak.
+
+- [x] 73. **Ikon thumbnail taskbar hilang total** (#160)
+  - **SEBAB**: bukan jalur DIB-nya (terbukti benar dalam isolasi) — lima `catch` kosong menelan
+    kegagalan tanpa jejak, `SetLastError` tak diminta, hasil `SetWindowSubclass`/HRESULT dibuang.
+  - **PERBAIKAN**: jejak `thumbbar:` di tiap langkah + fallback `GetHicon` (mekanisme putaran 6
+    yang terbukti tampil). Terverifikasi runtime: 4 handle non-nol, `ThumbBarAddButtons hr=0`.
+
+- [x] 74. **Sidebar menyempit mengikuti lebar jendela**
+  - `PaneDisplayMode=Auto` sudah terpasang dan bekerja — ambangnya yang salah: expanded bawaan
+    1008px vs floor jendela 980px = pita compact 28px yang praktis tak pernah terlihat.
+  - `ExpandedModeThresholdWidth=1200`; `ShrinkSidebarForPanel(false)` kini kembali ke `Auto`
+    (dihitung dari lebar SAAT ITU) alih-alih snapshot lama; chrome (hamburger, pill↔bundar)
+    disatukan di `UpdatePaneChrome()`. KONSEKUENSI SADAR: ukuran default 1100 kini lahir compact.
+
+- [x] 75. **Klik kanan mati di playlist/album/playlist podcast**
+  - AlbumPage & PlaylistPage tidak pernah punya `ContextFlyout` di baris lagu (menu titik-tiga ada,
+    klik kanan tidak terhubung); Grid baris PlaylistPage bahkan tanpa `Background` = tak bisa
+    di-hit-test. Kini keduanya dapat menu klik kanan berisi 7 item yang sama dengan titik-tiga.
+  - Halaman lain (Search/LikedSongs/History/Artist) juga tanpa klik kanan tapi VM-nya belum punya
+    command-nya — itu fitur baru, dicatat sebagai kerja lanjutan, bukan dikerjakan diam-diam.
+
 - [ ] 69. **Race laten di `LoadTrackAsync`** — `_expectedVideoId`/`CurrentTrack` diset di luar
   `_loadGate` dan tidak atomik dengan `Interlocked.Increment(_loadGeneration)`. Kelas bug yang sama
   dengan ADR 0006, di baris berbeda. **Tidak terbukti** menyebabkan gejala; jendelanya nanodetik

@@ -94,13 +94,26 @@
         -->
         <controls:MiniPlayerView x:Name="MiniPlayerHost" Visibility="Collapsed" />
 
+        <!--
+            Responsive sidebar: PaneDisplayMode=Auto lets the NavigationView adapt to the window
+            width like the Windows 11 shell apps (Media Player / Store). The default expanded
+            threshold (1008) was invisible in practice because the window's minimum width is 980
+            (MainWindowLayout), leaving a 28px compact band; 1200 makes the adaptation real:
+            >= 1200 expanded, below it compact (icons only). Minimal (< 641 default) is unreachable
+            behind the 980 floor and left as-is. The hamburger + source-toggle swap follow the
+            effective mode in OnNavViewDisplayModeChanged (MainWindow.SidePanel.cs), which also
+            covers the side panel pinning the pane to LeftCompact.
+        -->
         <NavigationView
             x:Name="NavView"
             Grid.Column="0"
+            DisplayModeChanged="OnNavViewDisplayModeChanged"
+            ExpandedModeThresholdWidth="1200"
             IsBackButtonVisible="Collapsed"
             IsBackEnabled="False"
             IsPaneToggleButtonVisible="False"
             IsSettingsVisible="False"
+            Loaded="OnNavViewLoaded"
             PaneDisplayMode="Auto"
             BackRequested="OnNavigationBackRequested"
             Expanding="OnNavItemExpanding"
@@ -179,8 +192,9 @@
                  SelectorBar styling. -->
             <NavigationView.PaneFooter>
               <Grid>
-                <!-- Compact source toggle: shown only when the pane is collapsed to icons (a panel is
-                     open). A round icon-only button, like the account avatar; a click flips the source. -->
+                <!-- Compact source toggle: shown whenever the pane is collapsed to icons — a panel is
+                     open or the window is too narrow for the expanded pane (UpdatePaneChrome). A round
+                     icon-only button, like the account avatar; a click flips the source. -->
                 <Button
                     x:Name="SourceToggleCompact"
                     AutomationProperties.Name="Source: Music or YouTube"

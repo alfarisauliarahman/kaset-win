@@ -1,7 +1,10 @@
-﻿using KasetWin.App.ViewModels;
+﻿using KasetWin.App.Sharing;
+using KasetWin.App.Sharing;
+using KasetWin.App.ViewModels;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Api;
 using KasetWin.Core.Services.Player;
+using KasetWin.Core.Services.Sharing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -170,5 +173,188 @@ public sealed partial class PlaylistPage : Page
         {
             Frame.GoBack();
         }
+    }
+
+    // ---- Per-track context menu (right-click). Mirrors AlbumPage's three-dot menu; both pages
+    // ---- share PlaylistDetailViewModel, so the handlers delegate to the same commands.
+
+    private void OnTrackStartMixClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            ViewModel.PlayTrackCommand.Execute(song);
+        }
+    }
+
+    private void OnTrackPlayNextClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            ViewModel.PlayTrackNextCommand.Execute(song);
+        }
+    }
+
+    private void OnTrackAddToQueueClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            ViewModel.AddTrackToQueueCommand.Execute(song);
+        }
+    }
+
+    private void OnTrackToggleCollectionClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            ViewModel.ToggleTrackCollectionCommand.Execute(song);
+        }
+    }
+
+    private void OnTrackOpenArtistClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            ViewModel.OpenTrackArtistCommand.Execute(song);
+        }
+    }
+
+    private void OnTrackShareClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: Song song })
+        {
+            return;
+        }
+
+        var target = ShareUrlBuilder.TryCreate(song);
+        if (!ShareInvoker.TryShow(App.Current.MainWindow, target))
+        {
+            ViewModel.ShowUnavailableCommand.Execute(Localization.UiStrings.MenuShare);
+        }
+    }
+
+    private async void OnTrackSaveToPlaylistClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: Song song })
+        {
+            return;
+        }
+
+        var (action, playlist) = await PickPlaylistAsync(song.VideoId);
+        if (action == PickAction.CreateNew)
+        {
+            var name = await PromptPlaylistNameAsync();
+            if (name is not null)
+            {
+                await ViewModel.CreatePlaylistWithTracksAsync(name, new[] { song.VideoId });
+            }
+        }
+        else if (action == PickAction.Chosen && playlist is not null)
+        {
+            if (await ViewModel.IsTrackInPlaylistAsync(song.VideoId, playlist.Id))
+            {
+                var confirm = new ContentDialog
+                {
+                    Title = Localization.UiStrings.DialogAlreadyInPlaylistTitle,
+                    Content = Localization.UiStrings.AlreadyInPlaylistBody(song.Title, playlist.Title),
+                    PrimaryButtonText = Localization.UiStrings.DialogKeepAdd,
+                    CloseButtonText = Localization.UiStrings.DialogCancel,
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = this.XamlRoot,
+                };
+
+                if (await confirm.ShowAsync() == ContentDialogResult.Primary)
+                {
+                    await ViewModel.SaveTrackToPlaylistAsync(song, playlist.Id, allowDuplicates: true);
+                }
+            }
+            else
+            {
+                await ViewModel.SaveTrackToPlaylistAsync(song, playlist.Id);
+            }
+        }
+    }
+
+    private enum PickAction
+    {
+        Cancel,
+        Chosen,
+        CreateNew,
+    }
+
+    /// <summary>
+    /// Shows the "Save to playlist" picker (covers + titles, "+ Playlist Baru", Save, Cancel) and
+    /// reports the user's choice. Shown even when the library is empty so the user can create one.
+    /// </summary>
+    private async Task<(PickAction Action, Playlist? Playlist)> PickPlaylistAsync(string? sampleVideoId)
+    {
+        var targets = await ViewModel.GetSaveTargetsAsync(sampleVideoId);
+
+        var list = new ListView
+        {
+            ItemsSource = targets,
+            SelectionMode = ListViewSelectionMode.Single,
+            ItemTemplate = (DataTemplate)Resources["PlaylistPickerItemTemplate"],
+            Height = 440,
+        };
+        if (targets.Count > 0)
+        {
+            list.SelectedIndex = 0;
+        }
+
+        var newButton = new Button
+        {
+            Content = Localization.UiStrings.DialogNewPlaylistButton,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+
+        var panel = new StackPanel { MinWidth = 460 };
+        panel.Children.Add(list);
+        panel.Children.Add(newButton);
+
+        var dialog = new ContentDialog
+        {
+            Title = Localization.UiStrings.MenuSaveToPlaylist,
+            Content = panel,
+            PrimaryButtonText = Localization.UiStrings.DialogSave,
+            CloseButtonText = Localization.UiStrings.DialogCancel,
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = this.XamlRoot,
+        };
+
+        // "+ Playlist Baru" sits inside the content (above the Simpan/Batal row); it closes the
+        // dialog and signals the create-new path.
+        var createNew = false;
+        newButton.Click += (_, _) => { createNew = true; dialog.Hide(); };
+
+        var result = await dialog.ShowAsync();
+        if (createNew)
+        {
+            return (PickAction.CreateNew, null);
+        }
+
+        return result == ContentDialogResult.Primary
+            ? (PickAction.Chosen, list.SelectedItem as Playlist)
+            : (PickAction.Cancel, null);
+    }
+
+    /// <summary>Prompts for a new playlist name, or <c>null</c> when cancelled/empty.</summary>
+    private async Task<string?> PromptPlaylistNameAsync()
+    {
+        var box = new TextBox { PlaceholderText = Localization.UiStrings.DialogPlaylistNamePlaceholder };
+        var dialog = new ContentDialog
+        {
+            Title = Localization.UiStrings.DialogNewPlaylistTitle,
+            Content = box,
+            PrimaryButtonText = Localization.UiStrings.DialogCreate,
+            CloseButtonText = Localization.UiStrings.DialogCancel,
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = this.XamlRoot,
+        };
+
+        var result = await dialog.ShowAsync();
+        return result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text)
+            ? box.Text.Trim()
+            : null;
     }
 }

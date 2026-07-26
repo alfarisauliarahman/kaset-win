@@ -104,15 +104,22 @@ public sealed partial class MainWindow
         }
     }
 
-    /// <summary>Remembers the pane mode chosen before a panel opened so it can be restored on close.</summary>
-    private NavigationViewPaneDisplayMode _paneModeBeforePanel = NavigationViewPaneDisplayMode.Auto;
+    /// <summary>True while the now-playing side panel is holding the pane in compact mode.</summary>
     private bool _sidebarShrunkForPanel;
 
     /// <summary>
     /// Collapses the NavigationView pane to compact (icons only) while a now-playing panel is open,
-    /// then restores the previous pane mode when it closes. The NavView animates the pane width, so
-    /// the content region reflows smoothly around both the shrunken sidebar and the docked panel.
+    /// then hands the pane back to <c>Auto</c> when it closes. The NavView animates the pane width,
+    /// so the content region reflows smoothly around both the shrunken sidebar and the docked panel.
     /// </summary>
+    /// <remarks>
+    /// The close path deliberately restores <see cref="NavigationViewPaneDisplayMode.Auto"/> instead
+    /// of a mode remembered from before the panel opened: Auto re-evaluates against the window width
+    /// at that moment (thresholds set in MainWindow.xaml), so closing the panel on a window that has
+    /// since been narrowed keeps the pane compact rather than blindly re-expanding it. That made the
+    /// old <c>_paneModeBeforePanel</c> field obsolete — the saved value was always <c>Auto</c>, and
+    /// restoring a stale snapshot would fight the responsive behaviour.
+    /// </remarks>
     private void ShrinkSidebarForPanel(bool shrink)
     {
         if (shrink)
@@ -122,25 +129,59 @@ public sealed partial class MainWindow
                 return;
             }
 
-            _paneModeBeforePanel = NavView.PaneDisplayMode;
             _sidebarShrunkForPanel = true;
-            NavView.PaneDisplayMode = NavigationViewPaneDisplayMode.LeftCompact;
 
-            // Compact pane: reveal the hamburger (so the pane can still be expanded) and swap the wide
-            // source pill for the round icon-only toggle so it fits the narrow rail.
-            NavView.IsPaneToggleButtonVisible = true;
-            SourceTogglePill.Visibility = Visibility.Collapsed;
-            SourceToggleCompact.Visibility = Visibility.Visible;
-            UpdateSourceCompactIcon();
+            // The panel wins over the width rules while it is open: pin the pane to compact so the
+            // content + panel share the freed width, regardless of how the window is resized.
+            NavView.PaneDisplayMode = NavigationViewPaneDisplayMode.LeftCompact;
         }
         else if (_sidebarShrunkForPanel)
         {
             _sidebarShrunkForPanel = false;
-            NavView.PaneDisplayMode = _paneModeBeforePanel;
 
-            NavView.IsPaneToggleButtonVisible = false;
-            SourceTogglePill.Visibility = Visibility.Visible;
-            SourceToggleCompact.Visibility = Visibility.Collapsed;
+            // Back to the width-driven mode (see remarks): Auto recomputes from the live width.
+            NavView.PaneDisplayMode = NavigationViewPaneDisplayMode.Auto;
+        }
+
+        // Setting PaneDisplayMode only raises DisplayModeChanged when the effective mode actually
+        // changes (it stays Compact when the window was already narrow), so sync the chrome here too.
+        UpdatePaneChrome();
+    }
+
+    // ── Responsive pane chrome (hamburger + source toggle) ──────────────────────────────────────
+
+    /// <summary>
+    /// Raised whenever the NavigationView's effective display mode changes — from a window resize
+    /// (<c>PaneDisplayMode=Auto</c> adapting against the thresholds in MainWindow.xaml) or from the
+    /// side panel pinning the pane compact. One handler keeps the pane chrome consistent for both.
+    /// </summary>
+    private void OnNavViewDisplayModeChanged(NavigationView sender, NavigationViewDisplayModeChangedEventArgs args)
+        => UpdatePaneChrome();
+
+    /// <summary>
+    /// Initial chrome sync. The default launch width (1100 logical px) sits under the 1200 expanded
+    /// threshold, so the very first layout can settle on Compact — a state the XAML defaults
+    /// (hamburger hidden, wide pill visible) were not written for.
+    /// </summary>
+    private void OnNavViewLoaded(object sender, RoutedEventArgs e) => UpdatePaneChrome();
+
+    /// <summary>
+    /// Aligns the pane chrome with the effective display mode: an expanded pane hides the hamburger
+    /// (there is nothing to toggle) and shows the wide segmented source pill; a compact/minimal pane
+    /// shows the hamburger — now the only way to open the pane — and swaps the pill for the round
+    /// icon-only source button that fits the narrow rail.
+    /// </summary>
+    private void UpdatePaneChrome()
+    {
+        var expanded = NavView.DisplayMode == NavigationViewDisplayMode.Expanded;
+
+        NavView.IsPaneToggleButtonVisible = !expanded;
+        SourceTogglePill.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        SourceToggleCompact.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
+
+        if (!expanded)
+        {
+            UpdateSourceCompactIcon();
         }
     }
 

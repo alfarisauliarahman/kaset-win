@@ -64,6 +64,13 @@ public sealed class TaskbarMediaControls : IDisposable
         _subclassProc = SubclassWndProc;
     }
 
+    /// <summary>
+    /// One diag line per failure in this feature. The thumb-bar spent several test rounds broken
+    /// precisely because every failure here was swallowed by an empty catch (the ADR 0007 lesson):
+    /// a NULL icon, a failed subclass or a non-zero HRESULT all looked identical — "no buttons".
+    /// </summary>
+    private static void Trace(string message) => KasetWin.Core.Diag.Write("thumbbar: " + message);
+
     /// <summary>Creates the thumb-bar buttons and starts mirroring the player state. Best-effort.</summary>
     public void Start()
     {
@@ -77,13 +84,24 @@ public sealed class TaskbarMediaControls : IDisposable
             _iconPlay = CreateTransportIcon(TransportGlyph.Play, size);
             _iconPause = CreateTransportIcon(TransportGlyph.Pause, size);
             _iconNext = CreateTransportIcon(TransportGlyph.Next, size);
+            Trace($"start hwnd=0x{_hwnd.ToInt64():X} size={size} icons prev=0x{_iconPrev.ToInt64():X} play=0x{_iconPlay.ToInt64():X} pause=0x{_iconPause.ToInt64():X} next=0x{_iconNext.ToInt64():X}");
 
             // The shell only accepts thumb-bar buttons AFTER it has created the taskbar button for
             // the window, which it announces by broadcasting the "TaskbarButtonCreated" message.
             // Adding the buttons before then silently fails, so we defer to that message.
             _taskbarButtonCreatedMessage = RegisterWindowMessage("TaskbarButtonCreated");
+            if (_taskbarButtonCreatedMessage == 0)
+            {
+                Trace($"RegisterWindowMessage(TaskbarButtonCreated) FAILED gle={Marshal.GetLastWin32Error()}");
+            }
 
-            SetWindowSubclass(_hwnd, _subclassProc, IntPtr.Zero, IntPtr.Zero);
+            // If this fails, the TaskbarButtonCreated retry never arrives, and a too-early
+            // AddThumbButtons below is the only shot we get — worth a trace, not a silent shrug.
+            if (!SetWindowSubclass(_hwnd, _subclassProc, IntPtr.Zero, IntPtr.Zero))
+            {
+                Trace($"SetWindowSubclass FAILED gle={Marshal.GetLastWin32Error()}");
+            }
+
             _player.PropertyChanged += OnPlayerPropertyChanged;
 
             // If the taskbar button was already created (e.g. the window has been visible for a
@@ -91,9 +109,10 @@ public sealed class TaskbarMediaControls : IDisposable
             // AddThumbButtons is idempotent, and the message handler retries if it's not ready yet.
             AddThumbButtons();
         }
-        catch
+        catch (Exception ex)
         {
-            // Thumb-bar is a nicety; never let its failure affect the app.
+            // Thumb-bar is a nicety; never let its failure affect the app — but always leave a trace.
+            Trace($"Start FAILED: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -120,9 +139,11 @@ public sealed class TaskbarMediaControls : IDisposable
 
             var hr = _taskbar.ThumbBarAddButtons(_hwnd, (uint)buttons.Length, buttons);
             _added = hr == 0;
+            Trace($"ThumbBarAddButtons hr=0x{hr:X8} added={_added}");
         }
-        catch
+        catch (Exception ex)
         {
+            Trace($"AddThumbButtons FAILED: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -145,10 +166,15 @@ public sealed class TaskbarMediaControls : IDisposable
         {
             var playing = _player.IsPlaying;
             var button = MakeButton(BtnPlayPause, playing ? _iconPause : _iconPlay, Localization.UiStrings.TipPlayPause);
-            _taskbar.ThumbBarUpdateButtons(_hwnd, 1, new[] { button });
+            var hr = _taskbar.ThumbBarUpdateButtons(_hwnd, 1, new[] { button });
+            if (hr != 0)
+            {
+                Trace($"ThumbBarUpdateButtons hr=0x{hr:X8}");
+            }
         }
-        catch
+        catch (Exception ex)
         {
+            Trace($"UpdatePlayPauseButton FAILED: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -169,6 +195,11 @@ public sealed class TaskbarMediaControls : IDisposable
         // thumb-bar buttons be registered. AddThumbButtons is idempotent, so a repeat is harmless.
         if (_taskbarButtonCreatedMessage != 0 && msg == _taskbarButtonCreatedMessage)
         {
+            if (!_added)
+            {
+                Trace("TaskbarButtonCreated received, retrying AddThumbButtons");
+            }
+
             AddThumbButtons();
             return DefSubclassProc(hWnd, msg, wParam, lParam);
         }
@@ -209,17 +240,24 @@ public sealed class TaskbarMediaControls : IDisposable
         var size = 0;
         try
         {
+            // A WinUI 3 window has a valid HWND from construction, but guard the zero/foreign-hwnd
+            // case anyway: GetDpiForWindow(0) returns 0, which we map to the 96-DPI baseline.
             var dpi = GetDpiForWindow(hwnd);
             size = GetSystemMetricsForDpi(SM_CXSMICON, dpi == 0 ? 96u : dpi);
+            if (dpi == 0 || size <= 0)
+            {
+                Trace($"icon size probe odd: hwnd=0x{hwnd.ToInt64():X} dpi={dpi} smicon={size}");
+            }
         }
-        catch
+        catch (Exception ex)
         {
             // GetDpiForWindow / GetSystemMetricsForDpi need Windows 10 1607+; fall through.
+            Trace($"GetSystemMetricsForDpi FAILED: {ex.GetType().Name}: {ex.Message}");
         }
 
         if (size <= 0)
         {
-            try { size = GetSystemMetrics(SM_CXSMICON); } catch { }
+            try { size = GetSystemMetrics(SM_CXSMICON); } catch (Exception ex) { Trace($"GetSystemMetrics FAILED: {ex.GetType().Name}: {ex.Message}"); }
         }
 
         return Math.Clamp(size <= 0 ? 16 : size, 16, 64);
@@ -271,16 +309,57 @@ public sealed class TaskbarMediaControls : IDisposable
     }
 
     /// <summary>
-    /// Renders a transport glyph into a true 32-bit-with-alpha <c>HICON</c> at the shell's small
-    /// icon size. Solid white fill over a dark halo, so the button reads on both a dark and a light
-    /// thumbnail flyout without the app having to track the system theme. Returns
-    /// <see cref="IntPtr.Zero"/> on failure; the caller then simply omits the icon.
+    /// Draws the glyph — solid white fill over a dark halo, so the button reads on both a dark and
+    /// a light thumbnail flyout without the app tracking the system theme — onto an already-cleared
+    /// transparent surface. Shared by the DIB path and the GDI+ fallback so the two can never drift.
+    /// </summary>
+    private static void DrawGlyph(Graphics g, TransportGlyph glyph, int size)
+    {
+        using var path = BuildGlyphPath(glyph, size);
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+        // Halo first, fill second: FillPath covers the inner half of the stroke, leaving a
+        // ~1 px dark rim that carries the shape on a light background.
+        using (var halo = new Pen(Color.FromArgb(215, 0, 0, 0), Math.Max(1.25f, size / 5.5f)) { LineJoin = LineJoin.Round })
+        {
+            g.DrawPath(halo, path);
+        }
+
+        using var fill = new SolidBrush(Color.White);
+        g.FillPath(fill, path);
+    }
+
+    /// <summary>
+    /// Renders a transport glyph into a 32-bit-with-alpha <c>HICON</c> at the shell's small icon
+    /// size. Tries the DIB-section path first (controlled premultiplication); if that fails for any
+    /// reason it falls back to <see cref="Bitmap.GetHicon"/>, which is the round-6 code path that
+    /// verifiably produced visible (if thin) icons — a slightly-less-perfect icon always beats a
+    /// blank button. Returns <see cref="IntPtr.Zero"/> only when both paths fail (each failure is
+    /// traced); the caller then omits the icon rather than handing the shell a NULL handle.
     /// </summary>
     private static IntPtr CreateTransportIcon(TransportGlyph glyph, int size)
     {
-        // A DIB section (not Bitmap.GetHicon) so the icon carries a real per-pixel alpha channel
-        // and we control premultiplication, which is what AlphaBlend - and therefore the shell -
-        // expects from a 32bpp icon.
+        var icon = CreateTransportIconViaDib(glyph, size);
+        if (icon != IntPtr.Zero)
+        {
+            return icon;
+        }
+
+        icon = CreateTransportIconViaGetHicon(glyph, size);
+        Trace(icon == IntPtr.Zero
+            ? $"icon {glyph}: BOTH paths failed, button will have no image"
+            : $"icon {glyph}: DIB path failed, using GetHicon fallback 0x{icon.ToInt64():X}");
+        return icon;
+    }
+
+    /// <summary>
+    /// The preferred path: a DIB section (not <see cref="Bitmap.GetHicon"/>) so the icon carries a
+    /// real per-pixel alpha channel and we control premultiplication, which is what AlphaBlend —
+    /// and therefore the shell — expects from a 32bpp icon.
+    /// </summary>
+    private static IntPtr CreateTransportIconViaDib(TransportGlyph glyph, int size)
+    {
         var header = new BITMAPINFOHEADER
         {
             biSize = (uint)Marshal.SizeOf<BITMAPINFOHEADER>(),
@@ -294,6 +373,7 @@ public sealed class TaskbarMediaControls : IDisposable
         var hbmColor = CreateDIBSection(IntPtr.Zero, ref header, DIB_RGB_COLORS, out var bits, IntPtr.Zero, 0);
         if (hbmColor == IntPtr.Zero || bits == IntPtr.Zero)
         {
+            Trace($"icon {glyph}: CreateDIBSection FAILED hbm=0x{hbmColor.ToInt64():X} bits=0x{bits.ToInt64():X} gle={Marshal.GetLastWin32Error()}");
             if (hbmColor != IntPtr.Zero) { DeleteObject(hbmColor); }
             return IntPtr.Zero;
         }
@@ -303,21 +383,9 @@ public sealed class TaskbarMediaControls : IDisposable
         {
             using (var bmp = new Bitmap(size, size, size * 4, PixelFormat.Format32bppArgb, bits))
             using (var g = Graphics.FromImage(bmp))
-            using (var path = BuildGlyphPath(glyph, size))
             {
                 g.Clear(Color.Transparent);
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-
-                // Halo first, fill second: FillPath covers the inner half of the stroke, leaving a
-                // ~1 px dark rim that carries the shape on a light background.
-                using (var halo = new Pen(Color.FromArgb(215, 0, 0, 0), Math.Max(1.25f, size / 5.5f)) { LineJoin = LineJoin.Round })
-                {
-                    g.DrawPath(halo, path);
-                }
-
-                using var fill = new SolidBrush(Color.White);
-                g.FillPath(fill, path);
+                DrawGlyph(g, glyph, size);
             }
 
             PremultiplyAlpha(bits, size * size);
@@ -328,6 +396,7 @@ public sealed class TaskbarMediaControls : IDisposable
             hbmMask = CreateBitmap(size, size, 1, 1, new byte[maskStride * size]);
             if (hbmMask == IntPtr.Zero)
             {
+                Trace($"icon {glyph}: CreateBitmap(mask) FAILED gle={Marshal.GetLastWin32Error()}");
                 return IntPtr.Zero;
             }
 
@@ -341,16 +410,51 @@ public sealed class TaskbarMediaControls : IDisposable
             };
 
             // CreateIconIndirect copies both bitmaps, so they are ours to delete afterwards.
-            return CreateIconIndirect(ref info);
+            var hicon = CreateIconIndirect(ref info);
+            if (hicon == IntPtr.Zero)
+            {
+                Trace($"icon {glyph}: CreateIconIndirect FAILED gle={Marshal.GetLastWin32Error()}");
+            }
+
+            return hicon;
         }
-        catch
+        catch (Exception ex)
         {
+            Trace($"icon {glyph}: DIB path FAILED: {ex.GetType().Name}: {ex.Message}");
             return IntPtr.Zero;
         }
         finally
         {
             DeleteObject(hbmColor);
             if (hbmMask != IntPtr.Zero) { DeleteObject(hbmMask); }
+        }
+    }
+
+    /// <summary>
+    /// Fallback: draw the same glyph into a plain GDI+ bitmap and let <see cref="Bitmap.GetHicon"/>
+    /// mint the icon. Round 7 verified GetHicon preserves the alpha channel, and this is exactly the
+    /// mechanism of the round-6 icons that were confirmed visible on the real taskbar — no custom
+    /// DIB/mask/premultiply steps left to get wrong.
+    /// </summary>
+    private static IntPtr CreateTransportIconViaGetHicon(TransportGlyph glyph, int size)
+    {
+        try
+        {
+            using var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.Clear(Color.Transparent);
+                DrawGlyph(g, glyph, size);
+            }
+
+            // GetHicon icons are released with DestroyIcon, same as CreateIconIndirect ones, so
+            // Dispose() needs no knowledge of which path produced the handle.
+            return bmp.GetHicon();
+        }
+        catch (Exception ex)
+        {
+            Trace($"icon {glyph}: GetHicon path FAILED: {ex.GetType().Name}: {ex.Message}");
+            return IntPtr.Zero;
         }
     }
 
@@ -465,7 +569,7 @@ public sealed class TaskbarMediaControls : IDisposable
     [DllImport("user32.dll")]
     private static extern bool DestroyIcon(IntPtr hIcon);
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern uint RegisterWindowMessage(string lpString);
 
     [DllImport("user32.dll")]
@@ -503,13 +607,13 @@ public sealed class TaskbarMediaControls : IDisposable
         public uint biClrImportant;
     }
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr CreateIconIndirect(ref ICONINFO piconinfo);
 
-    [DllImport("gdi32.dll")]
+    [DllImport("gdi32.dll", SetLastError = true)]
     private static extern IntPtr CreateDIBSection(IntPtr hdc, ref BITMAPINFOHEADER pbmi, uint usage, out IntPtr ppvBits, IntPtr hSection, uint offset);
 
-    [DllImport("gdi32.dll")]
+    [DllImport("gdi32.dll", SetLastError = true)]
     private static extern IntPtr CreateBitmap(int nWidth, int nHeight, uint nPlanes, uint nBitCount, byte[] lpvBits);
 
     [DllImport("gdi32.dll")]

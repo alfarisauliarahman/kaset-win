@@ -341,19 +341,23 @@ public sealed partial class NowPlayingPanel : UserControl
         : string.Empty;
 
     /// <summary>
-    /// Picks the empty-state wording. The two states behind <c>ShowEmpty</c> are NOT the same thing:
-    /// with no current track the panel is idle and "Putar lagu…" is the right prompt, but once a
+    /// Picks the empty-state wording. The three states behind <c>ShowEmpty</c> are NOT the same
+    /// thing: with no current track the panel is idle and "Putar lagu…" is the right prompt; once a
     /// track is loaded and the lookup came back with nothing, telling the user to play a song reads
-    /// as a broken instruction — a song IS playing (#110). The current track is the only signal
-    /// needed to tell them apart, and it is available here.
+    /// as a broken instruction — a song IS playing (#110); and for a podcast episode the panel is
+    /// headed "Subtitel (CC)" (<see cref="LyricsHeaderText"/>), so the message must speak of
+    /// captions for this episode, not lyrics for "this song". The current track carries both
+    /// signals (<c>null</c>-ness and <see cref="Song.IsPodcastEpisode"/>), and it is available here.
     /// </summary>
     private void UpdateLyricsEmptyText()
     {
         // Deliberately NOT gated on IsLoadingLyrics: the service keeps the previous track's result
         // visible until the new one resolves, so gating would only make the message flap back to
         // "Putar lagu…" mid-lookup while a song plays — the exact wording this fixes.
-        LyricsEmptyText.Text = _player?.CurrentTrack is not null
-            ? Localization.UiStrings.LyricsUnavailable
+        LyricsEmptyText.Text = _player?.CurrentTrack is { } track
+            ? (track.IsPodcastEpisode
+                ? Localization.UiStrings.CaptionsUnavailable
+                : Localization.UiStrings.LyricsUnavailable)
             : Localization.UiStrings.LyricsEmpty;
     }
 

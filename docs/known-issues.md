@@ -8,7 +8,7 @@ Dua daftar, dan keduanya sengaja ada:
 - **Ditolak / dibatalkan** — pernah dipertimbangkan, diputuskan tidak. Ditulis supaya tidak ada yang
   mengerjakannya lagi dari nol, lalu heran kenapa di-revert.
 
-Terakhir diperbarui: 2026-07-23 (putaran uji 7).
+Terakhir diperbarui: 2026-07-23 (putaran uji 8).
 
 ---
 
@@ -19,10 +19,8 @@ Terakhir diperbarui: 2026-07-23 (putaran uji 7).
 | **Baris lirik sebelumnya tampak separuh** di atas baris aktif | Tinggi baris yang melipat dibaca sebelum layout selesai, jadi target gulir meleset beberapa piksel. Kosmetik; baris aktifnya sendiri sudah tidak terpotong lagi. Perbaikan sesungguhnya berarti menunda gulir sampai layout settle, yang bisa membuat glide-nya tersendat — dan tersendat lebih terasa daripada separuh baris. |
 | **Pemutaran tidak otomatis melanjut saat internet kembali** | Yang diperbaiki putaran 5 adalah "klik lagu yang sama tidak berefek"; melanjutkan sendiri butuh pemantauan status jaringan, mekanisme terpisah yang sengaja belum ditambahkan. Pengguna menekan play. Lihat ADR 0006. |
 | **Mengklik lagu yang sedang diputar mengulanginya dari 0:00** | Bukan cacat — konsekuensi yang disengaja dari perbaikan di atas, dan perilaku yang lazim di pemutar musik. Membalikkannya berarti mengembalikan "lagu mati tidak bisa dimuat ulang". |
-| **Sidebar tidak menyempit mengikuti lebar jendela** | Masih terbuka. Tidak pernah dimulai — dicoret pemilik repo saat memilih cakupan putaran 5, bukan dicoba lalu gagal. |
-| **Klik kanan mati di beberapa halaman** (playlist, album, playlist podcast) | Masih terbuka. Sama seperti di atas: tidak pernah dimulai. |
+| **Klik kanan belum ada di Search/LikedSongs/History/Artist** | Berbeda dari bug playlist/album (sudah ditutup putaran 8): VM halaman-halaman ini belum punya command play-next/queue/save, jadi menambah menunya = fitur baru, bukan perbaikan. Kerja lanjutan. |
 | **Narrator: tombol Ulangi & tombol sumber ringkas** (#128/#142) | Perbaikan `ToString()` putaran 5 menutup satu kelas masalah, tapi bukan kelas yang memuat kedua tombol ini — diuji tangan putaran 7, nol perubahan. Butuh Narrator hidup; pemilik repo menghentikan pengujian Narrator untuk sekarang. |
-| **Pesan lirik kosong berbunyi "lagu ini" untuk podcast** | Header panelnya "Subtitel (CC)" tapi pesan kosongnya menyebut "lagu". Ditemukan sendiri oleh agent, di luar cakupan yang diminta. |
 | **Race laten di `LoadTrackAsync`** | `_expectedVideoId`/`CurrentTrack` diset di luar `_loadGate`, tidak atomik dengan increment generasi. Kelas bug yang sama dengan ADR 0006 di baris berbeda. **Tidak terbukti** menyebabkan gejala apa pun, dan jendelanya nanodetik sehingga tidak ada test deterministik yang bisa ditulis. Jangan "perbaiki" tanpa test yang benar-benar membuktikannya. |
 | **`Tyler, The Creator` bisa terbaca dua artis** | Pemisahan koma pada byline datar terjadi di `observer.js`, di hulu Core. Aturan konjungsi "dan"/"and" tidak diperlebar ke koma justru supaya kasus ini tidak jadi lebih parah. Menebak salah lebih buruk daripada nama yang kepanjangan. |
 | **Lirik tidak selalu tersinkron** | Ketersediaan versi tersinkron ditentukan per lagu oleh YouTube, bukan oleh penyedia lisensinya. Terverifikasi: satu lagu Musixmatch bisa tersinkron penuh, satu lagi tidak sama sekali. Bukan bug. |
@@ -38,7 +36,7 @@ Terakhir diperbarui: 2026-07-23 (putaran uji 7).
 | Hal | Yang dibutuhkan |
 |---|---|
 | **Discord Rich Presence tidak aktif** | `DiscordRichPresenceOptions.DefaultApplicationId` masih kosong. Perlu satu Application ID dari Discord Developer Portal (sekali seumur hidup, bukan per-user). Sampai diisi, kartu Pengaturan menampilkan penjelasannya alih-alih diam-diam gagal. |
-| **Checklist seksi G, H5b belum dijalankan** | Seksi G sudah dijalankan pada putaran 7; **seksi H5b (langkah 152–166) belum satu pun**. Untuk arsip: seksi G semula **20 langkah** (127–146) yang menguji perbaikan putaran 5: aksesibilitas, `kaset://`, nyangkut, ikon taskbar, antrean, bunyi timer. Seksi D & E sudah dijalankan pada putaran 4. Langkah 142–146 ditambahkan menyusul — seksi G semula tidak punya langkah untuk tombol Ulangi, tombol hapus riwayat, maupun Narrator di sidebar, padahal ketiganya justru gejala yang dilaporkan dua putaran berturut-turut. |
+| **Checklist seksi H5b sudah dijalankan (putaran 8); yang belum: langkah putaran 9 (167–170) + langkah uji sidebar/klik-kanan** | Untuk arsip: seksi G dijalankan putaran 7, H5b putaran 8 (11 lulus, 4 gagal → seksi I). Untuk arsip: seksi G semula **20 langkah** (127–146) yang menguji perbaikan putaran 5: aksesibilitas, `kaset://`, nyangkut, ikon taskbar, antrean, bunyi timer. Seksi D & E sudah dijalankan pada putaran 4. Langkah 142–146 ditambahkan menyusul — seksi G semula tidak punya langkah untuk tombol Ulangi, tombol hapus riwayat, maupun Narrator di sidebar, padahal ketiganya justru gejala yang dilaporkan dua putaran berturut-turut. |
 
 ## Ditolak / dibatalkan — jangan dikerjakan ulang tanpa membaca ini
 

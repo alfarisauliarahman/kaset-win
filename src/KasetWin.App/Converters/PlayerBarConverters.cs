@@ -29,6 +29,88 @@ public sealed partial class UriToImageSourceConverter : IValueConverter
 }
 
 /// <summary>
+/// Converts the now-playing <see cref="Song"/> into cover-art <see cref="ImageSource"/> for the
+/// player bar and the queue panel's "Sedang diputar" card (#150). Differs from
+/// <see cref="UriToImageSourceConverter"/> in three deliberate ways, each one closing a way the
+/// cover could stay blank with no evidence left behind:
+/// <list type="number">
+/// <item><b>Never null for a playable track.</b> Binds the whole <see cref="Song"/> and resolves
+/// <see cref="Song.ThumbnailUrl"/> ?? <see cref="Song.FallbackThumbnailUrl"/>, so the
+/// <c>ThumbnailUrl == null</c> window of a bare <c>kaset://play?v=…</c> Song still renders the
+/// deterministic <c>i.ytimg.com/vi/{id}/hqdefault.jpg</c> art instead of nothing.</item>
+/// <item><b>Failures leave a trace and recover.</b> A <see cref="BitmapImage"/> that cannot load
+/// its URL fails silently by default — the exact "swallowed failure with no trace" that cost two
+/// rounds on the album line (ADR 0007). <c>ImageFailed</c> now writes the failing URL to
+/// <c>diag.log</c> and swaps the source to the fallback in place, so a queue entry pinned to an
+/// unloadable URL (the gaps-only merges in PlayerService/QueueService keep whichever URL arrived
+/// first) degrades to the stock thumbnail instead of a permanently empty cover.</item>
+/// <item><b>One download per URL.</b> Conversions re-run on every <c>Bindings.Update()</c> pass;
+/// recreating the <see cref="BitmapImage"/> each time restarts the download. A small cache keyed
+/// by URL returns the same instance instead.</item>
+/// </list>
+/// Also accepts a bare <see cref="Uri"/>/string (no fallback available then).
+/// </summary>
+public sealed partial class CoverArtConverter : IValueConverter
+{
+    // Reuse per URL so repeated binding passes do not restart the download. UI-thread only
+    // (converters run during binding evaluation). Bounded: reset once it outgrows a shell's worth
+    // of concurrently visible covers.
+    private static readonly Dictionary<string, BitmapImage> Cache = new(StringComparer.Ordinal);
+
+    /// <inheritdoc />
+    public object? Convert(object value, Type targetType, object parameter, string language)
+    {
+        Uri? fallback = value is Song { VideoId.Length: > 0 } withId ? withId.FallbackThumbnailUrl : null;
+        Uri? primary = value switch
+        {
+            Song song => song.ThumbnailUrl ?? fallback,
+            Uri uri => uri,
+            string s when Uri.TryCreate(s, UriKind.Absolute, out var uri) => uri,
+            _ => null,
+        };
+
+        return primary is null ? null : GetOrCreate(primary, fallback);
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object value, Type targetType, object parameter, string language) =>
+        throw new NotSupportedException();
+
+    private static BitmapImage GetOrCreate(Uri primary, Uri? fallback)
+    {
+        string key = primary.AbsoluteUri;
+        if (Cache.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        if (Cache.Count > 16)
+        {
+            Cache.Clear();
+        }
+
+        var image = new BitmapImage();
+        image.ImageOpened += (_, _) => KasetWin.Core.Diag.Write($"cover art OK url={key}");
+        image.ImageFailed += (_, e) =>
+        {
+            KasetWin.Core.Diag.Write(
+                $"cover art FAILED url={image.UriSource?.AbsoluteUri ?? key} err={e.ErrorMessage}");
+            // Drop the failed entry so a later conversion retries from scratch, then degrade this
+            // instance (and every Image showing it) to the deterministic fallback.
+            Cache.Remove(key);
+            if (fallback is not null
+                && !string.Equals(image.UriSource?.AbsoluteUri, fallback.AbsoluteUri, StringComparison.Ordinal))
+            {
+                image.UriSource = fallback;
+            }
+        };
+        image.UriSource = primary;
+        Cache[key] = image;
+        return image;
+    }
+}
+
+/// <summary>
 /// Maps <c>IPlayerService.IsPlaying</c> to a Segoe Fluent Icons glyph: a pause glyph while
 /// playing, a play glyph while paused (Req 5.1).
 /// </summary>

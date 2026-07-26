@@ -286,6 +286,15 @@ internal static class UiStrings
     internal static string LyricsUnavailable => IsIndonesian
         ? "Lirik tidak tersedia untuk lagu ini."
         : "No lyrics available for this song.";
+
+    /// <summary>
+    /// Empty state for a PODCAST episode with no captions. The panel header reads "Subtitel (CC)"
+    /// for podcasts, so an empty message that says "lagu ini" (this song) contradicts the header —
+    /// the episode variant keeps the wording consistent with what the panel claims to show.
+    /// </summary>
+    internal static string CaptionsUnavailable => IsIndonesian
+        ? "Subtitel tidak tersedia untuk episode ini."
+        : "No captions available for this episode.";
     internal static string SubtitlesCcLabel => IsIndonesian ? "Subtitel (CC)" : "Subtitles (CC)";
 
     /// <summary>Attribution line under the lyrics — <c>{0}</c> is the provider name (e.g. "LRCLib").</summary>

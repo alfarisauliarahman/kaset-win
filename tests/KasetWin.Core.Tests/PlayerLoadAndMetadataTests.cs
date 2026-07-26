@@ -348,6 +348,104 @@ public class PlayerLoadAndMetadataTests
         Assert.Equal("elsewhere", player.CurrentTrack?.VideoId);
     }
 
+    // ── 148 (putaran 8): play after a sleep stop must resume the stopped track ───────
+
+    [Fact]
+    public async Task PlayAfterASleepStop_ReloadsTheStoppedTrack_WhenThePageWanderedOff()
+    {
+        var queue = new QueueService(bound => 0);
+        var controller = new GatedPlaybackController();
+        var timer = new SleepTimer();
+        var player = new PlayerService(queue, controller, new FakeJsBridge(), sleepTimer: timer);
+
+        await player.PlayCollectionAsync(MakeSongs(3), startIndex: 0);
+        player.HandleStateUpdate(Report("q0", "Song 0"));
+        timer.StartEndOfTrack();
+        await player.HandleTrackEndedAsync("q0");
+
+        // The page walks its autoplay chain under the stop; the reports are suppressed, but the
+        // page itself is now far away. A bare play() here resumed "autoplay7" — the queue survived
+        // the night only to be thrown away at the first keypress.
+        for (int i = 0; i < 8; i++)
+        {
+            player.HandleStateUpdate(Report($"autoplay{i}", $"Autoplay {i}", playing: false));
+        }
+
+        await player.TogglePlayPauseAsync();
+
+        Assert.Equal("q0", controller.CurrentVideoId);
+        Assert.Equal("q0", player.CurrentTrack?.VideoId);
+        Assert.True(player.IsPlaying);
+    }
+
+    [Fact]
+    public async Task PlayAfterASleepStop_JustResumes_WhenThePageStayedPut()
+    {
+        var queue = new QueueService(bound => 0);
+        var controller = new GatedPlaybackController();
+        var timer = new SleepTimer();
+        var player = new PlayerService(queue, controller, new FakeJsBridge(), sleepTimer: timer);
+
+        await player.PlayCollectionAsync(MakeSongs(3), startIndex: 0);
+        player.HandleStateUpdate(Report("q0", "Song 0"));
+        int loadsBeforeStop = controller.LoadedVideoIds.Count;
+        timer.StartEndOfTrack();
+        await player.HandleTrackEndedAsync("q0");
+
+        // Only paused ticks for the SAME track — no drift. Reloading here would restart the song
+        // from 0:00 when a plain resume was all that was asked for.
+        player.HandleStateUpdate(Report("q0", "Song 0", playing: false));
+        await player.TogglePlayPauseAsync();
+
+        Assert.Equal(loadsBeforeStop, controller.LoadedVideoIds.Count);
+        Assert.True(player.IsPlaying);
+    }
+
+    // ── 151 (putaran 8): an adopted autoplay track must get enriched too ─────────────
+
+    [Fact]
+    public async Task AdoptedAutoplayTrack_GetsEnriched_WithoutAManualPrevNext()
+    {
+        var queue = new QueueService(bound => 0);
+        var requested = new List<string>();
+        var enriched = new Song
+        {
+            Id = "auto1",
+            VideoId = "auto1",
+            Title = "Autoplay Pick",
+            Album = new Album { Id = "MPREb_a", Title = "Their Album" },
+        };
+        var player = new PlayerService(
+            queue,
+            new FakePlaybackController(),
+            new FakeJsBridge(),
+            metadataFetcher: (id, _) =>
+            {
+                requested.Add(id);
+                return Task.FromResult<Song?>(enriched);
+            });
+
+        // A Home-card start: one song, already carrying its album, so no enrichment yet.
+        await player.PlayCollectionAsync(
+            [new Song { Id = "seed", VideoId = "seed", Title = "Seed", Album = new Album { Id = "x", Title = "X" } }],
+            startIndex: 0);
+        player.HandleStateUpdate(Report("seed", "Seed"));
+        requested.Clear();
+
+        // YouTube autoplays past the queue. This track never passes through LoadTrackAsync, which
+        // is where enrichment used to live — so it played to the end with no album line.
+        player.HandleStateUpdate(Report("auto1", "Autoplay Pick"));
+        await WaitUntilAsync(() => queue.CurrentTrack?.Album is not null);
+
+        Assert.Equal(["auto1"], requested);
+        Assert.Equal("Their Album", queue.CurrentTrack?.Album?.Title);
+
+        // The once-a-second tick stream must not re-request it.
+        player.HandleStateUpdate(Report("auto1", "Autoplay Pick"));
+        player.HandleStateUpdate(Report("auto1", "Autoplay Pick"));
+        Assert.Equal(["auto1"], requested);
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────────
 
     /// <summary>Polls <paramref name="condition"/> briefly; fails the test if it never holds.</summary>
