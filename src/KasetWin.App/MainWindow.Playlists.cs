@@ -53,8 +53,14 @@ public sealed partial class MainWindow
                 return;
             }
 
+            // Bracketing traces: sessions were observed where this fetch neither completed nor
+            // failed — the sidebar tree just stayed empty, and clicking the childless root closes
+            // the pane, which reads as "the hamburger pane is broken". A hang leaves "begin"
+            // without "done", which is the observable a fix needs.
+            KasetWin.Core.Diag.Write("sidebar-playlists fetch begin");
             var raw = await concrete.BrowseRawAsync("FEmusic_library_landing");
             playlists = Core.Services.Api.Parsers.LibraryContentParser.Parse(raw).Playlists;
+            KasetWin.Core.Diag.Write($"sidebar-playlists fetch done count={playlists.Count}");
         }
         catch (Exception ex)
         {
@@ -106,7 +112,14 @@ public sealed partial class MainWindow
                 {
                     Content = playlist.Title,
                     Tag = $"Playlist:{playlist.Id}",
-                    SelectsOnInvoked = false,
+                    // MUST be true for the sidebar highlight (#180): NavigationView REFUSES to
+                    // select a SelectsOnInvoked=false item, even programmatically — ChangeSelection
+                    // calls UndoSelectionAndRevertSelectionTo for any "selection suppressed" item
+                    // (NavigationView.cpp), which is why the round-9 SyncSidebarPlaylistSelection
+                    // never stuck. Navigation still happens by id from ItemInvoked; the resulting
+                    // SelectionChanged is ignored via the Playlist: tag guard, so the tag→page map
+                    // is never consulted for these items.
+                    SelectsOnInvoked = true,
                     ContextFlyout = BuildPlaylistContextMenu(playlist),
                     // Prefer the playlist cover (local override first) over a generic glyph.
                     Icon = thumb is not null

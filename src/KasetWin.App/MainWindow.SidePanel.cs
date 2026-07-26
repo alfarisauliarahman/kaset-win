@@ -183,6 +183,15 @@ public sealed partial class MainWindow
         {
             UpdateSourceCompactIcon();
         }
+        else if (!NavView.IsPaneOpen)
+        {
+            // An API close (CloseOverlayPaneAfterInvoke) marks the pane "force closed" inside
+            // NavigationView (OnIsPaneOpenChanged), and a force-closed pane is NOT auto-reopened
+            // when the control returns to Expanded (UpdateAdaptiveLayout skips OpenPane). The
+            // hamburger is hidden in Expanded (above), so a stuck-closed pane would leave the
+            // sidebar unreachable — reopen it here; opening also clears the force-closed flag.
+            NavView.IsPaneOpen = true;
+        }
     }
 
     /// <summary>Slide + fade the side panel (Queue / Lyrics) for a smooth open/close.</summary>

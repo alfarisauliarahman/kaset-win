@@ -170,9 +170,10 @@ public sealed partial class MainWindow
 
         if (args.SelectedItem is NavigationViewItem { Tag: string tag })
         {
-            // Playlist children are selected PROGRAMMATICALLY by SyncSidebarPlaylistSelection
-            // (after their id-based navigation already happened in ItemInvoked). Their tag is not
-            // in the page map, so letting it through would drop the shell onto the placeholder.
+            // Playlist children get selected on click (SelectsOnInvoked=true) and programmatically
+            // by SyncSidebarPlaylistSelection; their id-based navigation happens in ItemInvoked.
+            // Their tag is not in the page map, so letting it through would drop the shell onto
+            // the placeholder.
             if (tag.StartsWith("Playlist:", StringComparison.Ordinal))
             {
                 return;
@@ -230,37 +231,73 @@ public sealed partial class MainWindow
     }
 
     /// <summary>
-    /// Highlights the sidebar playlist matching a playlist page that just loaded. The dynamic
-    /// playlist children are built with <c>SelectsOnInvoked=false</c> (their click navigates by id
-    /// from ItemInvoked, not via the tag→page map), so NavigationView never marks them selected on
-    /// its own; this post-navigation sync does — and, running on every navigation, it also covers
-    /// arrivals from elsewhere (Library tiles, kaset:// protocol) and Back into a playlist page.
-    /// The programmatic selection re-raises SelectionChanged, which ignores <c>Playlist:</c> tags,
-    /// so it can never re-navigate or fall through to the placeholder. Reads the CURRENT frame
-    /// state (not event args) so the sidebar rebuild in <c>LoadSidebarPlaylistsAsync</c> — which
-    /// clears and re-creates the children, losing any selection — can call it too.
+    /// Keeps the sidebar highlight in step with playlist pages after every navigation. A direct
+    /// click already selects the child (the items are <c>SelectsOnInvoked=true</c> — see
+    /// <c>LoadSidebarPlaylistsAsync</c>; a false value there makes NavigationView REVERT any
+    /// programmatic selection via <c>UndoSelectionAndRevertSelectionTo</c>, which is why round 9's
+    /// version of this sync never worked). This method covers the paths a click cannot: arrivals
+    /// from elsewhere (Library tiles, kaset:// protocol), Back into a playlist page, and the
+    /// sidebar rebuild in <c>LoadSidebarPlaylistsAsync</c> — which clears and re-creates the
+    /// children, losing any selection — which is why it reads the CURRENT frame state rather than
+    /// event args. The programmatic selection re-raises SelectionChanged, which ignores
+    /// <c>Playlist:</c> tags, so it can never re-navigate or fall through to the placeholder.
+    /// Leaving a playlist page for a mapped section page moves the highlight back to that section
+    /// item, so a stale playlist child never stays lit over Home/Library/…; unmapped pages
+    /// (album/artist details) keep the playlist highlight, matching "came from this playlist".
     /// </summary>
     private void SyncSidebarPlaylistSelection()
     {
-        if (ContentFrame.CurrentSourcePageType?.FullName != PlaylistPageTypeName
-            || _currentNavParameter is not string playlistId)
+        if (ContentFrame.CurrentSourcePageType?.FullName == PlaylistPageTypeName
+            && _currentNavParameter is string playlistId)
         {
+            var tag = $"Playlist:{playlistId}";
+            foreach (var item in PlaylistsNavItem.MenuItems)
+            {
+                if (item is NavigationViewItem child && child.Tag as string == tag)
+                {
+                    if (!ReferenceEquals(NavView.SelectedItem, child))
+                    {
+                        NavView.SelectedItem = child;
+                    }
+
+                    return;
+                }
+            }
+
             return;
         }
 
-        var tag = $"Playlist:{playlistId}";
-        foreach (var item in PlaylistsNavItem.MenuItems)
+        // Not a playlist page: if the highlight is still on a playlist child, hand it back to the
+        // top-level item of the page now showing (when the page maps to one). The re-selection
+        // raises SelectionChanged → NavigateToTag, which no-ops because that page is already up.
+        if (NavView.SelectedItem is NavigationViewItem { Tag: string selectedTag }
+            && selectedTag.StartsWith("Playlist:", StringComparison.Ordinal)
+            && CurrentPageTag() is { } pageTag
+            && NavView.MenuItems.OfType<NavigationViewItem>()
+                .FirstOrDefault(i => i.Tag as string == pageTag) is { } section)
         {
-            if (item is NavigationViewItem child && child.Tag as string == tag)
-            {
-                if (!ReferenceEquals(NavView.SelectedItem, child))
-                {
-                    NavView.SelectedItem = child;
-                }
+            NavView.SelectedItem = section;
+        }
+    }
 
-                return;
+    /// <summary>The sidebar tag of the page currently in the content frame, or null for pages that
+    /// have no top-level item (details, YouTube feeds, placeholders).</summary>
+    private string? CurrentPageTag()
+    {
+        if (ContentFrame.CurrentSourcePageType?.FullName is not { } current)
+        {
+            return null;
+        }
+
+        foreach (var (tag, typeName) in PageTypeNamesByTag)
+        {
+            if (typeName == current)
+            {
+                return tag;
             }
         }
+
+        return null;
     }
 
     /// <summary>
@@ -367,12 +404,24 @@ public sealed partial class MainWindow
     /// (Auto / side-panel pinning / UpdatePaneChrome) is untouched because this only flips
     /// <see cref="NavigationView.IsPaneOpen"/>, never <see cref="NavigationView.PaneDisplayMode"/>.
     /// </summary>
+    /// <remarks>
+    /// The close is DEFERRED one dispatch: ItemInvoked is raised from the middle of
+    /// NavigationView's own click pipeline (selection commit, expand/collapse toggle and its own
+    /// conditional ClosePane all run after the handler returns — <c>OnNavigationViewItemInvoked</c>
+    /// in NavigationView.cpp), so a synchronous <c>IsPaneOpen = false</c> competes with that
+    /// pipeline. Enqueued at default priority it runs after the whole pipeline has finished and is
+    /// the last word on the pane. The conditions are re-checked at dispatch time because the state
+    /// may have moved under the queued callback.
+    /// </remarks>
     private void CloseOverlayPaneAfterInvoke()
     {
-        if (NavView.DisplayMode != NavigationViewDisplayMode.Expanded && NavView.IsPaneOpen)
+        DispatcherQueue.TryEnqueue(() =>
         {
-            NavView.IsPaneOpen = false;
-        }
+            if (NavView.DisplayMode != NavigationViewDisplayMode.Expanded && NavView.IsPaneOpen)
+            {
+                NavView.IsPaneOpen = false;
+            }
+        });
     }
 
 
