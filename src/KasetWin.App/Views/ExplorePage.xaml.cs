@@ -96,16 +96,28 @@ public sealed partial class ExplorePage : Page
             return;
         }
 
+        // Localized titles — the detail header must not fall back to English chrome in
+        // Indonesian mode (see the localization rule in AGENTS.md).
         var title = browseId switch
         {
-            "FEmusic_new_releases" => "New Releases",
-            "FEmusic_charts" => "Charts",
-            "FEmusic_moods_and_genres" => "Moods & Genres",
-            _ => "Explore",
+            "FEmusic_new_releases" => Localization.UiStrings.ExploreNewReleases,
+            "FEmusic_charts" => Localization.UiStrings.ExploreCharts,
+            "FEmusic_moods_and_genres" => Localization.UiStrings.ExploreMoodsGenres,
+            _ => Localization.UiStrings.ExploreTitle,
         };
 
         this.Frame?.Navigate(typeof(ExploreDetailPage), new ExploreDestination(browseId, title));
     }
+
+    /// <summary>
+    /// "Selengkapnya" on the moods shelf browses the FULL category list
+    /// (<c>FEmusic_moods_and_genres</c>: "Mood &amp; momen" + "Genre") — not the same section
+    /// payload again, which is all the shelf itself can offer.
+    /// </summary>
+    private void OnMoodsSeeAllClick(object sender, RoutedEventArgs e) =>
+        this.Frame?.Navigate(
+            typeof(ExploreDetailPage),
+            new ExploreDestination("FEmusic_moods_and_genres", Localization.UiStrings.ExploreMoodsGenres));
 
     /// <summary>"Selengkapnya" on the Trending shelf opens the full numbered list of the same items.</summary>
     private void OnChartSeeAllClick(object sender, RoutedEventArgs e)

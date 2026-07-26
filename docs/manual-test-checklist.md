@@ -410,6 +410,40 @@ riwayat mengikuti id versi lagu (lebih benar, nyambung ke album); biaya satu fet
 | 190 | Klik kanan baris lagu di **hasil pencarian**, **Lagu yang disukai**, **Riwayat**, **Top songs artis** | Menu muncul: Putar berikutnya, Tambah ke antrean, Bagikan (+ Buka album/artis bila datanya ada) | |
 | 191 | "Putar berikutnya" dari hasil pencarian | Lagu masuk antrean tepat setelah lagu sekarang | |
 
+## L. Temuan putaran 10 (2026-07-23) — dikerjakan sebelum pengujian, atas permintaan pemilik repo
+
+### L1. Klik artis di Library membuka halaman yang salah — **diperbaiki**
+
+Gejala: dari Library → Artists, mengklik artis membuka halaman yang "bukan halaman artis aslinya" —
+top songs-nya berisi live/cover/karaoke acak.
+
+Sebab, dari kode: artis yang di-follow tiba dari Library dengan browse id **`MPLAUC…`** (library
+artist), dan `GetArtistAsync` mem-browse id itu apa adanya → yang kembali adalah halaman
+library-artist yang tipis, bukan halaman artis publik. Channel id publiknya tertanam persis di
+dalam id itu, dan helper `LibraryContentIdentity.ArtistKey` (sudah teruji property test) memang ada
+untuk mengekstraknya — cuma tidak pernah dipakai di jalur ini. Kini `GetArtistAsync` menormalkan
+setiap id lewat helper itu, jadi semua pemanggil mendarat di halaman artis sungguhan.
+
+### L2. "Jenis musik & suasana" di Explore — grid chip + see-all yang benar — **dikerjakan**
+
+Acuan: tampilan YT Music (chip gelap dengan bar warna kiri + "Selengkapnya"). Cacat yang menumpang:
+halaman see-all sekarang menampilkan isi yang sama dengan deretan atas, bukan seluruh kategori.
+
+### L3. Dropdown negara di Charts — **dikerjakan**
+
+Bentuk request dibuktikan dari API sungguhan sebelum ditulis: `FEmusic_charts` +
+`formData.selectedValues=["JP"]` → "Trending 20 Jepang" (vs "Indonesia" untuk ID). Opsi negara
+diparse dari respons, bukan di-hardcode. Pilihan disimpan di setting `explore.chartsCountry`.
+
+### Langkah uji putaran 10 (tambahan)
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 192 | Library → Artists → klik OFFICIAL HIGE DANDISM (atau artis mana pun) | Halaman artis SUNGGUHAN — top songs resmi, bukan live/cover acak | |
+| 193 | Explore → bagian "Jenis musik & suasana" | Grid chip dengan bar warna kiri, seperti YT Music, plus tombol Selengkapnya | |
+| 194 | Klik "Selengkapnya" pada bagian itu | SEMUA kategori tampil — bukan salinan deretan atas | |
+| 195 | Explore → Charts → dropdown negara → pilih negara lain (mis. Jepang) | Isi charts berganti ke negara itu; pilihan bertahan setelah app ditutup-buka | |
+
 ## F. Cacat terbuka dari putaran 4 (2026-07-23)
 
 > **Status per putaran 5:** F1 (aksesibilitas), F2 (`kaset://`), F3 (nyangkut), dan bagian F4 (ikon

@@ -18,7 +18,15 @@ public interface IYTMusicClient
     Task<HomeResponse> GetHomeAsync(CancellationToken ct = default);                 // FEmusic_home (Req 11)
     Task<HomeResponse> GetHomeContinuationAsync(string token, CancellationToken ct = default); // Req 11.2
     Task<HomeResponse> GetExploreAsync(CancellationToken ct = default);              // FEmusic_explore (Req 31)
-    Task<HomeResponse> GetChartsAsync(CancellationToken ct = default);               // FEmusic_charts
+
+    /// <summary>
+    /// Browses <c>FEmusic_charts</c>. A non-empty <paramref name="countryCode"/> (ISO 3166-1
+    /// alpha-2, e.g. <c>"ID"</c>, <c>"JP"</c>, <c>"ZZ"</c> for Global) is sent as
+    /// <c>formData.selectedValues</c> so the server returns that country's charts; <c>null</c>
+    /// lets the server pick the account/IP region. The country menu is parsed out of the same
+    /// response (never hardcoded) and returned alongside the section feed.
+    /// </summary>
+    Task<ChartsPage> GetChartsAsync(string? countryCode = null, CancellationToken ct = default); // FEmusic_charts (+formData)
     Task<HomeResponse> GetMoodsAndGenresAsync(CancellationToken ct = default);       // FEmusic_moods_and_genres
     Task<HomeResponse> GetNewReleasesAsync(CancellationToken ct = default);          // FEmusic_new_releases
     Task<HomeResponse> GetMoodCategoryAsync(string browseId, string? categoryParams = null, CancellationToken ct = default); // FEmusic_moods_and_genres_category (Req 31.2)
@@ -108,3 +116,12 @@ public interface IYTMusicClient
     /// </summary>
     Task<Parsers.YouTubeMusicLyrics?> GetYouTubeMusicLyricsAsync(string videoId, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Result of a Charts browse: the Home-shaped section feed plus the country selector parsed from
+/// the <b>same</b> response, so showing the dropdown never costs a second request.
+/// </summary>
+/// <param name="Home">The chart shelves (same shape/parser as Home/Explore).</param>
+/// <param name="Countries">The country menu; <see cref="Parsers.ChartCountrySelector.Empty"/> when
+/// the response carries none.</param>
+public sealed record ChartsPage(HomeResponse Home, Parsers.ChartCountrySelector Countries);

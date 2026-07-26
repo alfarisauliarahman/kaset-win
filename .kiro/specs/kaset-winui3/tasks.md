@@ -992,6 +992,30 @@ kalinya), 4 gagal. Dua ditutup langsung, dua lagi dikerjakan:
   LANJUTAN yang dicatat, tidak dibangun diam-diam: "Simpan ke playlist" (plumbing picker),
   "Hapus dari riwayat" (butuh feedback-token di VM).
 
+### TEMUAN PUTARAN 10 (2026-07-23) — dikerjakan sebelum pengujian atas permintaan pemilik repo
+
+- [x] 79. **Klik artis di Library membuka halaman salah**
+  - **SEBAB**: artis yang di-follow tiba sebagai browse id `MPLAUC…` (library artist) dan
+    `GetArtistAsync` mem-browse-nya apa adanya → halaman library-artist tipis, "top songs"-nya
+    live/cover acak. Helper penormalnya (`LibraryContentIdentity.ArtistKey`, teruji property test)
+    sudah ada — tidak pernah dipakai di jalur ini.
+  - **PERBAIKAN**: `GetArtistAsync` menormalkan id lewat helper itu; semua pemanggil mendarat di
+    halaman artis publik.
+
+- [x] 80. **Explore "Jenis musik & suasana" = grid chip ala YT Music + see-all yang benar**
+  - Section moods dulu jatuh ke `SectionTemplate` generik (chip abu tanpa warna), dan see-all
+    menampilkan payload yang sama dengan deretan atas. Kini `MoodSectionTemplate` (chip + bar warna
+    kiri, 4 baris) dengan "Selengkapnya" → `FEmusic_moods_and_genres` (SEMUA kategori,
+    "Mood & momen"/"Genre"). LANJUTAN tercatat: warna stripe asli YT ada di respons
+    (`leftStripeColor`) tapi butuh field model Core baru — belum diambil.
+
+- [x] 81. **Dropdown negara di Charts**
+  - Bentuk request DIBUKTIKAN dari API live sebelum ditulis: `FEmusic_charts` +
+    `formData.selectedValues=["JP"]` → "Trending 20 Jepang". `GetChartsAsync(countryCode?)` baru
+    (`ChartsPage` = Home + `ChartCountrySelector`); menu negara diparse dari respons
+    (`ChartsCountryParser`, kode negara di-decode dari `formItemEntityKey` base64), TIDAK
+    di-hardcode. Pilihan di setting `explore.chartsCountry`. 2 fixture disanitasi + 9 test.
+
 - [ ] 69. **Race laten di `LoadTrackAsync`** — `_expectedVideoId`/`CurrentTrack` diset di luar
   `_loadGate` dan tidak atomik dengan `Interlocked.Increment(_loadGeneration)`. Kelas bug yang sama
   dengan ADR 0006, di baris berbeda. **Tidak terbukti** menyebabkan gejala; jendelanya nanodetik

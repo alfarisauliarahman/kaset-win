@@ -60,6 +60,7 @@ internal static class UiStrings
     internal static string ExploreNewReleases => IsIndonesian ? "Rilis baru" : "New Releases";
     internal static string ExploreCharts => IsIndonesian ? "Tangga lagu" : "Charts";
     internal static string ExploreMoodsGenres => IsIndonesian ? "Suasana & genre" : "Moods & Genres";
+    internal static string ChartsCountryPickerLabel => IsIndonesian ? "Pilih negara" : "Select country";
 
     // ── Library section headers ────────────────────────────────────────────────────────────────
 

@@ -30,6 +30,8 @@ public class FixtureLoaderSanityTests
 
     [Theory]
     [InlineData(TestFixtures.Surfaces.Home, "FEmusic_home")]
+    [InlineData(TestFixtures.Surfaces.Charts, "FEmusic_charts_ID")]
+    [InlineData(TestFixtures.Surfaces.Charts, "FEmusic_charts_JP")]
     [InlineData(TestFixtures.Surfaces.Search, "search")]
     [InlineData(TestFixtures.Surfaces.Library, "FEmusic_library_landing")]
     [InlineData(TestFixtures.Surfaces.Playlist, "playlist")]

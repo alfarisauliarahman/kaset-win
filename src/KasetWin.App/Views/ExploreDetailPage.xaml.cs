@@ -33,6 +33,10 @@ public sealed partial class ExploreDetailPage : Page
         this.InitializeComponent();
         LoadMoreButton.Content = Localization.UiStrings.LoadMore;
 
+        // The dropdown announces only its current value ("Indonesia") without a name — Narrator
+        // would read an unnamed combo box (Req 38). The name follows the app language.
+        Accessibility.A11y.Label(ChartsCountryPicker, Localization.UiStrings.ChartsCountryPickerLabel);
+
         var services = App.Current.Services;
         _player = services.GetService<IPlayerService>();
         var client = services.GetRequiredService<IYTMusicClient>();

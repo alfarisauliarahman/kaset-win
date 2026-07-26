@@ -45,7 +45,7 @@ internal sealed class FakeYTMusicClient : IYTMusicClient
     public Task<HomeResponse> GetHomeAsync(CancellationToken ct = default) => throw new NotSupportedException();
     public Task<HomeResponse> GetHomeContinuationAsync(string token, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<HomeResponse> GetExploreAsync(CancellationToken ct = default) => throw new NotSupportedException();
-    public Task<HomeResponse> GetChartsAsync(CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<ChartsPage> GetChartsAsync(string? countryCode = null, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<HomeResponse> GetMoodsAndGenresAsync(CancellationToken ct = default) => throw new NotSupportedException();
     public Task<HomeResponse> GetNewReleasesAsync(CancellationToken ct = default) => throw new NotSupportedException();
     public Task<HomeResponse> GetMoodCategoryAsync(string browseId, string? categoryParams = null, CancellationToken ct = default) => throw new NotSupportedException();

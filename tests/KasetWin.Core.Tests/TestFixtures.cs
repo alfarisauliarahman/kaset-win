@@ -17,6 +17,7 @@ public static class TestFixtures
     public static class Surfaces
     {
         public const string Home = "Home";
+        public const string Charts = "Charts";
         public const string Search = "Search";
         public const string Library = "Library";
         public const string Playlist = "Playlist";

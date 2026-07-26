@@ -340,11 +340,82 @@
             </StackPanel>
         </DataTemplate>
 
-        <!-- Chooses the chart grid for Trending/chart sections, the shelf for everything else. -->
+        <!-- Moods & genres ("Jenis musik & suasana"): YT Music-style chip grid — dark cards with a
+             small colour bar at the left + the category name, 4 rows flowing column-major behind a
+             horizontal scroll, plus "Selengkapnya". The see-all deliberately browses the FULL
+             category list (FEmusic_moods_and_genres) instead of re-showing this same shelf's
+             payload. -->
+        <DataTemplate x:Key="MoodSectionTemplate" x:DataType="vm:HomeSectionView">
+            <StackPanel Margin="0,0,0,8" Spacing="12">
+                <Grid>
+                    <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <Button
+                        HorizontalAlignment="Right"
+                        Click="OnMoodsSeeAllClick"
+                        Content="{x:Bind loc:UiStrings.MoreLabel}" />
+                </Grid>
+                <ScrollViewer
+                    behaviors:VerticalWheelForwarder.IsEnabled="True"
+                    HorizontalScrollBarVisibility="Auto"
+                    HorizontalScrollMode="Enabled"
+                    VerticalScrollBarVisibility="Disabled"
+                    VerticalScrollMode="Disabled">
+                    <controls:ItemsRepeater ItemsSource="{x:Bind Items}">
+                        <controls:ItemsRepeater.Layout>
+                            <controls:UniformGridLayout
+                                MaximumRowsOrColumns="4"
+                                MinColumnSpacing="8"
+                                MinRowSpacing="8"
+                                Orientation="Vertical" />
+                        </controls:ItemsRepeater.Layout>
+                        <controls:ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HomeCardItem">
+                                <Grid
+                                    Width="220"
+                                    Height="48"
+                                    Padding="12,0"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    ColumnSpacing="12"
+                                    CornerRadius="6"
+                                    DataContext="{x:Bind}"
+                                    IsTabStop="True"
+                                    KeyDown="OnCardKeyDown"
+                                    Tapped="OnItemClick"
+                                    UseSystemFocusVisuals="True">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border
+                                        Width="4"
+                                        Height="24"
+                                        VerticalAlignment="Center"
+                                        Background="{x:Bind ChipBrush}"
+                                        CornerRadius="2" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        MaxLines="1"
+                                        Text="{x:Bind Title}"
+                                        TextTrimming="CharacterEllipsis"
+                                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                </Grid>
+                            </DataTemplate>
+                        </controls:ItemsRepeater.ItemTemplate>
+                    </controls:ItemsRepeater>
+                </ScrollViewer>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Chooses the chart grid for Trending/chart sections, the chip grid for moods,
+             the shelf for everything else. -->
         <views:HomeSectionTemplateSelector
             x:Key="SectionTemplateSelector"
             ArtistChartTemplate="{StaticResource ArtistChartSectionTemplate}"
             ChartTemplate="{StaticResource ChartSectionTemplate}"
+            MoodTemplate="{StaticResource MoodSectionTemplate}"
             ShelfTemplate="{StaticResource SectionTemplate}"
             VideoTemplate="{StaticResource VideoSectionTemplate}" />
     </Page.Resources>

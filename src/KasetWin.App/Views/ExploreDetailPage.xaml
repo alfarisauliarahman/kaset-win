@@ -9,6 +9,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:loc="using:KasetWin.App.Localization"
+    xmlns:parsers="using:KasetWin.Core.Services.Api.Parsers"
     xmlns:views="using:KasetWin.App.Views"
     xmlns:vm="using:KasetWin.App.ViewModels"
     mc:Ignorable="d">
@@ -131,20 +132,33 @@
                                                 Visibility="{x:Bind CanPlay, Converter={StaticResource BoolToVisibility}}">
                                                 <FontIcon FontSize="16" Glyph="&#xE768;" />
                                             </Button>
-                                            <!-- Mood/genre chip: solid colour tile with the title inside (no cover art). -->
+                                            <!-- Mood/genre chip, YT Music style: dark card with a small
+                                                 colour bar at the left + the category name (no cover art). -->
                                             <Border
-                                                Padding="12"
-                                                Background="{x:Bind ChipBrush}"
-                                                CornerRadius="8"
+                                                Padding="12,0"
+                                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="6"
                                                 Visibility="{x:Bind IsMood, Converter={StaticResource BoolToVisibility}}">
-                                                <TextBlock
+                                                <StackPanel
                                                     VerticalAlignment="Center"
-                                                    Foreground="White"
-                                                    MaxLines="2"
-                                                    Text="{x:Bind Title}"
-                                                    TextTrimming="CharacterEllipsis"
-                                                    TextWrapping="Wrap"
-                                                    Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                    Orientation="Horizontal"
+                                                    Spacing="12">
+                                                    <Border
+                                                        Width="4"
+                                                        Height="24"
+                                                        VerticalAlignment="Center"
+                                                        Background="{x:Bind ChipBrush}"
+                                                        CornerRadius="2" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        MaxLines="2"
+                                                        Text="{x:Bind Title}"
+                                                        TextTrimming="CharacterEllipsis"
+                                                        TextWrapping="Wrap"
+                                                        Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                </StackPanel>
                                             </Border>
                                         </Grid>
                                         <TextBlock
@@ -172,38 +186,55 @@
             </StackPanel>
         </DataTemplate>
 
-        <!-- Moods & genres: colour chips flowing left-to-right, wrapping to new rows (no h-scroll). -->
+        <!-- Moods & genres (full category list): YT Music-style chips — dark cards with a small
+             colour bar at the left + the name — flowing left-to-right, wrapping (no h-scroll),
+             grouped under the server's own "Mood & momen" / "Genre" section headers. -->
         <DataTemplate x:Key="MoodSectionTemplate" x:DataType="vm:HomeSectionView">
             <StackPanel Margin="0,0,0,8" Spacing="12">
                 <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" />
                 <controls:ItemsRepeater ItemsSource="{x:Bind Items}">
                     <controls:ItemsRepeater.Layout>
                         <controls:UniformGridLayout
-                            MinColumnSpacing="10"
-                            MinItemHeight="84"
-                            MinItemWidth="160"
-                            MinRowSpacing="10"
+                            MinColumnSpacing="8"
+                            MinItemHeight="48"
+                            MinItemWidth="220"
+                            MinRowSpacing="8"
                             Orientation="Horizontal" />
                     </controls:ItemsRepeater.Layout>
                     <controls:ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:HomeCardItem">
-                            <Border
-                                Width="160"
-                                Height="84"
-                                Background="{x:Bind ChipBrush}"
-                                CornerRadius="8"
+                            <Grid
+                                Width="220"
+                                Height="48"
+                                Padding="12,0"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                ColumnSpacing="12"
+                                CornerRadius="6"
                                 DataContext="{x:Bind}"
-                                Tapped="OnItemClick">
-                                <TextBlock
-                                    Margin="12"
+                                IsTabStop="True"
+                                KeyDown="OnCardKeyDown"
+                                Tapped="OnItemClick"
+                                UseSystemFocusVisuals="True">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border
+                                    Width="4"
+                                    Height="24"
                                     VerticalAlignment="Center"
-                                    Foreground="White"
-                                    MaxLines="2"
+                                    Background="{x:Bind ChipBrush}"
+                                    CornerRadius="2" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    MaxLines="1"
                                     Text="{x:Bind Title}"
                                     TextTrimming="CharacterEllipsis"
-                                    TextWrapping="Wrap"
                                     Style="{StaticResource BodyStrongTextBlockStyle}" />
-                            </Border>
+                            </Grid>
                         </DataTemplate>
                     </controls:ItemsRepeater.ItemTemplate>
                 </controls:ItemsRepeater>
@@ -304,7 +335,26 @@
     <Grid>
         <ScrollViewer>
             <StackPanel Margin="24" Spacing="24">
-                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="{x:Bind ViewModel.Title, Mode=OneWay}" />
+                <Grid>
+                    <TextBlock VerticalAlignment="Center" Style="{StaticResource TitleTextBlockStyle}" Text="{x:Bind ViewModel.Title, Mode=OneWay}" />
+                    <!-- Charts only (collapsed elsewhere): the country picker YT Music shows on its
+                         Charts page. Options come from the charts response itself, so the list is
+                         never hardcoded; picking a country reloads just this charts feed. -->
+                    <ComboBox
+                        x:Name="ChartsCountryPicker"
+                        MinWidth="160"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        ItemsSource="{x:Bind ViewModel.ChartCountries}"
+                        SelectedItem="{x:Bind ViewModel.SelectedChartCountry, Mode=TwoWay}"
+                        Visibility="{x:Bind ViewModel.HasChartCountries, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="parsers:ChartCountry">
+                                <TextBlock Text="{x:Bind Name}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
 
                 <controls:ItemsRepeater
                     ItemTemplate="{StaticResource SectionTemplateSelector}"

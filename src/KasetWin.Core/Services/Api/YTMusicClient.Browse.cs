@@ -141,11 +141,29 @@ public sealed partial class YTMusicClient
     }
 
     /// <inheritdoc />
-    public async Task<HomeResponse> GetChartsAsync(CancellationToken ct = default)
+    public async Task<ChartsPage> GetChartsAsync(string? countryCode = null, CancellationToken ct = default)
     {
-        var node = await RequestAsync("browse", BrowseBody("FEmusic_charts"), ApiCacheTtl.Explore, ct)
+        var body = BrowseBody("FEmusic_charts");
+        if (!string.IsNullOrWhiteSpace(countryCode))
+        {
+            // Verified against the live API (2026-07): FEmusic_charts honours
+            // formData.selectedValues[<region code>] and answers with that country's charts
+            // ("Trending 20 Indonesia" vs "Trending 20 Jepang"). Omitting formData lets the
+            // server fall back to the account/IP region. The body participates in the cache key,
+            // so each country ages independently under the shared Explore TTL.
+            body["formData"] = new JsonObject
+            {
+                ["selectedValues"] = new JsonArray(countryCode),
+            };
+        }
+
+        var node = await RequestAsync("browse", body, ApiCacheTtl.Explore, ct)
             .ConfigureAwait(false);
-        return ParseHomeOrEmpty(node, "charts");
+
+        // The country menu rides in the same response; parsing it here (instead of a second
+        // request) keeps the dropdown free and — per the resilient-parser contract — its absence
+        // degrades to an empty selector, never an error.
+        return new ChartsPage(ParseHomeOrEmpty(node, "charts"), ChartsCountryParser.Parse(node));
     }
 
     /// <inheritdoc />
@@ -378,6 +396,13 @@ public sealed partial class YTMusicClient
     public async Task<ArtistDetail> GetArtistAsync(string channelId, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(channelId);
+
+        // A followed artist reaches here from the Library as its MPLAUC… library browse id.
+        // Browsing that id yields the library-artist page — a thin, library-scoped shape whose
+        // "top songs" are whatever happens to be saved (live cuts, covers), which reads as "this is
+        // not the real artist page" (it isn't). The public channel id is embedded right in the
+        // library id, and the identity helper already knows how to extract it.
+        channelId = Services.Library.LibraryContentIdentity.ArtistKey(channelId);
 
         var node = await RequestAsync("browse", BrowseBody(channelId), ApiCacheTtl.Artist, ct)
             .ConfigureAwait(false);

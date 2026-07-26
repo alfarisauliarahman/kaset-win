@@ -27,7 +27,20 @@ public sealed record ExploreDestination(string BrowseId, string Title);
 /// </summary>
 public sealed partial class ExploreDetailViewModel : SectionFeedViewModel
 {
+    private const string ChartsBrowseId = "FEmusic_charts";
+
+    /// <summary>Persisted country pick for the Charts surface (ISO 3166-1 alpha-2, "ZZ" = Global).</summary>
+    private const string ChartsCountrySettingKey = "explore.chartsCountry";
+
     private string _browseId = "FEmusic_explore";
+
+    // The country the NEXT charts load will request; null defers to the server (account/IP region),
+    // which is the desired first-run default — the response then tells us what it picked.
+    private string? _chartsCountry;
+
+    // Repopulating the ComboBox raises SelectedItem callbacks; only a USER pick may persist +
+    // reload, so programmatic (re)selection is fenced off with this guard.
+    private bool _applyingChartCountry;
 
     private readonly IQueueService? _queue;
     private readonly Notifications.IInAppNotifier? _notifier;
@@ -89,10 +102,107 @@ public sealed partial class ExploreDetailViewModel : SectionFeedViewModel
     [ObservableProperty]
     private string _title = "Explore";
 
+    // ── Charts country dropdown ──────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The selectable chart countries, parsed out of the charts response itself
+    /// (<c>musicSortFilterButtonRenderer</c>) — never a hardcoded list. Empty on non-Charts
+    /// destinations, which keeps the dropdown collapsed there.
+    /// </summary>
+    public System.Collections.ObjectModel.ObservableCollection<ChartCountry> ChartCountries { get; } = [];
+
+    /// <summary>The country currently shown/selected in the Charts dropdown.</summary>
+    [ObservableProperty]
+    private ChartCountry? _selectedChartCountry;
+
+    /// <summary>Whether the response carried a country menu (gates the dropdown's visibility).</summary>
+    [ObservableProperty]
+    private bool _hasChartCountries;
+
+    partial void OnSelectedChartCountryChanged(ChartCountry? value)
+    {
+        if (_applyingChartCountry || value is null
+            || string.Equals(value.Code, _chartsCountry, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _chartsCountry = value.Code;
+        SaveChartsCountry(value.Code);
+
+        // Reload ONLY this charts feed with the new formData; the Explore landing page is a
+        // separate surface and stays untouched. Errors surface via the base ErrorMessage.
+        _ = LoadInitialAsync();
+    }
+
+    private async Task<HomeResponse> FetchChartsAsync(CancellationToken ct)
+    {
+        var page = await Client.GetChartsAsync(_chartsCountry, ct).ConfigureAwait(true);
+        ApplyChartCountrySelector(page.Countries);
+        return page.Home;
+    }
+
+    private void ApplyChartCountrySelector(ChartCountrySelector selector)
+    {
+        _applyingChartCountry = true;
+        try
+        {
+            ChartCountries.Clear();
+            foreach (var option in selector.Options)
+            {
+                ChartCountries.Add(option);
+            }
+
+            // Prefer the server-declared selection (the filter button's own label): when the
+            // request sent no formData, that is the only way to learn the account's region.
+            var effectiveCode = selector.SelectedCode ?? _chartsCountry;
+            SelectedChartCountry = selector.Options.FirstOrDefault(
+                o => string.Equals(o.Code, effectiveCode, StringComparison.Ordinal));
+
+            // Track what is now applied so re-picking the same country is a no-op.
+            _chartsCountry = SelectedChartCountry?.Code ?? _chartsCountry;
+            HasChartCountries = ChartCountries.Count > 0;
+        }
+        finally
+        {
+            _applyingChartCountry = false;
+        }
+    }
+
+    // Read/write straight through the Platform settings bag (works packaged and unpackaged),
+    // guarded like AppHost's lyrics pin: a storage hiccup may cost the preference, never the page.
+    private static string? ReadSavedChartsCountry()
+    {
+        try
+        {
+            return KasetWin.Platform.Storage.AppData.Settings[ChartsCountrySettingKey] as string;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void SaveChartsCountry(string code)
+    {
+        try
+        {
+            KasetWin.Platform.Storage.AppData.Settings[ChartsCountrySettingKey] = code;
+        }
+        catch
+        {
+            // Preference only — losing it costs one re-pick on the next visit.
+        }
+    }
+
     /// <inheritdoc />
     // Keyed by browse id so navigating between different Explore destinations loads each
     // independently while re-entrant loads of the same destination still coalesce (Req 16.3).
-    protected override string SurfaceKey => $"explore-detail:{_browseId}";
+    // Charts also keys on the country: without it, picking a second country while the first
+    // load is still in flight would silently JOIN that load and never fetch the new country.
+    protected override string SurfaceKey => _browseId == ChartsBrowseId
+        ? $"explore-detail:{_browseId}:{_chartsCountry ?? "auto"}"
+        : $"explore-detail:{_browseId}";
 
     /// <summary>
     /// Points the ViewModel at <paramref name="destination"/>. Must be called before
@@ -103,13 +213,20 @@ public sealed partial class ExploreDetailViewModel : SectionFeedViewModel
         ArgumentNullException.ThrowIfNull(destination);
         _browseId = string.IsNullOrEmpty(destination.BrowseId) ? "FEmusic_explore" : destination.BrowseId;
         Title = string.IsNullOrEmpty(destination.Title) ? "Explore" : destination.Title;
+
+        if (_browseId == ChartsBrowseId)
+        {
+            // The saved pick (if any) rides on the very first load; absent, the server decides
+            // from the account region and the response tells the dropdown what it picked.
+            _chartsCountry = ReadSavedChartsCountry();
+        }
     }
 
     /// <inheritdoc />
     protected override Task<HomeResponse> FetchInitialAsync(CancellationToken ct) => _browseId switch
     {
         "FEmusic_new_releases" => Client.GetNewReleasesAsync(ct),
-        "FEmusic_charts" => Client.GetChartsAsync(ct),
+        ChartsBrowseId => FetchChartsAsync(ct),
         "FEmusic_moods_and_genres" => Client.GetMoodsAndGenresAsync(ct),
         _ when MoodCategoryId.IsMoodCategory(_browseId) => FetchMoodCategoryAsync(ct),
         _ => Client.GetExploreAsync(ct),
