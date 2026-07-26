@@ -10,21 +10,27 @@ using Windows.System;
 namespace KasetWin.App;
 
 /// <summary>
-/// Global mouse-wheel smoothing + horizontal-shelf disambiguation, applied to every page the shell
-/// hosts (no per-page XAML wiring). Two problems are solved at once, everywhere:
-/// <list type="bullet">
-/// <item><b>Jumpy vertical scrolling.</b> The page's outer scroller is driven by an accumulated,
-/// animated <see cref="ScrollViewer.ChangeView(double?, double?, float?)"/> target instead of the
-/// framework's stepped wheel scroll, so a wheel spin glides instead of snapping line by line.</item>
-/// <item><b>Vertical wheel scrolling a horizontal card rail sideways.</b> A plain vertical wheel over
-/// a horizontal shelf is swallowed at the shelf (so it does not scroll sideways) while the outer page
-/// still scrolls vertically — no more "one spin does two things". Shift+wheel / tilt wheel still pans
-/// the shelf.</item>
-/// </list>
-/// Handlers are (re)attached on navigation and, for virtualized section lists, as each section is
-/// realized (<see cref="ItemsRepeater.ElementPrepared"/>), so shelves scrolled into view later are
-/// covered too.
+/// One central mouse-wheel policy for everything the content frame hosts: a plain vertical wheel
+/// always scrolls the PAGE (smoothly), never a horizontal card rail sideways; Shift+wheel and a
+/// tilt wheel still pan the rail.
 /// </summary>
+/// <remarks>
+/// <para>
+/// The previous design attached a swallow handler to each horizontal shelf it could find in the
+/// visual tree at navigation time, plus <c>ItemsRepeater.ElementPrepared</c> for late arrivals.
+/// That enumeration was structurally incomplete: shelves inside virtualized <c>GridView</c>/
+/// <c>ListView</c> items realize long after <c>Loaded</c>, and a shelf that was never attached fell
+/// back to default WinUI routing — the wheel scrolled the rail sideways AND the page handler
+/// (registered <c>handledEventsToo</c>) scrolled vertically, one spin doing two things at once.
+/// Three rounds of testing reported it "still mixed" because every round left different shelves
+/// unenumerated.
+/// </para>
+/// <para>
+/// So the policy now lives at exactly one place, the content frame, attached once and inspecting
+/// the ancestor chain of whatever the wheel actually hit. There is nothing to enumerate and no
+/// realization timing to lose a race to.
+/// </para>
+/// </remarks>
 public sealed partial class MainWindow
 {
     private sealed class ScrollTarget
@@ -35,94 +41,69 @@ public sealed partial class MainWindow
 
     private readonly ConditionalWeakTable<ScrollViewer, ScrollTarget> _scrollTargets = new();
 
-    /// <summary>Wires smooth-scroll + shelf handling for the page currently in the content frame.</summary>
+    private bool _wheelPolicyAttached;
+
+    /// <summary>Attaches the single wheel policy handler. Idempotent; called on navigation.</summary>
     private void HookPageScrolling()
     {
-        if (ContentFrame.Content is not FrameworkElement page)
+        if (_wheelPolicyAttached)
         {
             return;
         }
 
-        void Hook()
-        {
-            // 1) Smooth vertical wheel on the page's outer scroller (handledEventsToo so it still runs
-            //    for wheel a shelf swallowed).
-            if (FindPageScrollViewer(page) is { Content: UIElement outerContent })
-            {
-                outerContent.RemoveHandler(UIElement.PointerWheelChangedEvent, (PointerEventHandler)OnPageWheel);
-                outerContent.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(OnPageWheel), handledEventsToo: true);
-            }
+        _wheelPolicyAttached = true;
 
-            // 2) Swallow vertical wheel on every realized horizontal shelf.
-            AttachShelvesIn(page);
-
-            // 3) Cover shelves that realize later (virtualized section lists).
-            foreach (var repeater in FindDescendants<ItemsRepeater>(page))
-            {
-                repeater.ElementPrepared -= OnSectionRealized;
-                repeater.ElementPrepared += OnSectionRealized;
-            }
-        }
-
-        if (page.IsLoaded)
-        {
-            Hook();
-        }
-        else
-        {
-            page.Loaded += (_, _) => Hook();
-        }
+        // handledEventsToo: a shelf's own ScrollViewer marks wheel events handled while it scrolls
+        // them; the policy must see the event regardless, or the rail keeps winning.
+        ContentFrame.AddHandler(
+            UIElement.PointerWheelChangedEvent,
+            new PointerEventHandler(OnFrameWheel),
+            handledEventsToo: true);
     }
 
-    private void OnSectionRealized(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
+    private void OnFrameWheel(object sender, PointerRoutedEventArgs e)
     {
-        if (args.Element is DependencyObject element)
+        if (e.OriginalSource is not DependencyObject origin
+            || !IsPlainVerticalWheel(e, ContentFrame, out var delta))
         {
-            AttachShelvesIn(element);
+            return; // Shift+wheel / tilt wheel: let the rail pan.
         }
-    }
 
-    /// <summary>Attaches the vertical-wheel swallow to every horizontal-only shelf under <paramref name="root"/>.</summary>
-    private void AttachShelvesIn(DependencyObject root)
-    {
-        foreach (var sv in FindDescendants<ScrollViewer>(root))
+        // Walk up from what the wheel hit. The first scroller decides:
+        //  - vertical-capable → that is the scroller the user means; glide it.
+        //  - horizontal-only (a card rail) → skip it and keep walking to the page scroller, so the
+        //    rail never moves sideways on a vertical wheel.
+        ScrollViewer? vertical = null;
+        for (DependencyObject? current = origin; current is not null; current = VisualTreeHelper.GetParent(current))
         {
-            if (sv.HorizontalScrollMode == ScrollMode.Enabled
-                && sv.VerticalScrollMode == ScrollMode.Disabled
-                && sv.Content is UIElement content)
+            if (current is ScrollViewer sv)
             {
-                content.RemoveHandler(UIElement.PointerWheelChangedEvent, (PointerEventHandler)OnShelfWheel);
-                content.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(OnShelfWheel), handledEventsToo: false);
+                if (IsVerticallyScrollable(sv))
+                {
+                    vertical = sv;
+                    break;
+                }
+
+                // Horizontal-only rail: deliberately NOT the target; continue upward.
             }
         }
-    }
 
-    private void OnPageWheel(object sender, PointerRoutedEventArgs e)
-    {
-        if (sender is not UIElement element || !IsPlainVerticalWheel(e, element, out var delta))
+        if (vertical is null)
         {
             return;
         }
 
-        if (FindAncestorVerticalScrollViewer(element) is not { } scrollViewer)
-        {
-            return;
-        }
-
-        SmoothScrollBy(scrollViewer, -delta);
+        SmoothScrollBy(vertical, -delta);
         e.Handled = true;
     }
 
-    private void OnShelfWheel(object sender, PointerRoutedEventArgs e)
-    {
-        // A plain vertical wheel must not scroll the shelf sideways — swallow it here (the page's
-        // OnPageWheel, registered handledEventsToo, still performs the vertical scroll). Shift+wheel
-        // and tilt wheel fall through so they still pan the shelf.
-        if (sender is UIElement element && IsPlainVerticalWheel(e, element, out _))
-        {
-            e.Handled = true;
-        }
-    }
+    /// <summary>
+    /// Whether <paramref name="sv"/> is a scroller a vertical wheel should drive. Mode alone is not
+    /// enough: a rail's inner scroller can report <c>Auto</c> while having nothing to scroll
+    /// vertically, so the actual scrollable extent is consulted too.
+    /// </summary>
+    private static bool IsVerticallyScrollable(ScrollViewer sv) =>
+        sv.VerticalScrollMode != ScrollMode.Disabled && sv.ScrollableHeight > 0;
 
     private static bool IsPlainVerticalWheel(PointerRoutedEventArgs e, UIElement relativeTo, out int delta)
     {
@@ -152,54 +133,5 @@ public sealed partial class MainWindow
         target.Value = next;
         target.HasValue = true;
         scrollViewer.ChangeView(null, next, null);
-    }
-
-    /// <summary>The page's main vertical scroller (skips horizontal shelves, which disable vertical scroll).</summary>
-    private static ScrollViewer? FindPageScrollViewer(DependencyObject root)
-    {
-        foreach (var sv in FindDescendants<ScrollViewer>(root))
-        {
-            if (sv.VerticalScrollMode != ScrollMode.Disabled)
-            {
-                return sv;
-            }
-        }
-
-        return null;
-    }
-
-    private static ScrollViewer? FindAncestorVerticalScrollViewer(DependencyObject start)
-    {
-        var current = VisualTreeHelper.GetParent(start);
-        while (current is not null)
-        {
-            if (current is ScrollViewer sv && sv.VerticalScrollMode != ScrollMode.Disabled)
-            {
-                return sv;
-            }
-
-            current = VisualTreeHelper.GetParent(current);
-        }
-
-        return null;
-    }
-
-    /// <summary>Depth-first enumeration of visual descendants of type <typeparamref name="T"/>.</summary>
-    private static IEnumerable<T> FindDescendants<T>(DependencyObject root) where T : DependencyObject
-    {
-        var count = VisualTreeHelper.GetChildrenCount(root);
-        for (var i = 0; i < count; i++)
-        {
-            var child = VisualTreeHelper.GetChild(root, i);
-            if (child is T match)
-            {
-                yield return match;
-            }
-
-            foreach (var descendant in FindDescendants<T>(child))
-            {
-                yield return descendant;
-            }
-        }
     }
 }

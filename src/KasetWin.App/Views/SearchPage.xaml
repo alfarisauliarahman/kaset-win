@@ -253,6 +253,9 @@
                 <!-- Top Results: a prominent Apple-Music-style card. -->
                 <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.HasTopResult, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock x:Name="TopResultsHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Top Results" />
+                    <!-- Right-click menu built in code (ContextRequested): the top result is
+                         polymorphic (song/album/playlist/artist), so the offered actions depend on
+                         the concrete kind — same rule as the entity cards below. -->
                     <Button
                         MaxWidth="620"
                         MinWidth="440"
@@ -263,6 +266,7 @@
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1"
                         Click="OnTopResultClick"
+                        ContextRequested="OnTopResultContextRequested"
                         CornerRadius="10">
                         <Grid ColumnSpacing="16">
                             <Grid.ColumnDefinitions>

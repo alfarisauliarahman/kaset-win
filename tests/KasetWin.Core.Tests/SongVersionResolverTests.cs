@@ -123,8 +123,11 @@ public class SongVersionResolverTests
     // ── PlayerService integration: the swap happens before anything observes the load ──
 
     [Fact]
-    public async Task PlayingAVideo_LoadsTheSongVersion_AndRewritesTheQueueEntry()
+    public async Task ADeliberatelyPickedVideo_PlaysAsTheVideo()
     {
+        // Round-13 correction from the owner: rows the user picks AS a video (music-video cards,
+        // search's video tab) carry a known Omv/Ugc type — those play untouched. The substitution
+        // exists for videos hiding behind song-context rows, not for videos the user asked for.
         var queue = new QueueService(bound => 0);
         var controller = new FakePlaybackController();
         var resolver = Resolver([AlbumTrack("atv1", "Song")]);
@@ -135,8 +138,26 @@ public class SongVersionResolverTests
 
         await player.PlaySongAsync(Video("omv1", "Song (Official Video)"));
 
-        // The controller only ever saw the audio id, and the queue's identity moved with it — a
-        // queue still holding omv1 would treat atv1's own reports as foreign drift.
+        Assert.Equal(["omv1"], controller.LoadedVideoIds);
+    }
+
+    [Fact]
+    public async Task AnAlbumRow_HidingAVideo_ComesOutAsTheSongVersion()
+    {
+        // Album/single/EP/playlist rows never carry a VideoType; when the id behind one turns out
+        // to be a video, the song version must play — and the queue's identity moves with it, or
+        // atv1's own reports would look like foreign drift.
+        var queue = new QueueService(bound => 0);
+        var controller = new FakePlaybackController();
+        var meta = Video("omv1", "Song", albumId: "MPREb_A");
+        var resolver = Resolver([AlbumTrack("atv1", "Song")], metadata: meta);
+        var player = new PlayerService(
+            queue, controller, new FakeJsBridge(),
+            songVersionResolver: resolver,
+            preferSongVersion: () => true);
+
+        await player.PlaySongAsync(Video("omv1", "Song") with { VideoType = null, Album = null });
+
         Assert.Equal(["atv1"], controller.LoadedVideoIds);
         Assert.Equal("atv1", queue.CurrentTrack?.VideoId);
         Assert.Equal("atv1", player.CurrentTrack?.VideoId);
@@ -153,7 +174,7 @@ public class SongVersionResolverTests
             songVersionResolver: resolver,
             preferSongVersion: () => false);
 
-        await player.PlaySongAsync(Video("omv1", "Song"));
+        await player.PlaySongAsync(Video("omv1", "Song") with { VideoType = null, Album = null });
 
         Assert.Equal(["omv1"], controller.LoadedVideoIds);
     }

@@ -41,7 +41,16 @@
                                 ContextRequested="OnCardContextRequested"
                                 CornerRadius="8"
                                 DataContext="{x:Bind}"
+                                PointerEntered="OnCardPointerEntered"
+                                PointerExited="OnCardPointerExited"
                                 Tapped="OnItemClick">
+                                <!-- Same ListViewItem-like hover affordance as the Home/Explore
+                                     cards (CardHover toggled by CardPlayOverlay). -->
+                                <Border
+                                    x:Name="CardHover"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    CornerRadius="8"
+                                    Opacity="0" />
                                 <StackPanel Spacing="2">
                                     <Border Width="240" Height="135" Margin="0,0,0,4" CornerRadius="8">
                                         <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
@@ -64,12 +73,24 @@
                                 Background="Transparent"
                                 ColumnSpacing="14"
                                 ContextRequested="OnCardContextRequested"
+                                PointerEntered="OnCardPointerEntered"
+                                PointerExited="OnCardPointerExited"
                                 Tapped="OnItemClick">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="36" />
                                     <ColumnDefinition Width="56" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
+                                <!-- Row-wide hover affordance (CardHover toggled by CardPlayOverlay);
+                                     spans all columns so the whole row highlights. -->
+                                <Border
+                                    x:Name="CardHover"
+                                    Grid.Column="0"
+                                    Grid.ColumnSpan="3"
+                                    Margin="-8"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    CornerRadius="8"
+                                    Opacity="0" />
                                 <TextBlock
                                     Grid.Column="0"
                                     HorizontalAlignment="Center"

@@ -212,7 +212,16 @@
                                     DataContext="{x:Bind}"
                                     IsTabStop="True"
                                     KeyDown="OnCardKeyDown"
+                                    PointerEntered="OnCardPointerEntered"
+                                    PointerExited="OnCardPointerExited"
                                     Tapped="OnItemClick">
+                                    <!-- Same ListViewItem-like hover affordance as the shelf cards
+                                         (CardHover toggled by CardPlayOverlay). -->
+                                    <Border
+                                        x:Name="CardHover"
+                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                        CornerRadius="8"
+                                        Opacity="0" />
                                     <StackPanel Spacing="2">
                                         <Border
                                             Width="240"
@@ -377,15 +386,26 @@
                                 <Grid
                                     Width="220"
                                     Height="48"
-                                    Padding="14,0"
                                     Background="{x:Bind ChipBrush}"
                                     CornerRadius="6"
                                     DataContext="{x:Bind}"
                                     IsTabStop="True"
                                     KeyDown="OnCardKeyDown"
+                                    PointerEntered="OnCardPointerEntered"
+                                    PointerExited="OnCardPointerExited"
                                     Tapped="OnItemClick"
                                     UseSystemFocusVisuals="True">
+                                    <!-- Hover = 8% black scrim over the full-colour chip (CardHover
+                                         toggled by CardPlayOverlay; a background swap cannot work
+                                         here because the chip owns its category colour). The text
+                                         carries the side padding so the scrim covers the whole chip. -->
+                                    <Border
+                                        x:Name="CardHover"
+                                        Background="#14000000"
+                                        CornerRadius="6"
+                                        Opacity="0" />
                                     <TextBlock
+                                        Margin="14,0"
                                         VerticalAlignment="Center"
                                         Foreground="{x:Bind ChipTextBrush}"
                                         MaxLines="1"

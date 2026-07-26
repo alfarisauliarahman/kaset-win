@@ -150,9 +150,36 @@ public sealed partial class MainWindow
     /// </summary>
     private void OnNavItemExpanding(NavigationView sender, NavigationViewItemExpandingEventArgs args)
     {
-        if (ReferenceEquals(args.ExpandingItemContainer, PlaylistsNavItem))
+        if (!ReferenceEquals(args.ExpandingItemContainer, PlaylistsNavItem))
         {
-            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, AnimatePlaylistChildren);
+            return;
+        }
+
+        // Hide the children SYNCHRONOUSLY, before the expand pass renders its first frame. The
+        // storyboard start below stays deferred (it must run after NavigationView's own expand
+        // pass), but with visible children that deferral painted them at full opacity for a frame
+        // or two and THEN blanked + animated them — "they pop in, then the animation plays"
+        // (round 13). A plain Opacity set is safe mid-expand: the 0xc000027b fail-fast came from
+        // the composition path (Translation / ScalarTransition), so the RenderTransform setup is
+        // still left to the deferred callback.
+        foreach (var item in PlaylistsNavItem.MenuItems)
+        {
+            if (item is NavigationViewItem child)
+            {
+                child.Opacity = 0;
+            }
+        }
+
+        if (!DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, AnimatePlaylistChildren))
+        {
+            // Dispatcher gone (shutdown): never leave the children invisible.
+            foreach (var item in PlaylistsNavItem.MenuItems)
+            {
+                if (item is NavigationViewItem child)
+                {
+                    child.Opacity = 1;
+                }
+            }
         }
     }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using KasetWin.App.ViewModels;
@@ -55,6 +56,19 @@ public sealed partial class MiniPlayerView : UserControl
     /// <summary>Backs the queue panel. Null only when DI is unavailable (design time).</summary>
     public QueueViewModel? Queue { get; }
 
+    /// <summary>
+    /// The tail of <see cref="QueueViewModel.History"/> shown dimmed above the now-playing card.
+    /// The side panel renders the whole history; at mini scale anything beyond
+    /// <see cref="PlayedTailMax"/> rows would push "Up next" out of the ~300px viewport.
+    /// </summary>
+    // INTERNAL on purpose, and it must stay that way: a PUBLIC property on a XAML UserControl is
+    // catalogued into XamlTypeInfo, and a generic collection drags its item type in with it —
+    // Song, whose init-only members the generator then tries to write setters for (36× CS8852).
+    // {x:Bind} only needs same-assembly visibility, so internal costs nothing.
+    internal ObservableCollection<Song> PlayedTail { get; } = [];
+
+    private const int PlayedTailMax = 3;
+
     public MiniPlayerView()
     {
         var services = (Application.Current as App)?.Services;
@@ -87,6 +101,7 @@ public sealed partial class MiniPlayerView : UserControl
         MiniSeekSlider.AddHandler(PointerCaptureLostEvent, new PointerEventHandler(OnSeekPointerReleased), handledEventsToo: true);
 
         ApplyToggleTints();
+        RefreshPlayedTail();
         UpdateQueueEmptyVisual();
         ApplyLanguage();
         Unloaded += (_, _) =>
@@ -122,6 +137,8 @@ public sealed partial class MiniPlayerView : UserControl
         Accessibility.A11y.Name(MiniSeekSlider, Localization.UiStrings.A11ySeekSlider);
         Accessibility.A11y.Name(MiniLyricsList, Localization.UiStrings.A11yLyricsList);
         Accessibility.A11y.Name(MiniQueueList, Localization.UiStrings.A11yQueueList);
+        Accessibility.A11y.Name(MiniPlayedList, Localization.UiStrings.A11yPlayedList);
+        MiniQueuePlayedHeader.Text = Localization.UiStrings.QueuePlayedHeader;
         MiniQueueNowPlayingHeader.Text = Localization.UiStrings.QueueNowPlaying;
         MiniQueueUpNextHeader.Text = Localization.UiStrings.QueueUpNextHeader;
         MiniQueueEmptyText.Text = Localization.UiStrings.QueueEmpty;
@@ -215,7 +232,9 @@ public sealed partial class MiniPlayerView : UserControl
         }
         else if (panel == MiniPanel.Queue)
         {
+            RefreshPlayedTail();
             UpdateQueueEmptyVisual();
+            ScrollToMiniNowPlaying();
         }
     }
 
@@ -245,16 +264,87 @@ public sealed partial class MiniPlayerView : UserControl
 
     private void UpdateQueueEmptyVisual()
     {
-        MiniQueueEmptyText.Visibility = Queue is { HasUpNext: true } ? Visibility.Collapsed : Visibility.Visible;
+        // The empty text overlays the whole queue scroller, so it may only show when there is
+        // truly nothing to render — a queue with only history or a now-playing card still counts.
+        var hasAnything = Queue is { } q && (q.HasUpNext || q.HasNowPlaying || q.HasHistory);
+        MiniQueueEmptyText.Visibility = hasAnything ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Re-mirrors the last <see cref="PlayedTailMax"/> entries of the queue history into
+    /// <see cref="PlayedTail"/>. Runs on every section rebuild — the collection is tiny.
+    /// </summary>
+    private void RefreshPlayedTail()
+    {
+        PlayedTail.Clear();
+        if (Queue is null)
+        {
+            return;
+        }
+
+        for (var i = Math.Max(0, Queue.History.Count - PlayedTailMax); i < Queue.History.Count; i++)
+        {
+            PlayedTail.Add(Queue.History[i]);
+        }
     }
 
     private void OnQueueVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(QueueViewModel.HasUpNext) or null or "")
+        // QueueViewModel raises all three section flags on every rebuild (RebuildSections), so
+        // HasHistory doubles as the "sections changed" signal for the played tail.
+        if (e.PropertyName is nameof(QueueViewModel.HasUpNext) or nameof(QueueViewModel.HasHistory)
+            or nameof(QueueViewModel.HasNowPlaying) or null or "")
         {
-            DispatcherQueue.TryEnqueue(UpdateQueueEmptyVisual);
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                RefreshPlayedTail();
+                UpdateQueueEmptyVisual();
+                ScrollToMiniNowPlaying(); // no-op unless the queue panel is open and measured
+            });
         }
     }
+
+    /// <summary>
+    /// Parks the queue scroller at the "Now playing" card so the dimmed played tail sits above the
+    /// fold and "Up next" is what shows by default (the side panel's <c>ScrollToNowPlaying</c> at
+    /// mini scale). Queued at low priority so the played list has been measured before the offset
+    /// is read — measuring before layout settles is the known-issues "half row" bug class.
+    /// </summary>
+    private void ScrollToMiniNowPlaying()
+    {
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            if (_panel != MiniPanel.Queue
+                || MiniQueueScroller.Content is not FrameworkElement content
+                || MiniNowPlayingCard.Visibility != Visibility.Visible
+                || MiniNowPlayingCard.ActualHeight <= 0)
+            {
+                return;
+            }
+
+            // Offset inside the scrolled CONTENT (not the viewport), minus room for the "Played"
+            // heading so the previous track stays hinted at above the card (side panel: -28).
+            var y = MiniNowPlayingCard.TransformToVisual(content).TransformPoint(default).Y - 24;
+            MiniQueueScroller.ChangeView(null, Math.Max(0, y), null, disableAnimation: true);
+        });
+    }
+
+    /// <summary>
+    /// Forwards the wheel from the scroll-disabled inner lists to the queue scroller (the side
+    /// panel's <c>OnUpNextWheel</c>) — without this, hovering a row eats the wheel entirely.
+    /// </summary>
+    private void OnMiniQueueWheel(object sender, PointerRoutedEventArgs e)
+    {
+        var delta = e.GetCurrentPoint((UIElement)sender).Properties.MouseWheelDelta;
+        MiniQueueScroller.ChangeView(null, MiniQueueScroller.VerticalOffset - delta, null, disableAnimation: true);
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Breathing room kept above the active lyric line so it never sits flush against the panel's
+    /// top edge. Smaller than the side panel's 36 — this viewport is a third the height.
+    /// </summary>
+    private const double MiniLyricsActiveLineTopInset = 12;
 
     /// <summary>Keeps the active synced line in view while the lyrics panel is open.</summary>
     private void OnActiveLineChanged(object? sender, LyricLineItem? line)
@@ -264,9 +354,73 @@ public sealed partial class MiniPlayerView : UserControl
             return;
         }
 
-        // The plain jump (not the side panel's animated glide) — at ~300px tall the glide buys
-        // little and the layout-race it drags in (known-issues: half-visible previous line) a lot.
-        MiniLyricsList.ScrollIntoView(line, ScrollIntoViewAlignment.Leading);
+        // The side panel's Apple-Music glide (NowPlayingPanel.OnActiveLineChanged): the active
+        // line rides up to the top of the viewport with an ANIMATED ChangeView instead of
+        // ScrollIntoView's jump. The target is measured against the scrolled CONTENT, not the
+        // viewport — the container's offset inside the content does not move while a previous
+        // glide is still animating, so there is no race against VerticalOffset and no re-measuring
+        // of wrapped line heights before layout settles (known-issues: the residual half-line is
+        // the accepted trade-off; deferring until layout settles makes the glide stutter instead).
+        // When the container is virtualized away (user seeked far), fall back to the instant jump.
+        if (FindDescendant<ScrollViewer>(MiniLyricsList) is { } scroller
+            && MiniLyricsList.ContainerFromItem(line) is UIElement container)
+        {
+            // The tail of the song can only reach the top if there is empty space below it.
+            UpdateMiniLyricsTailSpacer(scroller);
+
+            var target = scroller.Content is FrameworkElement content
+                ? container.TransformToVisual(content).TransformPoint(default).Y - MiniLyricsActiveLineTopInset
+                : scroller.VerticalOffset
+                    + container.TransformToVisual(scroller).TransformPoint(default).Y
+                    - MiniLyricsActiveLineTopInset;
+
+            scroller.ChangeView(null, Math.Max(0, target), null, disableAnimation: false);
+        }
+        else
+        {
+            MiniLyricsList.ScrollIntoView(line, ScrollIntoViewAlignment.Leading);
+        }
+    }
+
+    /// <summary>
+    /// Sizes the trailing spacer under the last lyric line to (almost) a full viewport so the
+    /// final lines can still glide up to the top (<c>NowPlayingPanel.UpdateLyricsTailSpacer</c> at
+    /// mini scale). No-op while the viewport is unmeasured.
+    /// </summary>
+    private void UpdateMiniLyricsTailSpacer(ScrollViewer scroller)
+    {
+        if (scroller.ViewportHeight <= 0)
+        {
+            return;
+        }
+
+        // Leave roughly one active line's worth of content visible at the very bottom.
+        var wanted = Math.Max(0, scroller.ViewportHeight - 72);
+        if (Math.Abs(MiniLyricsTailSpacer.Height - wanted) > 1)
+        {
+            MiniLyricsTailSpacer.Height = wanted;
+        }
+    }
+
+    /// <summary>Depth-first visual-tree search (copy of <c>NowPlayingPanel.FindDescendant</c>).</summary>
+    private static T? FindDescendant<T>(DependencyObject root) where T : class
+    {
+        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is T match)
+            {
+                return match;
+            }
+
+            if (FindDescendant<T>(child) is { } nested)
+            {
+                return nested;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

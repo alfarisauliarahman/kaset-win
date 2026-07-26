@@ -45,27 +45,12 @@ public sealed partial class LibraryPage : Page
 
         DataContext = _viewModel;
 
-        // Wheel forwarding must observe HANDLED events too: the lists' inner (disabled) ScrollViewer
-        // marks the wheel handled before a plain XAML handler would fire, which is why hovering a
-        // grid still blocked the page scroll. AddHandler(..., handledEventsToo: true) always fires.
-        var wheel = new Microsoft.UI.Xaml.Input.PointerEventHandler(OnSectionWheel);
-        PlaylistsGrid.AddHandler(PointerWheelChangedEvent, wheel, handledEventsToo: true);
-        LikedList.AddHandler(PointerWheelChangedEvent, wheel, handledEventsToo: true);
-        UploadsList.AddHandler(PointerWheelChangedEvent, wheel, handledEventsToo: true);
-        ArtistsGrid.AddHandler(PointerWheelChangedEvent, wheel, handledEventsToo: true);
-        AlbumsGrid.AddHandler(PointerWheelChangedEvent, wheel, handledEventsToo: true);
-    }
-
-    /// <summary>
-    /// Forwards the mouse wheel from an inner section list to the page's outer scroll viewer. The
-    /// wrapped GridViews/ListViews have their own (disabled) scroll viewer that otherwise swallows
-    /// the wheel, so hovering over a grid stopped the page from scrolling and felt janky.
-    /// </summary>
-    private void OnSectionWheel(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        var delta = e.GetCurrentPoint((UIElement)sender).Properties.MouseWheelDelta;
-        LibraryScroller.ChangeView(null, LibraryScroller.VerticalOffset - delta, null, disableAnimation: true);
-        e.Handled = true;
+        // No per-page wheel forwarding here anymore. This page used to route the wheel to its own
+        // scroller (the section lists' disabled inner ScrollViewer swallowed it), and that local
+        // forwarder DOUBLE-scrolled once the shell gained its central wheel policy
+        // (MainWindow.Scroll.cs) — the same spin was applied by both, and the local one was also
+        // un-smoothed. The central policy walks up from whatever the wheel hit, so it covers these
+        // lists without any wiring.
     }
 
     /// <inheritdoc />
@@ -98,6 +83,19 @@ public sealed partial class LibraryPage : Page
         if (e.ClickedItem is Artist artist)
         {
             NavigateByName("KasetWin.App.Views.ArtistPage", artist.Id);
+        }
+    }
+
+    /// <summary>
+    /// Row click on a liked/uploaded song plays it — the same action as the row's Play button and
+    /// the same row-click behaviour as LikedSongsPage/HistoryPage. (IsItemClickEnabled is also what
+    /// re-enables the ListViewItem hover visuals; see the XAML note.)
+    /// </summary>
+    private void OnLibrarySongItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is Song song)
+        {
+            _viewModel.PlaySongCommand.Execute(song);
         }
     }
 

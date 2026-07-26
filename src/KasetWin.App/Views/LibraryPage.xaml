@@ -219,7 +219,17 @@
                 <!-- Songs (library saved songs) — columnar: title · artist · album · duration -->
                 <StackPanel Spacing="8" Visibility="{Binding ShowSongs, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock x:Name="LibSongsHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Songs" />
-                    <ListView x:Name="LikedList" ItemsSource="{Binding LibrarySongs}" ScrollViewer.VerticalScrollMode="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None">
+                    <!-- IsItemClickEnabled also restores ListViewItem's built-in hover/pressed
+                         visuals: with SelectionMode=None alone the platform treats rows as inert
+                         and shows no pointer-over state (the tester's "no highlight" report). -->
+                    <ListView
+                        x:Name="LikedList"
+                        IsItemClickEnabled="True"
+                        ItemClick="OnLibrarySongItemClick"
+                        ItemsSource="{Binding LibrarySongs}"
+                        ScrollViewer.VerticalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="core:Song">
                                 <!-- Background=Transparent: whole row hit-testable for the right-click
@@ -306,7 +316,15 @@
                 <!-- Uploaded songs -->
                 <StackPanel Spacing="8" Visibility="{Binding ShowSongs, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock x:Name="LibUploadsHeader" Style="{StaticResource SubtitleTextBlockStyle}" Text="Uploads" />
-                    <ListView x:Name="UploadsList" ItemsSource="{Binding UploadedSongs}" ScrollViewer.VerticalScrollMode="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None">
+                    <!-- IsItemClickEnabled restores the built-in hover visuals (see LikedList). -->
+                    <ListView
+                        x:Name="UploadsList"
+                        IsItemClickEnabled="True"
+                        ItemClick="OnLibrarySongItemClick"
+                        ItemsSource="{Binding UploadedSongs}"
+                        ScrollViewer.VerticalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="core:Song">
                                 <!-- Background=Transparent: whole row hit-testable for the right-click menu. -->

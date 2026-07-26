@@ -189,8 +189,25 @@ public sealed partial class MainWindow
             // NavigationView (OnIsPaneOpenChanged), and a force-closed pane is NOT auto-reopened
             // when the control returns to Expanded (UpdateAdaptiveLayout skips OpenPane). The
             // hamburger is hidden in Expanded (above), so a stuck-closed pane would leave the
-            // sidebar unreachable — reopen it here; opening also clears the force-closed flag.
-            NavView.IsPaneOpen = true;
+            // sidebar unreachable — reopen it; opening also clears the force-closed flag.
+            //
+            // The reopen is DEFERRED one dispatch, mirroring CloseOverlayPaneAfterInvoke:
+            // DisplayModeChanged is raised from the MIDDLE of NavigationView.UpdateAdaptiveLayout
+            // (inside the measure pass — SetDisplayMode raises it before the adaptive open/close
+            // logic and the DisplayModeGroup visual state have run). A synchronous
+            // IsPaneOpen = true there opens the SplitView while it is still in its compact/overlay
+            // state, and the state switch that follows can dismiss it again — seen in round 13 as
+            // the pane flashing open and snapping back to the rail ("switchnya aneh, jadi balik
+            // lagi") when the window was widened back to Expanded. Enqueued at default priority it
+            // runs after the whole layout pass has settled (SplitView already inline), and the
+            // conditions are re-checked at dispatch time in case the mode moved again meanwhile.
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (NavView.DisplayMode == NavigationViewDisplayMode.Expanded && !NavView.IsPaneOpen)
+                {
+                    NavView.IsPaneOpen = true;
+                }
+            });
         }
     }
 

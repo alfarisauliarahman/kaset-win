@@ -913,14 +913,17 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         // changes identity with it, or the page's reports for the substituted id would look foreign
         // and be re-appended as history. Resolution failing, finding nothing, or being outrun by a
         // newer load all mean: play the video the user picked.
-        // The gate includes UNKNOWN types on purpose: album/playlist rows never carry a
-        // VideoType, and requiring a known one is exactly how a video hid behind an album row in
-        // round 11. The resolver settles unknowns itself from one cached metadata fetch. Podcasts
-        // are excluded — an episode has no "song version" to find.
+        // The substitution is CONTEXT-scoped, per the owner's correction of round 13: a video the
+        // user deliberately picked (a music-video card or search's video tab — those rows carry a
+        // KNOWN Omv/Ugc type) plays as that video, untouched. Only a track whose type is UNKNOWN —
+        // album, single/EP, and playlist rows never carry one — must come out as the song version,
+        // because a video hiding behind an album row is exactly what the user called annoying.
+        // The resolver settles the unknown itself from one cached metadata fetch. Podcasts are
+        // excluded — an episode has no "song version" to find.
         if (_songVersionResolver is not null
             && _preferSongVersion?.Invoke() == true
             && !track.IsPodcastEpisode
-            && track.VideoType is MusicVideoType.Omv or MusicVideoType.Ugc or null)
+            && track.VideoType is null)
         {
             Song? songVersion = await _songVersionResolver.ResolveAsync(track).ConfigureAwait(false);
             if (songVersion is not null && !IsSuperseded(generation))

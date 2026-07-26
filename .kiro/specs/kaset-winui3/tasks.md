@@ -1016,6 +1016,42 @@ kalinya), 4 gagal. Dua ditutup langsung, dua lagi dikerjakan:
     (`ChartsCountryParser`, kode negara di-decode dari `formItemEntityKey` base64), TIDAK
     di-hardcode. Pilihan di setting `explore.chartsCountry`. 2 fixture disanitasi + 9 test.
 
+### PUTARAN 13–14 (2026-07-27)
+
+- [x] 82b. **Semantik "Utamakan versi lagu" DIBALIK sesuai koreksi pemilik repo**: video yang
+  dipilih sengaja (tipe Omv/Ugc DIKETAHUI) diputar sebagai video; hanya baris ber-tipe TAK DIKENAL
+  (album/single/EP/playlist) yang dipaksa versi lagu. Test dikerjakan ulang. Keterangan Settings
+  ikut: "Dari album/playlist selalu versi lagu; video yang kamu putar sendiri tetap video."
+
+- [x] 83. **Scroll campur (keluhan 3 putaran) ditulis ulang dari akar**: kebijakan roda mouse
+  pindah ke SATU handler pusat di ContentFrame yang menyusuri rantai ancestor dari titik yang kena
+  roda — desain lama menempel penangkap per-shelf via enumerasi visual tree dan selalu kalah balapan
+  dengan virtualisasi. Forwarder lokal LibraryPage yang jadi dobel-scroll dicabut.
+
+- [x] 84. **Sweep hover + menu**: 6 permukaan dapat hover (akar terbukti: `SelectionMode=None`
+  tanpa `IsItemClickEnabled` = baris inert; kartu Grid polos tanpa state), 3 lubang menu ditambal
+  (Top Result, chart artis ExploreDetail, Trending). Inventaris lengkap di laporan agent; halaman
+  YouTube sengaja belum (butuh aksi+string baru — lanjutan).
+
+- [x] 85. **Sidebar polish**: pop-in expand playlist (anak dirender 1–2 frame sebelum storyboard —
+  kini disembunyikan sinkron saat Expanding); "switch aneh" compact→expanded (reopen pane berjalan
+  DI TENGAH measure pass NavigationView — kini di-defer satu dispatch dengan re-check); tombol
+  bundar sumber digeser 6px ke pusat rail.
+
+- [x] 86. **Mini player putaran 2**: glide per-baris ala Apple Music (port pola panel utama,
+  ukur-terhadap-content); bagian "Sudah diputar" (3 terakhir, redup, auto-park di kartu aktif);
+  jendela naik-sendiri TERBUKTI EMPIRIS (probe UIA): border DWM tak terlihat 8px terhitung sebagai
+  "menabrak" — kini overhang dihitung dari tepi TERLIHAT (`DWMWA_EXTENDED_FRAME_BOUNDS`), diukur
+  live, tidak di-hardcode. Tinggi expand 450→520 atas permintaan pemilik repo.
+
+- [x] 87. **PELAJARAN BUILD — CS8852 XamlTypeInfo**: properti PUBLIC bertipe
+  `ObservableCollection<Song>` pada UserControl memicu registrasi penuh `Song` di XamlTypeInfo,
+  yang menulis setter untuk properti `init` → 36 error. Solusi: `internal` (x:Bind cukup
+  same-assembly). Aturan praktis: properti koleksi model di kontrol XAML JANGAN public.
+
+- [ ] 88. **Loading lagu kadang stutter** — investigasi TERPISAH, belum disentuh: tersangka
+  navigasi halaman penuh per track; wajib diukur dulu, area ini baru saja stabil.
+
 - [ ] 69. **Race laten di `LoadTrackAsync`** — `_expectedVideoId`/`CurrentTrack` diset di luar
   `_loadGate` dan tidak atomik dengan `Interlocked.Increment(_loadGeneration)`. Kelas bug yang sama
   dengan ADR 0006, di baris berbeda. **Tidak terbukti** menyebabkan gejala; jendelanya nanodetik

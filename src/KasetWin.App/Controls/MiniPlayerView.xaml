@@ -277,6 +277,12 @@
                             </TextBlock>
                         </DataTemplate>
                     </ListView.ItemTemplate>
+                    <!-- Trailing spacer: lets the LAST lines still glide up to the top of the
+                         viewport (the side panel's LyricsTailSpacer at mini scale). Height is set
+                         from the live viewport height in code-behind; 0 costs nothing. -->
+                    <ListView.Footer>
+                        <Border x:Name="MiniLyricsTailSpacer" Height="0" />
+                    </ListView.Footer>
                 </ListView>
 
                 <ScrollViewer
@@ -298,84 +304,104 @@
                     Style="{StaticResource CaptionTextBlockStyle}" />
             </Grid>
 
-            <!-- QUEUE: the side panel's structure at mini scale — a "Now playing" card, then the
-                 "Up next" list (tapping a row plays from there). Headers and the card follow the
-                 same QueueViewModel flags the side panel binds, so the two surfaces read alike. -->
-            <Grid x:Name="MiniQueuePanel" RowSpacing="4" Visibility="Collapsed">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+            <!-- QUEUE: the side panel's structure at mini scale — ONE scroller reading as a single
+                 strip: a dimmed "Played" tail (last 3, mirrored into PlayedTail in code-behind),
+                 the "Now playing" card, then "Up next" (tapping any row plays from there). The
+                 inner lists never scroll themselves — the wheel is forwarded to the outer
+                 scroller — and code-behind parks the scroller at the now-playing card on open so
+                 "Up next" stays the default view (the side panel's ScrollToNowPlaying pattern). -->
+            <Grid x:Name="MiniQueuePanel" Visibility="Collapsed">
+                <ScrollViewer x:Name="MiniQueueScroller" Padding="0,0,0,8">
+                    <StackPanel Spacing="4">
+                        <TextBlock
+                            x:Name="MiniQueuePlayedHeader"
+                            Margin="8,0,0,0"
+                            Opacity="0.6"
+                            Text="Played"
+                            Visibility="{x:Bind Queue.HasHistory, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                        <ListView
+                            x:Name="MiniPlayedList"
+                            ItemsSource="{x:Bind PlayedTail}"
+                            AutomationProperties.Name="Already played tracks"
+                            IsItemClickEnabled="True"
+                            ItemClick="OnQueueTrackClick"
+                            ItemTemplate="{StaticResource MiniQueueRowTemplate}"
+                            Opacity="0.5"
+                            PointerWheelChanged="OnMiniQueueWheel"
+                            ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                            ScrollViewer.VerticalScrollMode="Disabled"
+                            SelectionMode="None"
+                            Visibility="{x:Bind Queue.HasHistory, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
 
-                <TextBlock
-                    x:Name="MiniQueueNowPlayingHeader"
-                    Grid.Row="0"
-                    Margin="8,0,0,0"
-                    Opacity="0.6"
-                    Text="Now playing"
-                    Visibility="{x:Bind Queue.HasNowPlaying, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
-                    Style="{StaticResource CaptionTextBlockStyle}" />
-                <Grid
-                    Grid.Row="1"
-                    Padding="8"
-                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                    ColumnSpacing="10"
-                    CornerRadius="8"
-                    Visibility="{x:Bind Queue.HasNowPlaying, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="40" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Border
-                        Grid.Column="0"
-                        Width="4"
-                        Height="32"
-                        VerticalAlignment="Center"
-                        Background="{ThemeResource AccentFillColorDefaultBrush}"
-                        CornerRadius="2" />
-                    <Border
-                        Grid.Column="1"
-                        Width="40"
-                        Height="40"
-                        CornerRadius="4">
-                        <!-- Bound to the whole Song (not .ThumbnailUrl) so the converter can fall
-                             back to FallbackThumbnailUrl and log load failures (#150). -->
-                        <Image
-                            AutomationProperties.AccessibilityView="Raw"
-                            Source="{x:Bind Queue.NowPlaying, Converter={StaticResource CoverArt}, Mode=OneWay}"
-                            Stretch="UniformToFill" />
-                    </Border>
-                    <controls:TrackInfo
-                        x:Name="MiniNowPlayingTrackInfo"
-                        Grid.Column="2"
-                        VerticalAlignment="Center"
-                        Song="{x:Bind Queue.NowPlaying, Mode=OneWay}" />
-                </Grid>
+                        <TextBlock
+                            x:Name="MiniQueueNowPlayingHeader"
+                            Margin="8,4,0,0"
+                            Opacity="0.6"
+                            Text="Now playing"
+                            Visibility="{x:Bind Queue.HasNowPlaying, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                        <Grid
+                            x:Name="MiniNowPlayingCard"
+                            Padding="8"
+                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            ColumnSpacing="10"
+                            CornerRadius="8"
+                            Visibility="{x:Bind Queue.HasNowPlaying, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border
+                                Grid.Column="0"
+                                Width="4"
+                                Height="32"
+                                VerticalAlignment="Center"
+                                Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                CornerRadius="2" />
+                            <Border
+                                Grid.Column="1"
+                                Width="40"
+                                Height="40"
+                                CornerRadius="4">
+                                <!-- Bound to the whole Song (not .ThumbnailUrl) so the converter can fall
+                                     back to FallbackThumbnailUrl and log load failures (#150). -->
+                                <Image
+                                    AutomationProperties.AccessibilityView="Raw"
+                                    Source="{x:Bind Queue.NowPlaying, Converter={StaticResource CoverArt}, Mode=OneWay}"
+                                    Stretch="UniformToFill" />
+                            </Border>
+                            <controls:TrackInfo
+                                x:Name="MiniNowPlayingTrackInfo"
+                                Grid.Column="2"
+                                VerticalAlignment="Center"
+                                Song="{x:Bind Queue.NowPlaying, Mode=OneWay}" />
+                        </Grid>
 
-                <TextBlock
-                    x:Name="MiniQueueUpNextHeader"
-                    Grid.Row="2"
-                    Margin="8,4,0,0"
-                    Opacity="0.6"
-                    Text="Up next"
-                    Visibility="{x:Bind Queue.HasUpNext, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
-                    Style="{StaticResource CaptionTextBlockStyle}" />
-                <ListView
-                    x:Name="MiniQueueList"
-                    Grid.Row="3"
-                    AutomationProperties.Name="Playback queue"
-                    IsItemClickEnabled="True"
-                    ItemClick="OnQueueTrackClick"
-                    ItemTemplate="{StaticResource MiniQueueRowTemplate}"
-                    ItemsSource="{x:Bind Queue.UpNext, Mode=OneWay}"
-                    SelectionMode="None" />
+                        <TextBlock
+                            x:Name="MiniQueueUpNextHeader"
+                            Margin="8,4,0,0"
+                            Opacity="0.6"
+                            Text="Up next"
+                            Visibility="{x:Bind Queue.HasUpNext, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                        <ListView
+                            x:Name="MiniQueueList"
+                            AutomationProperties.Name="Playback queue"
+                            IsItemClickEnabled="True"
+                            ItemClick="OnQueueTrackClick"
+                            ItemTemplate="{StaticResource MiniQueueRowTemplate}"
+                            ItemsSource="{x:Bind Queue.UpNext, Mode=OneWay}"
+                            PointerWheelChanged="OnMiniQueueWheel"
+                            ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                            ScrollViewer.VerticalScrollMode="Disabled"
+                            SelectionMode="None" />
+                    </StackPanel>
+                </ScrollViewer>
 
                 <TextBlock
                     x:Name="MiniQueueEmptyText"
-                    Grid.Row="3"
                     Margin="12"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"

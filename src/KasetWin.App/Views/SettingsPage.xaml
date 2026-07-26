@@ -182,7 +182,7 @@
                             x:Name="PreferSongVersionCaption"
                             Opacity="0.7"
                             TextWrapping="Wrap"
-                            Text="Video musik diganti versi album-nya bila ada."
+                            Text="Dari album/playlist selalu versi lagu; video yang kamu putar sendiri tetap video."
                             Style="{StaticResource CaptionTextBlockStyle}" />
                     </StackPanel>
                     <ToggleSwitch

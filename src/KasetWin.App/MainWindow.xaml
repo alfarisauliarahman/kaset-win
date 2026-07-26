@@ -194,13 +194,17 @@
               <Grid>
                 <!-- Compact source toggle: shown whenever the pane is collapsed to icons — a panel is
                      open or the window is too narrow for the expanded pane (UpdatePaneChrome). A round
-                     icon-only button, like the account avatar; a click flips the source. -->
+                     icon-only button, like the account avatar; a click flips the source.
+                     The 6px side margins are load-bearing: the PaneFooter presenter left-aligns
+                     sized-to-content footer content, so a bare 36px button hugged x=0 and sat 6px
+                     left of the compact rail's centre (nav icons centre at 24 of the 48px rail).
+                     36 + 6 + 6 = 48 puts the button's centre at 24 to match them. -->
                 <Button
                     x:Name="SourceToggleCompact"
                     AutomationProperties.Name="Source: Music or YouTube"
                     Width="36"
                     Height="36"
-                    Margin="0,0,0,8"
+                    Margin="6,0,6,8"
                     Padding="0"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"

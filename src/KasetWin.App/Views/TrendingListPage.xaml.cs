@@ -77,6 +77,17 @@ public sealed partial class TrendingListPage : Page
         }
     }
 
+    // ── Hover affordance ─────────────────────────────────────────────────────────────────────────
+    // Same CardHover mechanism as the Home/Explore card shelves: the templates carry a "CardHover"
+    // Border that CardPlayOverlay reveals on pointer-over (no Play overlay exists here; the helper
+    // no-ops on that part).
+
+    private void OnCardPointerEntered(object sender, PointerRoutedEventArgs e) =>
+        CardPlayOverlay.OnPointerEntered(sender);
+
+    private void OnCardPointerExited(object sender, PointerRoutedEventArgs e) =>
+        CardPlayOverlay.OnPointerExited(sender);
+
     /// <summary>
     /// Right-click on a row/card: SONG items get the YT-Music-style menu (play next / add to
     /// queue / go to album / go to artist / share); album / playlist / artist items get the shared

@@ -39,7 +39,23 @@
                             <DataTemplate x:DataType="vm:HomeCardItem">
                                 <!-- ContextRequested (not a static ContextFlyout): the card is polymorphic,
                                      and only SONG cards get the YT-Music-style right-click menu. -->
-                                <Grid Width="256" Padding="8" Background="Transparent" ContextRequested="OnCardContextRequested" CornerRadius="8" DataContext="{x:Bind}" Tapped="OnItemClick">
+                                <Grid
+                                    Width="256"
+                                    Padding="8"
+                                    Background="Transparent"
+                                    ContextRequested="OnCardContextRequested"
+                                    CornerRadius="8"
+                                    DataContext="{x:Bind}"
+                                    PointerEntered="OnCardPointerEntered"
+                                    PointerExited="OnCardPointerExited"
+                                    Tapped="OnItemClick">
+                                    <!-- Same ListViewItem-like hover affordance as the shelf cards
+                                         (CardHover toggled by CardPlayOverlay). -->
+                                    <Border
+                                        x:Name="CardHover"
+                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                        CornerRadius="8"
+                                        Opacity="0" />
                                     <StackPanel Spacing="2">
                                         <Border Width="240" Height="135" Margin="0,0,0,4" CornerRadius="8">
                                             <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
@@ -196,15 +212,26 @@
                             <Grid
                                 Width="220"
                                 Height="48"
-                                Padding="14,0"
                                 Background="{x:Bind ChipBrush}"
                                 CornerRadius="6"
                                 DataContext="{x:Bind}"
                                 IsTabStop="True"
                                 KeyDown="OnCardKeyDown"
+                                PointerEntered="OnCardPointerEntered"
+                                PointerExited="OnCardPointerExited"
                                 Tapped="OnItemClick"
                                 UseSystemFocusVisuals="True">
+                                <!-- Hover = 8% black scrim over the full-colour chip (CardHover
+                                     toggled by CardPlayOverlay; a background swap cannot work here
+                                     because the chip owns its category colour). The text carries
+                                     the side padding so the scrim covers the whole chip. -->
+                                <Border
+                                    x:Name="CardHover"
+                                    Background="#14000000"
+                                    CornerRadius="6"
+                                    Opacity="0" />
                                 <TextBlock
+                                    Margin="14,0"
                                     VerticalAlignment="Center"
                                     Foreground="{x:Bind ChipTextBrush}"
                                     MaxLines="1"
@@ -245,6 +272,7 @@
                                     Padding="6,4"
                                     Background="Transparent"
                                     ColumnSpacing="10"
+                                    ContextRequested="OnCardContextRequested"
                                     CornerRadius="8"
                                     DataContext="{x:Bind}"
                                     PointerEntered="OnChartCardEnter"

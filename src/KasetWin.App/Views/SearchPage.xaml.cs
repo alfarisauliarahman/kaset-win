@@ -61,6 +61,19 @@ public sealed partial class SearchPage : Page
     private void OnEntityCardContextRequested(Microsoft.UI.Xaml.UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e) =>
         _contextMenu.TryShow(sender, e);
 
+    /// <summary>
+    /// Top Result card: the card binds VM projection properties (no entity DataContext), so the
+    /// menu is built from <see cref="SearchViewModel.TopResult"/> directly. The union unwraps to
+    /// the concrete kind's menu (song → queue/go-to/share; album/playlist/artist → play/go-to/share).
+    /// </summary>
+    private void OnTopResultContextRequested(Microsoft.UI.Xaml.UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e)
+    {
+        if (sender is FrameworkElement element && _contextMenu.BuildFor(ViewModel.TopResult) is { } menu)
+        {
+            EntityContextMenu.Show(menu, element, e);
+        }
+    }
+
     /// <summary>Unified (podcast-query) rows carry the Home union item; unwrap it for the menu.</summary>
     private void OnUnifiedRowContextRequested(Microsoft.UI.Xaml.UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e)
     {

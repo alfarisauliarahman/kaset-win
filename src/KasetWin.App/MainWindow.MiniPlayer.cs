@@ -34,7 +34,9 @@ public sealed partial class MainWindow
     /// already calls <c>Resize</c> right after the presenter switch and the window verifiably takes
     /// the 400×150 frame rather than the system's preset compact size.
     /// </summary>
-    private const int MiniPlayerExpandedHeight = 450;
+    // 520, up from the initial 450 at the owner's request ("cb expand aja 1") — the lyric panel
+    // was the concern, and the extra 70px is two more visible lines at the mini typography.
+    private const int MiniPlayerExpandedHeight = 520;
 
     /// <summary>Whether the shell is currently in mini-player mode.</summary>
     private bool _isMiniPlayer;
@@ -186,9 +188,18 @@ public sealed partial class MainWindow
                 var area = DisplayArea.GetFromRect(
                     new RectInt32(position.X, position.Y, width, height), DisplayAreaFallback.Nearest);
                 var workBottom = area.WorkArea.Y + area.WorkArea.Height;
-                if (y + height > workBottom)
+
+                // AppWindow geometry is the OUTER frame (GetWindowRect space), which on Windows 11
+                // carries an invisible DWM resize border below the visible edge — 8px at this
+                // machine's 115% scaling — so `position.Y + height` overstates the VISIBLE bottom
+                // by that inset. Test and slide by the visible bottom instead: with the raw outer
+                // rect the slide-up fired while the visible window still fit on screen, and every
+                // legitimate slide overshot by the border, parking the window with a shadow-sized
+                // gap above the work-area edge (round 13: "naik sedikit padahal tidak menabrak").
+                var overhang = position.Y + height - BottomShadowInset() - workBottom;
+                if (overhang > 0)
                 {
-                    y = Math.Max(area.WorkArea.Y, workBottom - height);
+                    y = Math.Max(area.WorkArea.Y, position.Y - overhang);
                 }
             }
 
@@ -284,6 +295,51 @@ public sealed partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// Height of the invisible DWM resize border below the window's visible bottom edge, in
+    /// physical pixels (8 at 115% scaling; 0 on failure, which degrades to the pre-fix maths).
+    /// Measured live as outer rect (<c>GetWindowRect</c>) minus visible rect
+    /// (<c>DWMWA_EXTENDED_FRAME_BOUNDS</c>) — the value depends on DPI and OS version, so it is
+    /// not worth hardcoding. The collapsed window's inset equals the expanded one's: same window,
+    /// same style, same monitor.
+    /// </summary>
+    private int BottomShadowInset()
+    {
+        try
+        {
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            if (GetWindowRect(hwnd, out var outer)
+                && DwmGetWindowAttribute(
+                    hwnd, DwmwaExtendedFrameBounds, out var visible, Marshal.SizeOf<Win32Rect>()) == 0)
+            {
+                return Math.Max(0, outer.Bottom - visible.Bottom);
+            }
+        }
+        catch (COMException)
+        {
+            // Fall through to 0 — the check then treats the outer frame as the visible one.
+        }
+
+        return 0;
+    }
+
+    private const int DwmwaExtendedFrameBounds = 9;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Win32Rect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hwnd, out Win32Rect rect);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out Win32Rect rect, int size);
 }
