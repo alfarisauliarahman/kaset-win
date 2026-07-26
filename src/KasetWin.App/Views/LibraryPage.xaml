@@ -68,10 +68,15 @@
             Spacing="12">
             <TextBlock x:Name="PageTitleText" Style="{StaticResource TitleTextBlockStyle}" Text="Library" />
 
+            <!-- The create-playlist affordance used to live here too, but the sidebar's "+" next
+                 to Playlists already covers it (owner: "ilangin, kan udah ada di sidebar") — two
+                 entry points for the same action just made the header taller. The command and its
+                 strings stay; only this surface is gone. -->
             <StackPanel
                 Orientation="Horizontal"
                 VerticalAlignment="Center"
-                Spacing="8">
+                Spacing="8"
+                Visibility="Collapsed">
                 <TextBox
                     x:Name="NewPlaylistBox"
                     Width="280"
@@ -161,7 +166,14 @@
                         </GridView.ItemsPanel>
                         <GridView.ItemTemplate>
                             <DataTemplate x:DataType="core:Playlist">
-                                <Grid Width="160" Padding="6">
+                                <!-- Background=Transparent: whole card hit-testable for the
+                                     right-click menu; polymorphic per-item actions (delete only for
+                                     owned playlists) → dynamic menu via ContextRequested. -->
+                                <Grid
+                                    Width="160"
+                                    Padding="6"
+                                    Background="Transparent"
+                                    ContextRequested="OnPlaylistCardContextRequested">
                                     <StackPanel Spacing="2">
                                         <Grid Margin="0,0,0,4">
                                             <Border
@@ -210,7 +222,14 @@
                     <ListView x:Name="LikedList" ItemsSource="{Binding LibrarySongs}" ScrollViewer.VerticalScrollMode="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="core:Song">
-                                <Grid ColumnSpacing="12" Padding="0,6">
+                                <!-- Background=Transparent: whole row hit-testable for the right-click
+                                     menu (documented gotcha); menu is dynamic (save-to-playlist rides
+                                     along) via ContextRequested. -->
+                                <Grid
+                                    ColumnSpacing="12"
+                                    Padding="0,6"
+                                    Background="Transparent"
+                                    ContextRequested="OnLibrarySongContextRequested">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="44" />
                                         <ColumnDefinition Width="2.2*" />
@@ -290,7 +309,12 @@
                     <ListView x:Name="UploadsList" ItemsSource="{Binding UploadedSongs}" ScrollViewer.VerticalScrollMode="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="core:Song">
-                                <Grid ColumnSpacing="12" Padding="0,6">
+                                <!-- Background=Transparent: whole row hit-testable for the right-click menu. -->
+                                <Grid
+                                    ColumnSpacing="12"
+                                    Padding="0,6"
+                                    Background="Transparent"
+                                    ContextRequested="OnEntityCardContextRequested">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
@@ -346,7 +370,12 @@
                         </GridView.ItemsPanel>
                         <GridView.ItemTemplate>
                             <DataTemplate x:DataType="core:Artist">
-                                <Grid Width="150" Padding="6">
+                                <!-- Background=Transparent: whole card hit-testable for the right-click menu. -->
+                                <Grid
+                                    Width="150"
+                                    Padding="6"
+                                    Background="Transparent"
+                                    ContextRequested="OnEntityCardContextRequested">
                                     <StackPanel Spacing="2">
                                         <Border
                                             Width="138"
@@ -356,10 +385,15 @@
                                             CornerRadius="69">
                                             <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
                                         </Border>
+                                        <!-- MinHeight reserves the two-line box up front: ItemsWrapGrid sizes every
+                                             row from the first card it measures, so without it a single-line
+                                             neighbour set the row height and a wrapped name ("OFFICIAL HIGE
+                                             DANDISM") was clipped mid-line. -->
                                         <TextBlock
                                             FontSize="15"
                                             HorizontalAlignment="Center"
                                             MaxLines="2"
+                                            MinHeight="42"
                                             Style="{StaticResource BodyStrongTextBlockStyle}"
                                             Text="{x:Bind Name}"
                                             TextAlignment="Center"
@@ -404,7 +438,12 @@
                         </GridView.ItemsPanel>
                         <GridView.ItemTemplate>
                             <DataTemplate x:DataType="core:Album">
-                                <Grid Width="160" Padding="6">
+                                <!-- Background=Transparent: whole card hit-testable for the right-click menu. -->
+                                <Grid
+                                    Width="160"
+                                    Padding="6"
+                                    Background="Transparent"
+                                    ContextRequested="OnEntityCardContextRequested">
                                     <StackPanel Spacing="2">
                                         <Border
                                             Width="148"

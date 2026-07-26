@@ -91,6 +91,35 @@ public class SongVersionResolverTests
     public void NormalizeTitle_StripsBracketsAndCase(string raw, string expected) =>
         Assert.Equal(expected, SongVersionResolver.NormalizeTitle(raw));
 
+    [Fact]
+    public async Task UnknownVideoType_IsSettledFromMetadata_AndSubstitutesWhenItIsAVideo()
+    {
+        // Album/playlist rows never carry a VideoType — requiring a known one is exactly how a
+        // video hid behind an album row in round 11.
+        var albumRow = Video("omv1", "Song", albumId: null) with { VideoType = null };
+        var meta = Video("omv1", "Song", albumId: "MPREb_A"); // metadata names both type and album
+        var resolver = Resolver([AlbumTrack("atv1", "Song")], metadata: meta);
+
+        Song? song = await resolver.ResolveAsync(albumRow);
+
+        Assert.Equal("atv1", song?.VideoId);
+    }
+
+    [Fact]
+    public async Task UnknownVideoType_ThatTurnsOutToBeAudio_IsLeftAlone()
+    {
+        int albumFetches = 0;
+        var meta = AlbumTrack("atv9", "Song"); // metadata says: already the audio version
+        var resolver = new SongVersionResolver(
+            (_, _) => Task.FromResult<Song?>(meta),
+            (_, _) => { albumFetches++; return Task.FromResult<IReadOnlyList<Song>>([]); });
+
+        Song? song = await resolver.ResolveAsync(AlbumTrack("atv9", "Song") with { VideoType = null });
+
+        Assert.Null(song);
+        Assert.Equal(0, albumFetches); // settled by the type alone — no album lookup wasted
+    }
+
     // ── PlayerService integration: the swap happens before anything observes the load ──
 
     [Fact]

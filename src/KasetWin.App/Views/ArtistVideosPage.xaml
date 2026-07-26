@@ -17,7 +17,13 @@
         <!-- 16:9 video card: thumbnail + title + "Artist • views" (classic Binding to avoid the XAML
              type generator trying to construct the required-member Song). -->
         <DataTemplate x:Key="VideoGridCardTemplate">
-            <Grid Width="288" Padding="6">
+            <!-- Background=Transparent: whole card hit-testable for the right-click menu
+                 (dynamic via ContextRequested — the grids hold mixed model types). -->
+            <Grid
+                Width="288"
+                Padding="6"
+                Background="Transparent"
+                ContextRequested="OnCardContextRequested">
                 <StackPanel Spacing="6">
                     <Border
                         Width="276"
@@ -52,7 +58,11 @@
 
         <!-- Circle card for related artists. -->
         <DataTemplate x:Key="ArtistCircleTemplate">
-            <Grid Width="160" Padding="6">
+            <Grid
+                Width="160"
+                Padding="6"
+                Background="Transparent"
+                ContextRequested="OnCardContextRequested">
                 <StackPanel Spacing="6">
                     <Border
                         Width="148"
@@ -85,7 +95,11 @@
 
         <!-- Square card for albums / playlists. -->
         <DataTemplate x:Key="SquareCardTemplate">
-            <Grid Width="176" Padding="6">
+            <Grid
+                Width="176"
+                Padding="6"
+                Background="Transparent"
+                ContextRequested="OnCardContextRequested">
                 <StackPanel Spacing="6">
                     <Border
                         Width="164"

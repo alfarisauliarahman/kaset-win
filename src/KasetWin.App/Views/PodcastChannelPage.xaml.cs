@@ -59,4 +59,26 @@ public sealed partial class PodcastChannelPage : Page
             Navigation.NavigationHelper.NavigateToPodcastShow(show.Id);
         }
     }
+
+    // ── Right-click menus (tester #190) ──────────────────────────────────────────────────────────
+
+    private readonly EntityContextMenu _contextMenu = EntityContextMenu.FromServices(App.Current.Services);
+
+    /// <summary>Show cards: Bagikan (only when the show has a navigable MPSPP… share URL).</summary>
+    private void OnShowContextRequested(UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e) =>
+        _contextMenu.TryShow(sender, e);
+
+    /// <summary>Episode cards: Putar — the same ViewModel command as clicking the card.</summary>
+    private void OnEpisodeContextRequested(UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: PodcastEpisode episode } element)
+        {
+            return;
+        }
+
+        var menu = new MenuFlyout();
+        EntityContextMenu.AddItem(menu, Localization.UiStrings.PlayLabel, () =>
+            ViewModel.PlayEpisodeCommand.Execute(episode));
+        EntityContextMenu.Show(menu, element, e);
+    }
 }

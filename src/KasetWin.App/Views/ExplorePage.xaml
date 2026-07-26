@@ -51,6 +51,7 @@
                                     Padding="6"
                                     Background="Transparent"
                                     ColumnSpacing="12"
+                                    ContextRequested="OnCardContextRequested"
                                     CornerRadius="8"
                                     DataContext="{x:Bind}"
                                     PointerEntered="OnChartCardEnter"
@@ -127,6 +128,7 @@
                                     Padding="6,4"
                                     Background="Transparent"
                                     ColumnSpacing="10"
+                                    ContextRequested="OnCardContextRequested"
                                     CornerRadius="8"
                                     DataContext="{x:Bind}"
                                     PointerEntered="OnChartCardEnter"
@@ -205,6 +207,7 @@
                                     Width="256"
                                     Padding="8"
                                     Background="Transparent"
+                                    ContextRequested="OnCardContextRequested"
                                     CornerRadius="8"
                                     DataContext="{x:Bind}"
                                     IsTabStop="True"
@@ -272,6 +275,7 @@
                                     Width="{x:Bind CardWidth}"
                                     Padding="8"
                                     Background="Transparent"
+                                    ContextRequested="OnCardContextRequested"
                                     CornerRadius="8"
                                     DataContext="{x:Bind}"
                                     IsTabStop="True"
@@ -340,11 +344,11 @@
             </StackPanel>
         </DataTemplate>
 
-        <!-- Moods & genres ("Jenis musik & suasana"): YT Music-style chip grid — dark cards with a
-             small colour bar at the left + the category name, 4 rows flowing column-major behind a
-             horizontal scroll, plus "Selengkapnya". The see-all deliberately browses the FULL
-             category list (FEmusic_moods_and_genres) instead of re-showing this same shelf's
-             payload. -->
+        <!-- Moods & genres ("Jenis musik & suasana"): YT Music-style chip grid — full-colour cards
+             (#193: the whole chip is painted with its category colour, label in per-chip
+             contrasting text via ChipTextBrush), 4 rows flowing column-major behind a horizontal
+             scroll, plus "Selengkapnya". The see-all deliberately browses the FULL category list
+             (FEmusic_moods_and_genres) instead of re-showing this same shelf's payload. -->
         <DataTemplate x:Key="MoodSectionTemplate" x:DataType="vm:HomeSectionView">
             <StackPanel Margin="0,0,0,8" Spacing="12">
                 <Grid>
@@ -373,30 +377,17 @@
                                 <Grid
                                     Width="220"
                                     Height="48"
-                                    Padding="12,0"
-                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                    BorderThickness="1"
-                                    ColumnSpacing="12"
+                                    Padding="14,0"
+                                    Background="{x:Bind ChipBrush}"
                                     CornerRadius="6"
                                     DataContext="{x:Bind}"
                                     IsTabStop="True"
                                     KeyDown="OnCardKeyDown"
                                     Tapped="OnItemClick"
                                     UseSystemFocusVisuals="True">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border
-                                        Width="4"
-                                        Height="24"
-                                        VerticalAlignment="Center"
-                                        Background="{x:Bind ChipBrush}"
-                                        CornerRadius="2" />
                                     <TextBlock
-                                        Grid.Column="1"
                                         VerticalAlignment="Center"
+                                        Foreground="{x:Bind ChipTextBrush}"
                                         MaxLines="1"
                                         Text="{x:Bind Title}"
                                         TextTrimming="CharacterEllipsis"

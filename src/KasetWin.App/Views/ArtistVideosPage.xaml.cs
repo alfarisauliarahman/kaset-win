@@ -40,10 +40,13 @@ public sealed partial class ArtistVideosPage : Page, INotifyPropertyChanged
     private readonly ObservableCollection<object> _cards = [];
     private readonly ObservableCollection<Artist> _artists = [];
 
+    private readonly EntityContextMenu _contextMenu;
+
     public ArtistVideosPage()
     {
         var services = App.Current.Services;
         _player = services.GetRequiredService<IPlayerService>();
+        _contextMenu = EntityContextMenu.FromServices(services);
         this.InitializeComponent();
         // Bind in code so the XAML type generator never tries to construct the required-member models.
         VideosGrid.ItemsSource = _videos;
@@ -123,6 +126,14 @@ public sealed partial class ArtistVideosPage : Page, INotifyPropertyChanged
         ArtistsGrid.Visibility = _artists.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         Raise(nameof(IsEmpty));
     }
+
+    /// <summary>
+    /// Right-click on any see-all card (tester #190): the shared context-appropriate menu for the
+    /// card's concrete model — song/video (queue actions + share), album/playlist (play + share) or
+    /// artist (open + share).
+    /// </summary>
+    private void OnCardContextRequested(UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e) =>
+        _contextMenu.TryShow(sender, e);
 
     private void OnVideoClick(object sender, ItemClickEventArgs e)
     {

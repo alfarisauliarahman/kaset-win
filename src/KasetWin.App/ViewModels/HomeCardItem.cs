@@ -25,12 +25,6 @@ namespace KasetWin.App.ViewModels;
 /// </remarks>
 public sealed class HomeCardItem
 {
-    /// <summary>Context-menu label, following the app language.</summary>
-    public string ShareMenuText => Localization.UiStrings.MenuShare;
-
-    /// <summary>Context-menu label, following the app language.</summary>
-    public string AddToFavoritesMenuText => Localization.UiStrings.MenuAddToFavorites;
-
     private const double SquareRadius = 6;
     private const double RoundRadius = 80; // artist avatars read as circular
 
@@ -49,7 +43,12 @@ public sealed class HomeCardItem
         CanPlay = canPlay;
         ArtistId = artistId;
         IsMood = isMood;
-        ChipBrush = isMood ? MoodBrush(title) : null;
+        if (isMood)
+        {
+            var chipColor = MoodColor(title);
+            ChipBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(chipColor);
+            ChipTextBrush = ChipTextFor(chipColor);
+        }
         Rank = rank;
         Trend = trend;
     }
@@ -100,7 +99,7 @@ public sealed class HomeCardItem
         Windows.UI.Color.FromArgb(0xFF, 0xB0, 0x3C, 0xA8),
     ];
 
-    private static Microsoft.UI.Xaml.Media.Brush MoodBrush(string title)
+    private static Windows.UI.Color MoodColor(string title)
     {
         // Deterministic FNV-1a hash: string.GetHashCode() is randomized per process, which made the
         // chip colours change on every launch.
@@ -110,7 +109,33 @@ public sealed class HomeCardItem
             hash = (hash ^ c) * 16777619;
         }
 
-        return new Microsoft.UI.Xaml.Media.SolidColorBrush(MoodPalette[hash % (uint)MoodPalette.Length]);
+        return MoodPalette[hash % (uint)MoodPalette.Length];
+    }
+
+    /// <summary>Chip label colours: white on most palette colours, near-black on the light ones.</summary>
+    private static readonly Microsoft.UI.Xaml.Media.Brush WhiteChipText =
+        new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
+
+    private static readonly Microsoft.UI.Xaml.Media.Brush DarkChipText =
+        new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x1A, 0x1A, 0x1A));
+
+    /// <summary>
+    /// Picks the chip label brush for a full-colour chip (#193): white unless the background is too
+    /// light for white to reach ~3:1 (WCAG large/bold text) — then near-black. In the current
+    /// palette only the mustard <c>#C99A00</c> trips this (white would be ~2.6:1); every other
+    /// colour keeps white text.
+    /// </summary>
+    private static Microsoft.UI.Xaml.Media.Brush ChipTextFor(Windows.UI.Color background)
+    {
+        static double Lin(byte v)
+        {
+            var s = v / 255.0;
+            return s <= 0.03928 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4);
+        }
+
+        var luminance = (0.2126 * Lin(background.R)) + (0.7152 * Lin(background.G)) + (0.0722 * Lin(background.B));
+        var whiteContrast = 1.05 / (luminance + 0.05);
+        return whiteContrast >= 3.0 ? WhiteChipText : DarkChipText;
     }
 
     /// <summary>Whether this card is a mood/genre category (rendered as a solid colour chip).</summary>
@@ -119,8 +144,11 @@ public sealed class HomeCardItem
     /// <summary>Whether this card is NOT a mood chip (drives the normal cover art layout).</summary>
     public bool IsNotMood => !IsMood;
 
-    /// <summary>The chip colour for a mood/genre card; <c>null</c> for normal cards.</summary>
+    /// <summary>The full-chip background colour for a mood/genre card; <c>null</c> for normal cards.</summary>
     public Microsoft.UI.Xaml.Media.Brush? ChipBrush { get; }
+
+    /// <summary>Label brush that stays readable on <see cref="ChipBrush"/>; <c>null</c> for normal cards.</summary>
+    public Microsoft.UI.Xaml.Media.Brush? ChipTextBrush { get; }
 
     /// <summary>Whether this card is a video (OMV/UGC song) — rendered with a wide 16:9 thumbnail.</summary>
     public bool IsVideo => IsVideoModel(Model);

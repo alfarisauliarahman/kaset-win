@@ -29,6 +29,8 @@ public sealed partial class PodcastsPage : Page
     /// <summary>The page ViewModel, bound from XAML via <c>x:Bind</c>.</summary>
     public PodcastsViewModel ViewModel { get; }
 
+    private readonly EntityContextMenu _contextMenu = EntityContextMenu.FromServices(App.Current.Services);
+
     public PodcastsPage()
     {
         var services = App.Current.Services;
@@ -66,19 +68,38 @@ public sealed partial class PodcastsPage : Page
         }
     }
 
-    private async void OnSubscribe(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Right-click on a podcast card (tester #190): shows get Subscribe / Unsubscribe (the same
+    /// ViewModel actions as before) plus Bagikan when the show has a navigable share URL; episodes
+    /// get Putar (the same action as clicking the card).
+    /// </summary>
+    private void OnCardContextRequested(Microsoft.UI.Xaml.UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: PodcastCardItem { Model: PodcastSectionItem.ShowItem show } })
+        if (sender is not FrameworkElement { DataContext: PodcastCardItem card } element)
         {
-            await ViewModel.SubscribeAsync(show.Show);
+            return;
         }
-    }
 
-    private async void OnUnsubscribe(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { DataContext: PodcastCardItem { Model: PodcastSectionItem.ShowItem show } })
+        var menu = new Microsoft.UI.Xaml.Controls.MenuFlyout();
+        switch (card.Model)
         {
-            await ViewModel.UnsubscribeAsync(show.Show);
+            case PodcastSectionItem.ShowItem show:
+                EntityContextMenu.AddItem(menu, Localization.UiStrings.MenuSubscribe, async () =>
+                    await ViewModel.SubscribeAsync(show.Show));
+                EntityContextMenu.AddItem(menu, Localization.UiStrings.MenuUnsubscribe, async () =>
+                    await ViewModel.UnsubscribeAsync(show.Show));
+                _contextMenu.AddShare(menu, KasetWin.Core.Services.Sharing.ShareUrlBuilder.TryCreate(show.Show));
+                break;
+
+            case PodcastSectionItem.EpisodeItem episode:
+                EntityContextMenu.AddItem(menu, Localization.UiStrings.PlayLabel, async () =>
+                    await ViewModel.PlayEpisodeAsync(episode.Episode));
+                break;
+        }
+
+        if (menu.Items.Count > 0)
+        {
+            EntityContextMenu.Show(menu, element, e);
         }
     }
 

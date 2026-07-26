@@ -132,33 +132,22 @@
                                                 Visibility="{x:Bind CanPlay, Converter={StaticResource BoolToVisibility}}">
                                                 <FontIcon FontSize="16" Glyph="&#xE768;" />
                                             </Button>
-                                            <!-- Mood/genre chip, YT Music style: dark card with a small
-                                                 colour bar at the left + the category name (no cover art). -->
+                                            <!-- Mood/genre chip, YT Music style: full-colour card (#193 — the
+                                                 whole chip is painted with its category colour, label in
+                                                 per-chip contrasting text; no cover art). -->
                                             <Border
-                                                Padding="12,0"
-                                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                                BorderThickness="1"
+                                                Padding="14,0"
+                                                Background="{x:Bind ChipBrush}"
                                                 CornerRadius="6"
                                                 Visibility="{x:Bind IsMood, Converter={StaticResource BoolToVisibility}}">
-                                                <StackPanel
+                                                <TextBlock
                                                     VerticalAlignment="Center"
-                                                    Orientation="Horizontal"
-                                                    Spacing="12">
-                                                    <Border
-                                                        Width="4"
-                                                        Height="24"
-                                                        VerticalAlignment="Center"
-                                                        Background="{x:Bind ChipBrush}"
-                                                        CornerRadius="2" />
-                                                    <TextBlock
-                                                        VerticalAlignment="Center"
-                                                        MaxLines="2"
-                                                        Text="{x:Bind Title}"
-                                                        TextTrimming="CharacterEllipsis"
-                                                        TextWrapping="Wrap"
-                                                        Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                                </StackPanel>
+                                                    Foreground="{x:Bind ChipTextBrush}"
+                                                    MaxLines="2"
+                                                    Text="{x:Bind Title}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    TextWrapping="Wrap"
+                                                    Style="{StaticResource BodyStrongTextBlockStyle}" />
                                             </Border>
                                         </Grid>
                                         <TextBlock
@@ -186,9 +175,10 @@
             </StackPanel>
         </DataTemplate>
 
-        <!-- Moods & genres (full category list): YT Music-style chips — dark cards with a small
-             colour bar at the left + the name — flowing left-to-right, wrapping (no h-scroll),
-             grouped under the server's own "Mood & momen" / "Genre" section headers. -->
+        <!-- Moods & genres (full category list): YT Music-style chips — full-colour cards (#193:
+             the whole chip is painted with its category colour, label in per-chip contrasting
+             text) — flowing left-to-right, wrapping (no h-scroll), grouped under the server's own
+             "Mood & momen" / "Genre" section headers. -->
         <DataTemplate x:Key="MoodSectionTemplate" x:DataType="vm:HomeSectionView">
             <StackPanel Margin="0,0,0,8" Spacing="12">
                 <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" />
@@ -206,30 +196,17 @@
                             <Grid
                                 Width="220"
                                 Height="48"
-                                Padding="12,0"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                ColumnSpacing="12"
+                                Padding="14,0"
+                                Background="{x:Bind ChipBrush}"
                                 CornerRadius="6"
                                 DataContext="{x:Bind}"
                                 IsTabStop="True"
                                 KeyDown="OnCardKeyDown"
                                 Tapped="OnItemClick"
                                 UseSystemFocusVisuals="True">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Border
-                                    Width="4"
-                                    Height="24"
-                                    VerticalAlignment="Center"
-                                    Background="{x:Bind ChipBrush}"
-                                    CornerRadius="2" />
                                 <TextBlock
-                                    Grid.Column="1"
                                     VerticalAlignment="Center"
+                                    Foreground="{x:Bind ChipTextBrush}"
                                     MaxLines="1"
                                     Text="{x:Bind Title}"
                                     TextTrimming="CharacterEllipsis"

@@ -61,6 +61,14 @@ public sealed partial class ArtistPage : Page
     }
 
     private readonly Notifications.IInAppNotifier? _notifier;
+    private readonly EntityContextMenu _contextMenu = EntityContextMenu.FromServices(App.Current.Services);
+
+    /// <summary>
+    /// Discography / featured / related / video cards: the shared context-appropriate menu
+    /// (tester #190). The templates carry different model types, so the menu is built dynamically.
+    /// </summary>
+    private void OnEntityCardContextRequested(Microsoft.UI.Xaml.UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e) =>
+        _contextMenu.TryShow(sender, e);
 
     // ── Top-songs row context menu (right-click, YT-Music-style) ─────────────────────────────────
 

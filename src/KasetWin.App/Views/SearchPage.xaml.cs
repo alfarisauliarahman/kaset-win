@@ -50,9 +50,30 @@ public sealed partial class SearchPage : Page
     }
 
     private readonly Notifications.IInAppNotifier? _notifier;
+    private readonly EntityContextMenu _contextMenu = EntityContextMenu.FromServices(((App)Application.Current).Services);
 
     /// <summary>The page ViewModel; bound from XAML via <c>x:Bind</c>.</summary>
     public SearchViewModel ViewModel { get; }
+
+    // ── Entity-card context menus (tester #190: context menus everywhere, YT-Music style) ────────
+
+    /// <summary>Album / artist / playlist / podcast cards: the shared context-appropriate menu.</summary>
+    private void OnEntityCardContextRequested(Microsoft.UI.Xaml.UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e) =>
+        _contextMenu.TryShow(sender, e);
+
+    /// <summary>Unified (podcast-query) rows carry the Home union item; unwrap it for the menu.</summary>
+    private void OnUnifiedRowContextRequested(Microsoft.UI.Xaml.UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: SearchRow row } element)
+        {
+            return;
+        }
+
+        if (_contextMenu.BuildFor(row.Item) is { } menu)
+        {
+            EntityContextMenu.Show(menu, element, e);
+        }
+    }
 
     /// <inheritdoc />
     protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)

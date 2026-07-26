@@ -843,9 +843,23 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// undoes both, and leaves any line it cannot confidently split as a single artist.
     /// Ids stay empty: the page reports no browse target, so none is fabricated.
     /// </summary>
+    /// <summary>
+    /// Content-type badges YouTube prepends to the watch-page byline ("Lagu • Artist • …"). They
+    /// split like a first artist and were displayed as one ("Lagu, Official HIGE DANdism"). Exact,
+    /// case-insensitive matches only, and only ever dropped from the FIRST position when other
+    /// names remain — an artist genuinely named "Video" playing solo is left alone.
+    /// </summary>
+    private static readonly string[] BylineTypeBadges = ["lagu", "song", "video", "video musik", "music video"];
+
     private static IReadOnlyList<Artist> ArtistsFromFlatLine(string? line)
     {
         var names = ParsingHelpers.SplitArtistNames(line);
+        if (names.Count > 1
+            && Array.Exists(BylineTypeBadges, b => string.Equals(b, names[0], StringComparison.OrdinalIgnoreCase)))
+        {
+            names = [.. names.Skip(1)];
+        }
+
         if (names.Count == 0)
         {
             return Array.Empty<Artist>();
@@ -899,9 +913,14 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         // changes identity with it, or the page's reports for the substituted id would look foreign
         // and be re-appended as history. Resolution failing, finding nothing, or being outrun by a
         // newer load all mean: play the video the user picked.
+        // The gate includes UNKNOWN types on purpose: album/playlist rows never carry a
+        // VideoType, and requiring a known one is exactly how a video hid behind an album row in
+        // round 11. The resolver settles unknowns itself from one cached metadata fetch. Podcasts
+        // are excluded — an episode has no "song version" to find.
         if (_songVersionResolver is not null
             && _preferSongVersion?.Invoke() == true
-            && track.VideoType is MusicVideoType.Omv or MusicVideoType.Ugc)
+            && !track.IsPodcastEpisode
+            && track.VideoType is MusicVideoType.Omv or MusicVideoType.Ugc or null)
         {
             Song? songVersion = await _songVersionResolver.ResolveAsync(track).ConfigureAwait(false);
             if (songVersion is not null && !IsSuperseded(generation))

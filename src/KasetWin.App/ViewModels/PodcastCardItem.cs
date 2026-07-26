@@ -10,12 +10,6 @@ namespace KasetWin.App.ViewModels;
 /// </summary>
 public sealed class PodcastCardItem : IKeyedItem
 {
-    /// <summary>Context-menu label, following the app language.</summary>
-    public string SubscribeMenuText => Localization.UiStrings.MenuSubscribe;
-
-    /// <summary>Context-menu label, following the app language.</summary>
-    public string UnsubscribeMenuText => Localization.UiStrings.MenuUnsubscribe;
-
     private PodcastCardItem(PodcastSectionItem model, string title, string subtitle, Uri? thumbnailUrl, double progress, bool isEpisode)
     {
         Model = model;

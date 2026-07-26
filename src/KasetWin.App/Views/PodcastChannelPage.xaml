@@ -19,11 +19,14 @@
         <!-- 16:9 episode card, per the YT Music channel page: thumb + (date • duration / Telah
              diputar) + bold title, with the red progress strip under the thumb. -->
         <DataTemplate x:Key="ChannelEpisodeTemplate" x:DataType="models:PodcastEpisode">
+            <!-- Right-click: Putar (same action as the click) — built in code so it can stay
+                 contextual with the show cards' menu (tester #190). -->
             <Button
                 Padding="8"
                 HorizontalAlignment="Stretch"
                 HorizontalContentAlignment="Stretch"
                 Click="OnEpisodeClick"
+                ContextRequested="OnEpisodeContextRequested"
                 DataContext="{x:Bind}"
                 Style="{StaticResource SubtleButtonStyle}">
                 <Grid ColumnSpacing="12">
@@ -98,6 +101,7 @@
                 Width="176"
                 Padding="8"
                 Click="OnShowClick"
+                ContextRequested="OnShowContextRequested"
                 DataContext="{x:Bind}"
                 Style="{StaticResource SubtleButtonStyle}">
                 <StackPanel Spacing="2">

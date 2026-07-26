@@ -71,10 +71,13 @@
 
         <!-- Album card (square art + title + artists), Apple-Music rail style. -->
         <DataTemplate x:Key="AlbumCardTemplate" x:DataType="core:Album">
+            <!-- Right-click menu built in code (ContextRequested): the offered actions depend on the
+                 item's ids (play / go-to-artist / share), which a static flyout cannot gate. -->
             <Button
                 Width="176"
                 Padding="8"
                 Click="OnAlbumClick"
+                ContextRequested="OnEntityCardContextRequested"
                 DataContext="{x:Bind}"
                 Style="{StaticResource SubtleButtonStyle}">
                 <StackPanel Spacing="2">
@@ -109,6 +112,7 @@
                 Width="150"
                 Padding="8"
                 Click="OnArtistClick"
+                ContextRequested="OnEntityCardContextRequested"
                 DataContext="{x:Bind}"
                 Style="{StaticResource SubtleButtonStyle}">
                 <StackPanel Spacing="6">
@@ -148,6 +152,7 @@
                 Width="176"
                 Padding="8"
                 Click="OnPlaylistClick"
+                ContextRequested="OnEntityCardContextRequested"
                 DataContext="{x:Bind}"
                 Style="{StaticResource SubtleButtonStyle}">
                 <StackPanel Spacing="2">
@@ -182,6 +187,7 @@
                 Width="176"
                 Padding="8"
                 Click="OnPodcastClick"
+                ContextRequested="OnEntityCardContextRequested"
                 DataContext="{x:Bind}"
                 Style="{StaticResource SubtleButtonStyle}">
                 <StackPanel Spacing="2">
@@ -346,6 +352,7 @@
                                                 HorizontalAlignment="Stretch"
                                                 HorizontalContentAlignment="Stretch"
                                                 Click="OnUnifiedRowClick"
+                                                ContextRequested="OnUnifiedRowContextRequested"
                                                 DataContext="{x:Bind}"
                                                 Style="{StaticResource SubtleButtonStyle}">
                                                 <Grid ColumnSpacing="12">

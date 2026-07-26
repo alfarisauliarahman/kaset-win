@@ -122,9 +122,12 @@ public sealed partial class MiniPlayerView : UserControl
         Accessibility.A11y.Name(MiniSeekSlider, Localization.UiStrings.A11ySeekSlider);
         Accessibility.A11y.Name(MiniLyricsList, Localization.UiStrings.A11yLyricsList);
         Accessibility.A11y.Name(MiniQueueList, Localization.UiStrings.A11yQueueList);
+        MiniQueueNowPlayingHeader.Text = Localization.UiStrings.QueueNowPlaying;
+        MiniQueueUpNextHeader.Text = Localization.UiStrings.QueueUpNextHeader;
         MiniQueueEmptyText.Text = Localization.UiStrings.QueueEmpty;
         UpdateLyricsEmptyText();
         MiniTrackInfo.ApplyLanguage();
+        MiniNowPlayingTrackInfo.ApplyLanguage();
     }
 
     /// <summary>
@@ -184,6 +187,22 @@ public sealed partial class MiniPlayerView : UserControl
         if (resizeWindow)
         {
             ((Application.Current as App)?.MainWindow as MainWindow)?.SetMiniPlayerExpanded(expanded);
+        }
+
+        // The window height itself cannot be tweened smoothly (AppWindow.Resize lives outside the
+        // XAML compositor, and hand-rolled DispatcherTimer tweens both stutter and hammer AppWindow —
+        // ADR 0003 territory), so the resize is instant and the CONTENT animates: the panel fades
+        // and slides in over ~200ms. Started AFTER the resize so the first animated frame already
+        // renders in the tall window. Restarting on lyrics ⇄ queue switches is deliberate feedback.
+        // On collapse — including ResetPanels while the window is hidden in the tray — the
+        // storyboard is stopped, which is pure XAML state and resets opacity/offset to base values.
+        if (expanded)
+        {
+            MiniPanelEnterStoryboard.Begin();
+        }
+        else
+        {
+            MiniPanelEnterStoryboard.Stop();
         }
 
         if (panel == MiniPanel.Lyrics && Lyrics is not null)

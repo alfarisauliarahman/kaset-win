@@ -34,6 +34,10 @@
                         </controls:ItemsRepeater.Layout>
                         <controls:ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="vm:PodcastCardItem">
+                                <!-- Right-click menu built in code (ContextRequested): the card is
+                                     polymorphic (show vs episode), so shows get subscribe/share and
+                                     episodes get play — a static flyout offered subscribe on
+                                     episodes, where it is a no-op. -->
                                 <Button
                                     Width="168"
                                     Padding="8"
@@ -41,14 +45,9 @@
                                     Background="Transparent"
                                     BorderThickness="0"
                                     Click="OnItemClick"
+                                    ContextRequested="OnCardContextRequested"
                                     CornerRadius="8"
                                     DataContext="{x:Bind}">
-                                    <Button.ContextFlyout>
-                                        <MenuFlyout>
-                                            <MenuFlyoutItem Click="OnSubscribe" Text="{x:Bind SubscribeMenuText}" />
-                                            <MenuFlyoutItem Click="OnUnsubscribe" Text="{x:Bind UnsubscribeMenuText}" />
-                                        </MenuFlyout>
-                                    </Button.ContextFlyout>
                                     <StackPanel Spacing="2">
                                         <Border
                                             Width="152"

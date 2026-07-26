@@ -19,6 +19,7 @@ public sealed partial class TrendingListPage : Page
     private readonly IPlayerService? _player;
     private readonly IQueueService? _queue;
     private readonly Notifications.IInAppNotifier? _notifier;
+    private readonly EntityContextMenu _contextMenu;
 
     /// <summary>
     /// Section handed off by the caller right before navigating. A complex object must not travel as
@@ -36,6 +37,7 @@ public sealed partial class TrendingListPage : Page
         _player = services.GetService<IPlayerService>();
         _queue = services.GetService<IQueueService>();
         _notifier = services.GetService<Notifications.IInAppNotifier>();
+        _contextMenu = EntityContextMenu.FromServices(services);
     }
 
     /// <inheritdoc />
@@ -76,17 +78,24 @@ public sealed partial class TrendingListPage : Page
     }
 
     /// <summary>
-    /// Right-click on a row/card: only SONG items get the YT-Music-style menu (play next / add to
-    /// queue / go to album / go to artist / share). The card union is polymorphic, so the menu is
-    /// built here instead of a static <c>ContextFlyout</c>; non-song items simply show nothing.
-    /// This page has no ViewModel, so the queue actions call <see cref="IQueueService"/> directly
-    /// (the same calls the detail-page ViewModels make).
+    /// Right-click on a row/card: SONG items get the YT-Music-style menu (play next / add to
+    /// queue / go to album / go to artist / share); album / playlist / artist items get the shared
+    /// context-appropriate menu (play / go to artist / share) via <see cref="EntityContextMenu"/>
+    /// (tester #190). The card union is polymorphic, so the menu is built here instead of a static
+    /// <c>ContextFlyout</c>. This page has no ViewModel, so the queue actions call
+    /// <see cref="IQueueService"/> directly (the same calls the detail-page ViewModels make).
     /// </summary>
     private void OnCardContextRequested(UIElement sender, ContextRequestedEventArgs e)
     {
-        if (sender is not FrameworkElement { DataContext: HomeCardItem card } element
-            || card.Model is not HomeSectionItem.SongItem songItem)
+        if (sender is not FrameworkElement { DataContext: HomeCardItem card } element)
         {
+            return;
+        }
+
+        if (card.Model is not HomeSectionItem.SongItem songItem)
+        {
+            // Non-song entities: album/playlist/artist menus from the shared builder.
+            _contextMenu.TryShow(sender, e);
             return;
         }
 

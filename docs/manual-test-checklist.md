@@ -360,12 +360,12 @@ geometri proporsional. Uji ulang: langkah 178.
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 177 | `start "kaset://play?v=BEPSc8q6Bd8"`, lihat sampul di player bar + kartu "Sedang diputar" | **Art album persegi**, bukan frame video 16:9 | |
-| 178 | Hover ikon Kaset di taskbar | Tiga ikon flat putih bersih, tidak berbayang/halo | |
-| 179 | Dari Home, buka sebuah album, lalu klik **Home** di sidebar | Kembali ke Home | |
-| 180 | Klik playlist di sidebar | Playlist terbuka DAN itemnya ter-highlight di sidebar | |
-| 181 | Jendela sempit → klik hamburger → pilih halaman/playlist | Pane menutup sendiri setelah memilih | |
-| 182 | Panel Terkait → bagian artis serupa | Avatar + nama rata tengah, seperti halaman artis | |
+| 177 | `start "kaset://play?v=BEPSc8q6Bd8"`, lihat sampul di player bar + kartu "Sedang diputar" | **Art album persegi**, bukan frame video 16:9 | ✅ 2026-07-23 (putaran 11): kotaknya persegi, tapi gambarnya 16:9 di dalam persegi (letterbox) — dipoles: art dirender UniformToFill |
+| 178 | Hover ikon Kaset di taskbar | Tiga ikon flat putih bersih, tidak berbayang/halo | ✅ 2026-07-23 (putaran 11) — "ok bgs" |
+| 179 | Dari Home, buka sebuah album, lalu klik **Home** di sidebar | Kembali ke Home | ✅ 2026-07-23 (putaran 11) |
+| 180 | Klik playlist di sidebar | Playlist terbuka DAN itemnya ter-highlight di sidebar | ❌ 2026-07-23 (putaran 11): playlist tetap tidak ter-highlight — perbaikan putaran 9 tidak bekerja di runtime. Lihat M1 |
+| 181 | Jendela sempit → klik hamburger → pilih halaman/playlist | Pane menutup sendiri setelah memilih | ❌ 2026-07-23 (putaran 11): pane overlay tetap tidak menutup — sama, tidak bekerja di runtime. Lihat M1 |
+| 182 | Panel Terkait → bagian artis serupa | Avatar + nama rata tengah, seperti halaman artis | ✅ 2026-07-23 (putaran 11) |
 
 ## K. Fitur baru (2026-07-23, pasca putaran 9) — belum satu pun diuji tangan
 
@@ -390,8 +390,8 @@ riwayat mengikuti id versi lagu (lebih benar, nyambung ke album); biaya satu fet
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 183 | Cari sebuah lagu populer, buka tab **Video musik**, putar MV-nya | Yang diputar **versi lagu** (thumbnail persegi, durasi album). `diag.log`: `song-version videoId=… -> …` | |
-| 184 | Pengaturan → Pemutaran → matikan "Utamakan versi lagu", ulangi 183 | MV diputar apa adanya (video) | |
+| 183 | Cari sebuah lagu populer, buka tab **Video musik**, putar MV-nya | Yang diputar **versi lagu** (thumbnail persegi, durasi album). `diag.log`: `song-version videoId=… -> …` | ❌ 2026-07-23 (putaran 11): langkahnya membingungkan penguji DAN fiturnya tidak berefek — memutar Lemon Tang DARI HALAMAN ALBUMNYA masih memutar versi video. Lihat M2 |
+| 184 | Pengaturan → Pemutaran → matikan "Utamakan versi lagu", ulangi 183 | MV diputar apa adanya (video) | ⏭️ 2026-07-23 (putaran 11): tidak bisa dinilai selama 183 gagal |
 | 185 | Nyalakan lagi, putar video yang TIDAK ada versi albumnya (mis. live/cover UGC) | Video diputar apa adanya; `diag.log`: `song-version …: no album, keeping the video` — tidak ada error | |
 | 186 | Setelah 183: cek panel antrean & lirik | Antrean menampilkan versi lagu (bukan MV); lirik ikut versi lagu | |
 
@@ -399,16 +399,16 @@ riwayat mengikuti id versi lagu (lebih benar, nyambung ke album); biaya satu fet
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 187 | Masuk mini player, klik tombol lirik | Lirik tampil di mini player, baris aktif mengikuti lagu | |
-| 188 | Klik tombol antrean | Antrean ringkas tampil; klik lagu memutarnya | |
-| 189 | Keluar mini player | Jendela pulih normal — tidak ada regresi 58c (kilat/lompatan) | |
+| 187 | Masuk mini player, klik tombol lirik | Lirik tampil di mini player, baris aktif mengikuti lagu | ✅ 2026-07-23 (putaran 11): MENINGGI — risiko resize CompactOverlay terjawab, BISA. Polesan diminta: animasi transisi, teks lirik kebesaran/kekecilan (terlalu kecil), baris 2-baris terpotong atasnya. Lihat M3 |
+| 188 | Klik tombol antrean | Antrean ringkas tampil; klik lagu memutarnya | ✅ 2026-07-23 (putaran 11) — permintaan: samakan strukturnya dengan panel antrean utama (Sedang diputar / Berikutnya). Lihat M3 |
+| 189 | Keluar mini player | Jendela pulih normal — tidak ada regresi 58c (kilat/lompatan) | ✅ 2026-07-23 (putaran 11): keluar-mini bersih, tanpa regresi 58c |
 
 ### K3. Klik kanan kontekstual di halaman lain
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 190 | Klik kanan baris lagu di **hasil pencarian**, **Lagu yang disukai**, **Riwayat**, **Top songs artis** | Menu muncul: Putar berikutnya, Tambah ke antrean, Bagikan (+ Buka album/artis bila datanya ada) | |
-| 191 | "Putar berikutnya" dari hasil pencarian | Lagu masuk antrean tepat setelah lagu sekarang | |
+| 190 | Klik kanan baris lagu di **hasil pencarian**, **Lagu yang disukai**, **Riwayat**, **Top songs artis** | Menu muncul: Putar berikutnya, Tambah ke antrean, Bagikan (+ Buka album/artis bila datanya ada) | ⚠️ 2026-07-23 (putaran 11): lagu ✅; penguji minta diperluas ke SEMUA entitas sesuai konteks (album, playlist, playlist podcast, dsb). Lihat M4 |
+| 191 | "Putar berikutnya" dari hasil pencarian | Lagu masuk antrean tepat setelah lagu sekarang | ✅ 2026-07-23 (putaran 11) |
 
 ## L. Temuan putaran 10 (2026-07-23) — dikerjakan sebelum pengujian, atas permintaan pemilik repo
 
@@ -439,10 +439,39 @@ diparse dari respons, bukan di-hardcode. Pilihan disimpan di setting `explore.ch
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 192 | Library → Artists → klik OFFICIAL HIGE DANDISM (atau artis mana pun) | Halaman artis SUNGGUHAN — top songs resmi, bukan live/cover acak | |
-| 193 | Explore → bagian "Jenis musik & suasana" | Grid chip dengan bar warna kiri, seperti YT Music, plus tombol Selengkapnya | |
-| 194 | Klik "Selengkapnya" pada bagian itu | SEMUA kategori tampil — bukan salinan deretan atas | |
-| 195 | Explore → Charts → dropdown negara → pilih negara lain (mis. Jepang) | Isi charts berganti ke negara itu; pilihan bertahan setelah app ditutup-buka | |
+| 192 | Library → Artists → klik OFFICIAL HIGE DANDISM (atau artis mana pun) | Halaman artis SUNGGUHAN — top songs resmi, bukan live/cover acak | ✅ 2026-07-23 (putaran 11): halaman artis benar sekarang. Polesan: nama artis di grid Library bisa >2 baris dan terpotong. Lihat M5 |
+| 193 | Explore → bagian "Jenis musik & suasana" | Grid chip dengan bar warna kiri, seperti YT Music, plus tombol Selengkapnya | ✅ 2026-07-23 (putaran 11): grid tampil. Permintaan: chip berwarna PENUH, bukan cuma bar kiri. Lihat M5 |
+| 194 | Klik "Selengkapnya" pada bagian itu | SEMUA kategori tampil — bukan salinan deretan atas | ✅ 2026-07-23 (putaran 11): terbukti dari screenshot penguji — halaman Selengkapnya menampilkan "Untuk Anda / Mood & momen / Genre" lengkap. (Kalimat langkahnya membingungkan; sudah ditulis ulang) |
+| 195 | Explore → Charts → dropdown negara → pilih negara lain (mis. Jepang) | Isi charts berganti ke negara itu; pilihan bertahan setelah app ditutup-buka | ✅ 2026-07-23 (putaran 11) — "ok" |
+
+## M. Putaran 12 (2026-07-23) — menutup temuan putaran 11
+
+| Temuan | Sebab yang ditemukan | Status |
+|---|---|---|
+| M1 #180/181 sidebar (percobaan ke-2) | Lihat laporan di bawah tabel | dikerjakan ulang dengan bukti |
+| M2 versi lagu tak berefek dari album | Gerbang menuntut `VideoType` DIKETAHUI — baris album tidak pernah membawanya (0 kemunculan di PlaylistParser). Kini tipe tak dikenal diselesaikan resolver dari satu fetch metadata ter-cache; podcast dikecualikan | ✅ + 2 test |
+| "Lagu," jadi nama artis (screenshot putaran 11) | Badge tipe konten di byline halaman terbelah seperti artis pertama. Dibuang hanya bila exact-match DAN bukan satu-satunya nama | ✅ + 2 test |
+| M3 mini player polish | Animasi = konten fade+slide (tween jendela sengaja dihindari, ADR 0003); tipografi = milik panel utama (aktif 28px); clipping atas = `VerticalContentAlignment` default `Center`; antrean = struktur "Sedang diputar / Selanjutnya" | ✅ |
+| M4 klik kanan semua entitas | Builder terpusat `EntityContextMenu`; 10 halaman; hanya aksi yang sudah ada (inventaris di tasks.md). Yang TIDAK ada commandnya tidak dipasang: save-album, follow-artist per kartu, subscribe podcast dari Search | ✅ |
+| M5 chip warna penuh + nama artis terpotong + sampul letterbox | Chip = warna kategori penuh, teks dihitung kontras per-warna (hanya mustard yang gelap). Nama artis: `ItemsWrapGrid` menyamakan tinggi baris dgn kartu pertama → `MinHeight` 2-baris. Letterbox TERPANGGANG DI BITMAP `hqdefault` (4:3 + bar) → tukar ke `mqdefault` (16:9 murni) khusus non-video | ✅ |
+| "Buat playlist" di Library | Disembunyikan — "+" sidebar sudah mengurusnya | ✅ |
+
+**M1 detail (bug dua-kali-gagal):** lihat laporan agent di tasks.md task 82.
+
+### Langkah uji putaran 12
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 196 | Putar **Lemon Tang dari halaman albumnya** (atau video mana pun dari album) | Yang diputar versi LAGU. `diag.log`: `song-version videoId=… -> …` | |
+| 197 | Lihat baris artis di player bar saat memutar dari `kaset://` / watch page | Tidak ada lagi "Lagu, " di depan nama artis | |
+| 198 | Klik playlist di sidebar | Ter-highlight (percobaan ke-2) | |
+| 199 | Sidebar compact → hamburger → pilih | Pane menutup (percobaan ke-2) | |
+| 200 | Mini player → buka lirik | Panel masuk dengan animasi fade/slide; teks besar (aktif menonjol); baris 2-baris TIDAK terpotong atasnya | |
+| 201 | Mini player → antrean | Ada "Sedang diputar" + "Selanjutnya" seperti panel utama | |
+| 202 | Explore → moods | Chip berwarna PENUH, teks terbaca | |
+| 203 | Klik kanan: kartu album di Library, kartu artis di Search, kartu playlist di Home, show podcast | Menu kontekstual sesuai entitas | |
+| 204 | Library → Artists | Nama 2 baris tidak terpotong; header "Buat playlist" hilang | |
+| 205 | `start "kaset://play?v=BEPSc8q6Bd8"` → lihat sampul | Terisi penuh persegi — tanpa bar hitam atas-bawah | |
 
 ## F. Cacat terbuka dari putaran 4 (2026-07-23)
 

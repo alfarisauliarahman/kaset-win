@@ -474,6 +474,34 @@ public class PlayerLoadAndMetadataTests
         Assert.Equal(art, queue.CurrentTrack?.ThumbnailUrl);
     }
 
+    // ── "Lagu," leaking into the artist line (round 11 screenshot) ───────────────────
+
+    [Fact]
+    public void TheWatchPageTypeBadge_IsNotAnArtist()
+    {
+        var queue = new QueueService(bound => 0);
+        var player = new PlayerService(queue, new FakePlaybackController(), new FakeJsBridge());
+
+        // The page byline arrives as "Lagu • Artist"; the badge split like a first artist and the
+        // bar displayed "Lagu, Official HIGE DANdism".
+        player.HandleStateUpdate(new PlaybackStateMessage(
+            true, 0, 100, "v1", "破顔", "Lagu • Official HIGE DANdism", true, null, null));
+
+        Assert.Equal(["Official HIGE DANdism"], player.CurrentTrack!.Artists.Select(a => a.Name));
+    }
+
+    [Fact]
+    public void AnArtistActuallyNamedVideo_PlayingSolo_IsKept()
+    {
+        var queue = new QueueService(bound => 0);
+        var player = new PlayerService(queue, new FakePlaybackController(), new FakeJsBridge());
+
+        player.HandleStateUpdate(new PlaybackStateMessage(
+            true, 0, 100, "v1", "T", "Video", true, null, null));
+
+        Assert.Equal(["Video"], player.CurrentTrack!.Artists.Select(a => a.Name));
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────────
 
     /// <summary>Polls <paramref name="condition"/> briefly; fails the test if it never holds.</summary>

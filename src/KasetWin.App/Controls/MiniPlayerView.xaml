@@ -13,11 +13,37 @@
 
     <UserControl.Resources>
         <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
+        <converters:CoverArtConverter x:Key="CoverArt" />
         <converters:PlayPauseGlyphConverter x:Key="PlayPauseGlyph" />
         <converters:SecondsToTimeConverter x:Key="SecondsToTime" />
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
         <converters:BoolToOpacityConverter x:Key="BoolToOpacity" />
         <converters:ActiveLineToFontWeightConverter x:Key="ActiveLineToFontWeight" />
+        <converters:ActiveLineToFontSizeConverter x:Key="ActiveLineToFontSize" />
+
+        <!-- Panel-open entrance: the WINDOW height cannot be animated smoothly (AppWindow.Resize is
+             outside the XAML compositor), so the window snaps to its new size and the panel CONTENT
+             fades/slides in instead. Opacity and a render-transform Y are both independent
+             animations (composition thread), so this costs nothing on the UI thread. Restarted when
+             switching lyrics ⇄ queue too, as the visual cue that the panel changed. -->
+        <Storyboard x:Name="MiniPanelEnterStoryboard">
+            <DoubleAnimation
+                Storyboard.TargetName="MiniPanelHost"
+                Storyboard.TargetProperty="Opacity"
+                Duration="0:0:0.15"
+                From="0"
+                To="1" />
+            <DoubleAnimation
+                Storyboard.TargetName="MiniPanelSlide"
+                Storyboard.TargetProperty="Y"
+                Duration="0:0:0.2"
+                From="16"
+                To="0">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut" />
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
 
         <!-- Compact queue row: smaller artwork than the side panel's 40px and no duration — at
              ~376px of usable width the title needs every pixel it can get. -->
@@ -203,6 +229,9 @@
             Grid.ColumnSpan="3"
             Margin="0,6,0,0"
             Visibility="Collapsed">
+            <Grid.RenderTransform>
+                <TranslateTransform x:Name="MiniPanelSlide" />
+            </Grid.RenderTransform>
 
             <!-- LYRICS: synced list with the active line highlighted / plain fallback / empty. -->
             <Grid x:Name="MiniLyricsPanel" Visibility="Collapsed">
@@ -216,24 +245,36 @@
                     SelectionMode="None"
                     Visibility="{x:Bind Lyrics.ShowSynced, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                     <ListView.ItemContainerStyle>
+                        <!-- MinHeight 0 and NO fixed heights anywhere, so a row auto-sizes when its
+                             text wraps; VerticalContentAlignment Top because the default (Center)
+                             clips a wrapped line at the TOP if the presenter ever measures shorter
+                             than the content (observed at 400px width, round 11). Vertical breathing
+                             room lives on the TextBlock margin, not a row height. -->
                         <Style TargetType="ListViewItem">
                             <Setter Property="MinHeight" Value="0" />
                             <Setter Property="Padding" Value="8,2" />
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="VerticalContentAlignment" Value="Top" />
                         </Style>
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="vm:LyricLineItem">
-                            <!-- Body-sized text (the side panel's Subtitle style fits 3 lines here);
-                                 the active line brightens and turns semibold. Karaoke word-split is
+                            <!-- The side panel's typography (Subtitle base; the active line grows via
+                                 FONT SIZE — layout-aware, so it wraps instead of being clipped —
+                                 20px → 28px SemiBold and brightens). Karaoke word-split is
                                  deliberately not rendered at this size — Text always shows. -->
                             <TextBlock
-                                Margin="0,2"
+                                Margin="0,6"
+                                FontSize="{x:Bind IsActive, Converter={StaticResource ActiveLineToFontSize}, Mode=OneWay}"
                                 FontWeight="{x:Bind IsActive, Converter={StaticResource ActiveLineToFontWeight}, Mode=OneWay}"
                                 Opacity="{x:Bind IsActive, Converter={StaticResource BoolToOpacity}, Mode=OneWay}"
                                 Text="{x:Bind Text}"
                                 TextWrapping="Wrap"
-                                Style="{StaticResource BodyTextBlockStyle}" />
+                                Style="{StaticResource SubtitleTextBlockStyle}">
+                                <TextBlock.OpacityTransition>
+                                    <ScalarTransition Duration="0:0:0.35" />
+                                </TextBlock.OpacityTransition>
+                            </TextBlock>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
@@ -257,10 +298,74 @@
                     Style="{StaticResource CaptionTextBlockStyle}" />
             </Grid>
 
-            <!-- QUEUE: the up-next slice of the shared queue; tapping a row plays from there. -->
-            <Grid x:Name="MiniQueuePanel" Visibility="Collapsed">
+            <!-- QUEUE: the side panel's structure at mini scale — a "Now playing" card, then the
+                 "Up next" list (tapping a row plays from there). Headers and the card follow the
+                 same QueueViewModel flags the side panel binds, so the two surfaces read alike. -->
+            <Grid x:Name="MiniQueuePanel" RowSpacing="4" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBlock
+                    x:Name="MiniQueueNowPlayingHeader"
+                    Grid.Row="0"
+                    Margin="8,0,0,0"
+                    Opacity="0.6"
+                    Text="Now playing"
+                    Visibility="{x:Bind Queue.HasNowPlaying, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                    Style="{StaticResource CaptionTextBlockStyle}" />
+                <Grid
+                    Grid.Row="1"
+                    Padding="8"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    ColumnSpacing="10"
+                    CornerRadius="8"
+                    Visibility="{x:Bind Queue.HasNowPlaying, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="40" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border
+                        Grid.Column="0"
+                        Width="4"
+                        Height="32"
+                        VerticalAlignment="Center"
+                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                        CornerRadius="2" />
+                    <Border
+                        Grid.Column="1"
+                        Width="40"
+                        Height="40"
+                        CornerRadius="4">
+                        <!-- Bound to the whole Song (not .ThumbnailUrl) so the converter can fall
+                             back to FallbackThumbnailUrl and log load failures (#150). -->
+                        <Image
+                            AutomationProperties.AccessibilityView="Raw"
+                            Source="{x:Bind Queue.NowPlaying, Converter={StaticResource CoverArt}, Mode=OneWay}"
+                            Stretch="UniformToFill" />
+                    </Border>
+                    <controls:TrackInfo
+                        x:Name="MiniNowPlayingTrackInfo"
+                        Grid.Column="2"
+                        VerticalAlignment="Center"
+                        Song="{x:Bind Queue.NowPlaying, Mode=OneWay}" />
+                </Grid>
+
+                <TextBlock
+                    x:Name="MiniQueueUpNextHeader"
+                    Grid.Row="2"
+                    Margin="8,4,0,0"
+                    Opacity="0.6"
+                    Text="Up next"
+                    Visibility="{x:Bind Queue.HasUpNext, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                    Style="{StaticResource CaptionTextBlockStyle}" />
                 <ListView
                     x:Name="MiniQueueList"
+                    Grid.Row="3"
                     AutomationProperties.Name="Playback queue"
                     IsItemClickEnabled="True"
                     ItemClick="OnQueueTrackClick"
@@ -270,6 +375,7 @@
 
                 <TextBlock
                     x:Name="MiniQueueEmptyText"
+                    Grid.Row="3"
                     Margin="12"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"

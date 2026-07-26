@@ -25,6 +25,14 @@ public sealed partial class ExplorePage : Page
 {
     private readonly IPlayerService? _player;
     private readonly IYTMusicClient? _client;
+    private readonly EntityContextMenu _contextMenu = EntityContextMenu.FromServices(App.Current.Services);
+
+    /// <summary>
+    /// Right-click on a chart/shelf/video card (tester #190): the shared context-appropriate menu
+    /// for the card's concrete kind. Mood chips (their own template) are untouched.
+    /// </summary>
+    private void OnCardContextRequested(UIElement sender, ContextRequestedEventArgs e) =>
+        _contextMenu.TryShow(sender, e);
 
     public ExplorePage()
     {

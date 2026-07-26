@@ -25,6 +25,7 @@ namespace KasetWin.App.Views;
 public sealed partial class LibraryPage : Page
 {
     private readonly LibraryViewModel _viewModel;
+    private readonly EntityContextMenu _contextMenu;
 
     public LibraryPage()
     {
@@ -40,6 +41,7 @@ public sealed partial class LibraryPage : Page
         _viewModel = new LibraryViewModel(
             services.GetRequiredService<IYTMusicClient>(),
             services.GetService<IPlayerService>());
+        _contextMenu = EntityContextMenu.FromServices(services);
 
         DataContext = _viewModel;
 
@@ -99,14 +101,65 @@ public sealed partial class LibraryPage : Page
         }
     }
 
-    /// <summary>Opens a playlist picker for the song, then adds it to the chosen playlist.</summary>
-    private async void OnAddLibrarySongToPlaylist(object sender, RoutedEventArgs e)
+    // ── Right-click menus (tester #190: context menus on every card/row, YT-Music style) ─────────
+
+    /// <summary>Album / artist cards and upload rows: the shared context-appropriate menu.</summary>
+    private void OnEntityCardContextRequested(Microsoft.UI.Xaml.UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e) =>
+        _contextMenu.TryShow(sender, e);
+
+    /// <summary>
+    /// Playlist cards: play/share plus "Hapus playlist" for playlists the user owns (the same
+    /// <see cref="LibraryViewModel.DeletePlaylistCommand"/> the card's trash button invokes).
+    /// </summary>
+    private void OnPlaylistCardContextRequested(Microsoft.UI.Xaml.UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e)
     {
-        if (sender is not FrameworkElement { Tag: Song song })
+        if (sender is not FrameworkElement { DataContext: Playlist playlist } element)
         {
             return;
         }
 
+        var menu = _contextMenu.BuildForPlaylist(playlist) ?? new MenuFlyout();
+        if (playlist.IsOwnedByUser)
+        {
+            EntityContextMenu.AddItem(menu, Localization.UiStrings.MenuDeletePlaylist, () =>
+                _viewModel.DeletePlaylistCommand.Execute(playlist));
+        }
+
+        if (menu.Items.Count > 0)
+        {
+            EntityContextMenu.Show(menu, element, e);
+        }
+    }
+
+    /// <summary>
+    /// Library song rows: the standard song menu plus "Simpan ke playlist" (same picker as the row's
+    /// "+" button).
+    /// </summary>
+    private void OnLibrarySongContextRequested(Microsoft.UI.Xaml.UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: Song song } element)
+        {
+            return;
+        }
+
+        var menu = _contextMenu.BuildForSong(song);
+        EntityContextMenu.AddItem(menu, Localization.UiStrings.MenuSaveToPlaylist, async () =>
+            await PickPlaylistAndAddAsync(song));
+        EntityContextMenu.Show(menu, element, e);
+    }
+
+    /// <summary>Opens a playlist picker for the song, then adds it to the chosen playlist.</summary>
+    private async void OnAddLibrarySongToPlaylist(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            await PickPlaylistAndAddAsync(song);
+        }
+    }
+
+    /// <summary>Shows the "Simpan ke playlist" picker and performs the add (Req 13.3).</summary>
+    private async Task PickPlaylistAndAddAsync(Song song)
+    {
         var playlists = _viewModel.Playlists;
         if (playlists.Count == 0)
         {

@@ -59,12 +59,28 @@ public sealed class SongVersionResolver
 
         try
         {
+            // Round 11 taught that gating on a KNOWN video type misses the most common path: album
+            // and playlist rows never carry a VideoType at all, so a video hiding behind an album
+            // row sailed straight past the substitution ("played it from the album and still got
+            // the video"). An unknown type is therefore resolved here, from the same (cached)
+            // metadata fetch that names the album: not a video → nothing to do, and an audio track
+            // costs exactly one cached lookup.
+            Song? meta = null;
+            if (video.VideoType is null)
+            {
+                meta = await _fetchSong(video.VideoId, ct).ConfigureAwait(false);
+                if (meta?.VideoType is not (MusicVideoType.Omv or MusicVideoType.Ugc))
+                {
+                    return null;
+                }
+            }
+
             // The video's album may already be on the Song (a search "video" row often carries it);
             // otherwise one metadata fetch names it. No album — no deterministic mapping.
-            string? albumId = video.Album?.Id;
+            string? albumId = video.Album?.Id ?? meta?.Album?.Id;
             if (string.IsNullOrEmpty(albumId))
             {
-                Song? meta = await _fetchSong(video.VideoId, ct).ConfigureAwait(false);
+                meta ??= await _fetchSong(video.VideoId, ct).ConfigureAwait(false);
                 albumId = meta?.Album?.Id;
             }
 

@@ -69,7 +69,40 @@ public sealed partial class CoverArtConverter : IValueConverter
             _ => null,
         };
 
+        // #177: a SQUARE cover box (non-video track — same rule as CoverDimensionConverter) fed a
+        // ytimg letterboxed still (hqdefault et al. are 4:3 with the 16:9 frame's black bars baked
+        // INTO the bitmap) renders those bars inside the square even under UniformToFill, which can
+        // only crop the sides. Swap such stills for mqdefault (320×180, true 16:9, no baked bars)
+        // so UniformToFill fills the square edge-to-edge. Video tracks keep their 16:9 box and
+        // their URLs untouched.
+        if (value is Song track
+            && !(track.VideoType is MusicVideoType.Omv or MusicVideoType.Ugc || track.HasVideo == true))
+        {
+            primary = StripBakedLetterbox(primary);
+            fallback = StripBakedLetterbox(fallback);
+        }
+
         return primary is null ? null : GetOrCreate(primary, fallback);
+    }
+
+    /// <summary>
+    /// Rewrites a ytimg letterboxed 4:3 still (<c>hqdefault</c>/<c>sddefault</c>/<c>default</c>/
+    /// <c>0.jpg</c>) to <c>mqdefault.jpg</c> — the true 16:9 frame with no baked-in bars. URLs with
+    /// a query (e.g. <c>?sqp=</c> CDN square crops, already bar-free) and other hosts pass through
+    /// untouched.
+    /// </summary>
+    private static Uri? StripBakedLetterbox(Uri? url)
+    {
+        if (url is null
+            || !url.Host.EndsWith("ytimg.com", StringComparison.OrdinalIgnoreCase)
+            || !string.IsNullOrEmpty(url.Query))
+        {
+            return url;
+        }
+
+        var path = System.Text.RegularExpressions.Regex.Replace(
+            url.AbsolutePath, @"/(hqdefault|sddefault|default|0)\.jpg$", "/mqdefault.jpg");
+        return path == url.AbsolutePath ? url : new Uri($"{url.Scheme}://{url.Host}{path}");
     }
 
     /// <inheritdoc />

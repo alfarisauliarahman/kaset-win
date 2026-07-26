@@ -81,14 +81,12 @@
                                     KeyDown="OnCardKeyDown"
                                     PointerEntered="OnCardPointerEntered"
                                     PointerExited="OnCardPointerExited"
+                                    ContextRequested="OnCardContextRequested"
                                     Tapped="OnItemClick"
                                     UseSystemFocusVisuals="True">
-                                    <Grid.ContextFlyout>
-                                        <MenuFlyout>
-                                            <MenuFlyoutItem Click="OnShareItem" IsEnabled="{x:Bind CanShare}" Text="{x:Bind ShareMenuText}" />
-                                            <MenuFlyoutItem Click="OnAddToFavorites" Text="{x:Bind AddToFavoritesMenuText}" />
-                                        </MenuFlyout>
-                                    </Grid.ContextFlyout>
+                                    <!-- Right-click menu built in code (ContextRequested): the card is
+                                         polymorphic (song/album/playlist/artist), so the offered actions
+                                         (play/queue/go-to/share/favorite) depend on the concrete kind. -->
                                     <Border
                                         x:Name="CardHover"
                                         Background="{ThemeResource SubtleFillColorSecondaryBrush}"
@@ -195,6 +193,7 @@
                 Background="Transparent"
                 ColumnSpacing="12"
                 CornerRadius="8"
+                ContextRequested="OnCardContextRequested"
                 DataContext="{x:Bind}"
                 PointerEntered="OnChartCardEnter"
                 PointerExited="OnChartCardExit"

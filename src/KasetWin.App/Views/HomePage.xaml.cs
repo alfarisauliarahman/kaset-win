@@ -33,6 +33,7 @@ public sealed partial class HomePage : Page
 {
     private readonly IPlayerService? _player;
     private readonly IYTMusicClient? _client;
+    private readonly EntityContextMenu _contextMenu;
 
     public HomePage()
     {
@@ -44,6 +45,7 @@ public sealed partial class HomePage : Page
         _player = services.GetService<IPlayerService>();
         var client = services.GetRequiredService<IYTMusicClient>();
         _client = client;
+        _contextMenu = EntityContextMenu.FromServices(services);
         ViewModel = new HomeViewModel(
             client,
             services.GetService<ISingleFlight>(),
@@ -152,14 +154,6 @@ public sealed partial class HomePage : Page
         }
     }
 
-    private void OnAddToFavorites(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { DataContext: HomeCardItem card })
-        {
-            ViewModel.ToggleFavorite(FeedNavigation.ToFavorite(card.Model));
-        }
-    }
-
     private void OnRemoveFromFavorites(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: FavoriteCardItem card })
@@ -168,13 +162,29 @@ public sealed partial class HomePage : Page
         }
     }
 
-    private void OnShareItem(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Right-click on a Home card / Quick-picks row (tester #190): the shared context-appropriate
+    /// menu for the card's concrete kind, plus "Tambahkan ke Favorit" (Req 29.1) for every pinnable
+    /// card. Mood chips offer nothing and show no menu.
+    /// </summary>
+    private void OnCardContextRequested(UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: HomeCardItem card })
+        if (sender is not FrameworkElement { DataContext: HomeCardItem card } element)
         {
-            var target = ShareUrlBuilder.TryCreate(card.Model);
-            ShareInvoker.TryShow(App.Current.MainWindow, target);
+            return;
         }
+
+        var menu = _contextMenu.BuildFor(card);
+        if (menu is null && card.IsMood)
+        {
+            // Moods/genres entry points only browse — nothing to play, share or pin.
+            return;
+        }
+
+        menu ??= new MenuFlyout();
+        EntityContextMenu.AddItem(menu, Localization.UiStrings.MenuAddToFavorites, () =>
+            ViewModel.ToggleFavorite(FeedNavigation.ToFavorite(card.Model)));
+        EntityContextMenu.Show(menu, element, e);
     }
 
     private void OnShareFavorite(object sender, RoutedEventArgs e)

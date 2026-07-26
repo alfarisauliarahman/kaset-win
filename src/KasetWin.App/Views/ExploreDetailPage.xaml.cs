@@ -50,6 +50,7 @@ public sealed partial class ExploreDetailPage : Page
     }
 
     private readonly Notifications.IInAppNotifier? _notifier;
+    private readonly EntityContextMenu _contextMenu = EntityContextMenu.FromServices(App.Current.Services);
 
     /// <summary>The page ViewModel, bound from XAML via <c>x:Bind</c>.</summary>
     public ExploreDetailViewModel ViewModel { get; }
@@ -75,15 +76,22 @@ public sealed partial class ExploreDetailPage : Page
     }
 
     /// <summary>
-    /// Right-click on a card: only SONG cards get the YT-Music-style menu (play next / add to
-    /// queue / go to album / go to artist / share). The card union is polymorphic, so the menu is
-    /// built here instead of a static <c>ContextFlyout</c>; non-song cards simply show nothing.
+    /// Right-click on a card: SONG cards get the YT-Music-style menu (play next / add to queue /
+    /// go to album / go to artist / share); album / playlist / artist cards get the shared
+    /// context-appropriate menu (play / go to artist / share) via <see cref="EntityContextMenu"/>
+    /// (tester #190). Mood chips offer nothing and show no menu. The card union is polymorphic, so
+    /// the menu is built here instead of a static <c>ContextFlyout</c>.
     /// </summary>
     private void OnCardContextRequested(UIElement sender, ContextRequestedEventArgs e)
     {
-        if (sender is not FrameworkElement { DataContext: HomeCardItem card } element
-            || card.Model is not HomeSectionItem.SongItem songItem)
+        if (sender is not FrameworkElement { DataContext: HomeCardItem card } element)
         {
+            return;
+        }
+
+        if (card.Model is not HomeSectionItem.SongItem songItem)
+        {
+            _contextMenu.TryShow(sender, e);
             return;
         }
 
