@@ -75,6 +75,8 @@ public sealed partial class MiniPlayerView : UserControl
         _player = services?.GetService<IPlayerService>();
         var lyricsService = services?.GetService<ILyricsService>();
         var queueService = services?.GetService<IQueueService>();
+        _queueService = queueService;
+        _music = services?.GetService<KasetWin.Core.Services.Api.IYTMusicClient>();
         if (_player is not null && lyricsService is not null)
         {
             Lyrics = new LyricsViewModel(_player, lyricsService);
@@ -157,11 +159,53 @@ public sealed partial class MiniPlayerView : UserControl
     /// trigger is unproven, but visiting full mode amounts to a resync, so entering mini performs
     /// one explicitly. Cheap (a list rebuild) and honest about being a mitigation, not a root fix.
     /// </summary>
+    private readonly IQueueService? _queueService;
+    private readonly KasetWin.Core.Services.Api.IYTMusicClient? _music;
+
+    /// <summary>VideoId the radio autofill last seeded for (once per track; see below).</summary>
+    private string? _radioSeededFor;
+
+    /// <summary>
+    /// The full panel's <c>EnsureUpNextFilledAsync</c>, verbatim in behaviour: when "Up next" is
+    /// running low, seed the queue with the current track's radio. This is THE "priming" the owner
+    /// kept having to do by hand — the full panel performed this fill on open and the mini never
+    /// did, so entering mini directly off a one-track queue showed an honest-but-useless empty
+    /// list until full mode was visited once. Same guards: once per videoId, only under 10
+    /// upcoming, appended deduplicated, best-effort.
+    /// </summary>
+    private async System.Threading.Tasks.Task EnsureMiniUpNextFilledAsync()
+    {
+        var videoId = _player?.CurrentTrack?.VideoId;
+        if (_music is null || _queueService is null || Queue is null
+            || string.IsNullOrEmpty(videoId) || videoId == _radioSeededFor
+            || Queue.UpNext.Count >= 10)
+        {
+            return;
+        }
+
+        _radioSeededFor = videoId;
+        try
+        {
+            var radio = await _music.GetRadioQueueAsync(videoId);
+            KasetWin.Core.Diag.Write($"mini-queue radio fill videoId={videoId} got={radio.Songs.Count}");
+            if (radio.Songs.Count > 0)
+            {
+                _queueService.AppendDeduplicated(radio.Songs);
+            }
+        }
+        catch (System.Exception)
+        {
+            // Autofill is best-effort; allow a retry on the next open.
+            _radioSeededFor = null;
+        }
+    }
+
     private void ResyncQueuePanel()
     {
         Queue?.Resync();
         RefreshPlayedTail();
         UpdateQueueEmptyVisual();
+        _ = EnsureMiniUpNextFilledAsync();
 
         // The resync did NOT cure the stale panel (round 16), which means the mini's view model
         // already held this data and the divergence is elsewhere. This line is the reproduction
@@ -224,6 +268,13 @@ public sealed partial class MiniPlayerView : UserControl
         MiniLyricsPanel.Visibility = panel == MiniPanel.Lyrics ? Visibility.Visible : Visibility.Collapsed;
         MiniQueuePanel.Visibility = panel == MiniPanel.Queue ? Visibility.Visible : Visibility.Collapsed;
         ApplyToggleTints();
+
+        if (panel == MiniPanel.Queue)
+        {
+            // Opening the queue tab is the moment the fill matters — same trigger the full panel
+            // uses (its fill runs when the panel opens).
+            _ = EnsureMiniUpNextFilledAsync();
+        }
 
         if (resizeWindow)
         {
