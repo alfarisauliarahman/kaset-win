@@ -30,18 +30,28 @@ public sealed class SongVersionResolver
 {
     private readonly Func<string, CancellationToken, Task<Song?>> _fetchSong;
     private readonly Func<string, CancellationToken, Task<IReadOnlyList<Song>>> _fetchAlbumTracks;
+    private readonly Func<string, CancellationToken, Task<IReadOnlyList<Song>>>? _searchSongs;
 
     /// <summary>
     /// Creates the resolver.
     /// </summary>
     /// <param name="fetchSong">Fetches a track's metadata (the <c>next</c> endpoint) — used for its album id.</param>
     /// <param name="fetchAlbumTracks">Fetches an album's track list by browse id.</param>
+    /// <param name="searchSongs">
+    /// Optional: songs-filtered search, the fallback when the album route cannot answer. Round 15
+    /// proved the album route insufficient on its own: some releases' track lists carry the VIDEO
+    /// ids themselves ("0 title matches on album MPREb_10HISmzTZKh" — the album row IS the video,
+    /// so the self-exclusion leaves nothing). Search results are only accepted under equality
+    /// gates (see <see cref="ResolveAsync"/>); no gate passing → play the video, never a guess.
+    /// </param>
     public SongVersionResolver(
         Func<string, CancellationToken, Task<Song?>> fetchSong,
-        Func<string, CancellationToken, Task<IReadOnlyList<Song>>> fetchAlbumTracks)
+        Func<string, CancellationToken, Task<IReadOnlyList<Song>>> fetchAlbumTracks,
+        Func<string, CancellationToken, Task<IReadOnlyList<Song>>>? searchSongs = null)
     {
         _fetchSong = fetchSong ?? throw new ArgumentNullException(nameof(fetchSong));
         _fetchAlbumTracks = fetchAlbumTracks ?? throw new ArgumentNullException(nameof(fetchAlbumTracks));
+        _searchSongs = searchSongs;
     }
 
     /// <summary>
@@ -86,8 +96,8 @@ public sealed class SongVersionResolver
 
             if (string.IsNullOrEmpty(albumId))
             {
-                Diag.Write($"song-version videoId={video.VideoId}: no album, keeping the video");
-                return null;
+                Diag.Write($"song-version videoId={video.VideoId}: no album, trying search");
+                return await ResolveViaSearchAsync(video, meta, ct).ConfigureAwait(false);
             }
 
             IReadOnlyList<Song> tracks = await _fetchAlbumTracks(albumId, ct).ConfigureAwait(false);
@@ -108,8 +118,8 @@ public sealed class SongVersionResolver
 
             if (matches.Count != 1)
             {
-                Diag.Write($"song-version videoId={video.VideoId}: {matches.Count} title matches on album {albumId}, keeping the video");
-                return null;
+                Diag.Write($"song-version videoId={video.VideoId}: {matches.Count} title matches on album {albumId}, trying search");
+                return await ResolveViaSearchAsync(video, meta, ct).ConfigureAwait(false);
             }
 
             Song song = matches[0];
@@ -127,6 +137,54 @@ public sealed class SongVersionResolver
             // the video from playing.
             return null;
         }
+    }
+
+    /// <summary>
+    /// The search fallback. Deterministic-by-gate rather than by source: a candidate is accepted
+    /// only when its normalized title EQUALS the video's and its artist set contains the video's
+    /// primary artist (normalized equality), it is not the same videoId, and it is not itself a
+    /// video. Anything less than all four means "keep the video". Without a primary artist name to
+    /// verify against there is no gate, so no search is attempted at all.
+    /// </summary>
+    private async Task<Song?> ResolveViaSearchAsync(Song video, Song? meta, CancellationToken ct)
+    {
+        if (_searchSongs is null)
+        {
+            return null;
+        }
+
+        string wanted = NormalizeTitle(video.Title);
+        string artist = video.Artists.FirstOrDefault()?.Name
+            ?? meta?.Artists.FirstOrDefault()?.Name
+            ?? string.Empty;
+        if (wanted.Length == 0 || string.IsNullOrWhiteSpace(artist))
+        {
+            Diag.Write($"song-version videoId={video.VideoId}: no artist to verify against, keeping the video");
+            return null;
+        }
+
+        string wantedArtist = NormalizeTitle(artist);
+        IReadOnlyList<Song> results = await _searchSongs($"{video.Title} {artist}", ct).ConfigureAwait(false);
+
+        foreach (Song candidate in results)
+        {
+            if (string.IsNullOrEmpty(candidate.VideoId)
+                || string.Equals(candidate.VideoId, video.VideoId, StringComparison.Ordinal)
+                || candidate.VideoType is MusicVideoType.Omv or MusicVideoType.Ugc
+                || !string.Equals(NormalizeTitle(candidate.Title), wanted, StringComparison.Ordinal)
+                || !candidate.Artists.Any(a => string.Equals(NormalizeTitle(a.Name), wantedArtist, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            Diag.Write($"song-version videoId={video.VideoId} -> {candidate.VideoId} (search: \"{candidate.Title}\" by {artist})");
+            return candidate.Album is null && video.Album is not null
+                ? candidate with { Album = video.Album }
+                : candidate;
+        }
+
+        Diag.Write($"song-version videoId={video.VideoId}: search found no gated match, keeping the video");
+        return null;
     }
 
     /// <summary>

@@ -152,8 +152,23 @@ public sealed partial class MiniPlayerView : UserControl
     /// progress updates while the view is collapsed, and resets the bottom panel — the window has
     /// just been sized to the base 400×150, so the view must match it.
     /// </summary>
+    /// <summary>
+    /// Re-syncs the queue panel's data when entering the mini player. Round 15 reported "Up next"
+    /// staying stale after the queue ran out until the FULL player was visited once; the exact
+    /// trigger is unproven, but visiting full mode amounts to a resync, so entering mini performs
+    /// one explicitly. Cheap (a list rebuild) and honest about being a mitigation, not a root fix.
+    /// </summary>
+    private void ResyncQueuePanel()
+    {
+        Queue?.Resync();
+        RefreshPlayedTail();
+        UpdateQueueEmptyVisual();
+    }
+
     internal void OnEnteredMiniPlayer()
     {
+        ResyncQueuePanel();
+
         if (_player is not null)
         {
             MiniSeekSlider.Value = _player.Progress;
@@ -354,32 +369,39 @@ public sealed partial class MiniPlayerView : UserControl
             return;
         }
 
-        // The side panel's Apple-Music glide (NowPlayingPanel.OnActiveLineChanged): the active
-        // line rides up to the top of the viewport with an ANIMATED ChangeView instead of
-        // ScrollIntoView's jump. The target is measured against the scrolled CONTENT, not the
-        // viewport — the container's offset inside the content does not move while a previous
-        // glide is still animating, so there is no race against VerticalOffset and no re-measuring
-        // of wrapped line heights before layout settles (known-issues: the residual half-line is
-        // the accepted trade-off; deferring until layout settles makes the glide stutter instead).
-        // When the container is virtualized away (user seeked far), fall back to the instant jump.
-        if (FindDescendant<ScrollViewer>(MiniLyricsList) is { } scroller
-            && MiniLyricsList.ContainerFromItem(line) is UIElement container)
+        // The side panel's Apple-Music glide, with ONE deliberate difference: the measurement is
+        // deferred a dispatcher hop (Low = after bindings AND the layout they trigger). The active
+        // line's font grows 20→28 on this very event; measuring synchronously read the PRE-growth
+        // offsets, and by the time layout caught up the glide target sat too low — a wrapped
+        // active line landed with its top cut off (round 15). The side panel gets away with a
+        // synchronous measure only because its 36px inset absorbs the error; the mini's 12px
+        // cannot. Re-checked at dispatch: the panel may have closed or the line moved on.
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
         {
-            // The tail of the song can only reach the top if there is empty space below it.
-            UpdateMiniLyricsTailSpacer(scroller);
+            if (_panel != MiniPanel.Lyrics || !line.IsActive)
+            {
+                return;
+            }
 
-            var target = scroller.Content is FrameworkElement content
-                ? container.TransformToVisual(content).TransformPoint(default).Y - MiniLyricsActiveLineTopInset
-                : scroller.VerticalOffset
-                    + container.TransformToVisual(scroller).TransformPoint(default).Y
-                    - MiniLyricsActiveLineTopInset;
+            if (FindDescendant<ScrollViewer>(MiniLyricsList) is { } scroller
+                && MiniLyricsList.ContainerFromItem(line) is UIElement container)
+            {
+                // The tail of the song can only reach the top if there is empty space below it.
+                UpdateMiniLyricsTailSpacer(scroller);
 
-            scroller.ChangeView(null, Math.Max(0, target), null, disableAnimation: false);
-        }
-        else
-        {
-            MiniLyricsList.ScrollIntoView(line, ScrollIntoViewAlignment.Leading);
-        }
+                var target = scroller.Content is FrameworkElement content
+                    ? container.TransformToVisual(content).TransformPoint(default).Y - MiniLyricsActiveLineTopInset
+                    : scroller.VerticalOffset
+                        + container.TransformToVisual(scroller).TransformPoint(default).Y
+                        - MiniLyricsActiveLineTopInset;
+
+                scroller.ChangeView(null, Math.Max(0, target), null, disableAnimation: false);
+            }
+            else
+            {
+                MiniLyricsList.ScrollIntoView(line, ScrollIntoViewAlignment.Leading);
+            }
+        });
     }
 
     /// <summary>

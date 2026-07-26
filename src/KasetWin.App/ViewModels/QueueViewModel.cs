@@ -266,6 +266,10 @@ public sealed partial class QueueViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>Forces a full re-sync from the queue service. For surfaces that (re)open and want
+    /// to trust their lists over any missed notification (the mini player's queue panel).</summary>
+    public void Resync() => RunOnUi(SyncFromQueue);
+
     private void RunOnUi(Action action)
     {
         if (_dispatcher is null || _dispatcher.HasThreadAccess)

@@ -6,6 +6,7 @@ using KasetWin.App.Navigation;
 using KasetWin.App.Notifications;
 using KasetWin.Core.Abstractions;
 using KasetWin.Core.Diagnostics;
+using KasetWin.Core.Models;
 using KasetWin.Core.Services;
 using KasetWin.Core.Services.Api;
 using KasetWin.Core.Services.Auth;
@@ -301,6 +302,16 @@ internal static class AppHost
                 {
                     var detail = await sp.GetRequiredService<IYTMusicClient>().GetPlaylistAsync(albumBrowseId, ct);
                     return detail.Tracks;
+                },
+                // Search fallback (round 15): some releases list the VIDEO ids in their own track
+                // list, so the album route dead-ends on exactly the albums that need fixing. The
+                // songs filter token is the same one SearchViewModel uses; acceptance is gated by
+                // strict normalized equality inside the resolver, never by result order alone.
+                async (query, ct) =>
+                {
+                    var result = await sp.GetRequiredService<IYTMusicClient>()
+                        .SearchAsync(query, new SearchFilter("Songs", "EgWKAQIIAWoMEA4QChADEAQQCRAF"), ct);
+                    return result.Songs;
                 }),
             // Read per load, so flipping the Settings toggle applies to the very next track.
             preferSongVersion: static () =>

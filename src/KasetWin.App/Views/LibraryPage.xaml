@@ -383,7 +383,8 @@
                         SelectionMode="None">
                         <GridView.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <ItemsWrapGrid ItemWidth="162" Orientation="Horizontal" />
+                                <!-- Uniform row contract: a fixed ItemHeight replaces the per-text MinHeight fix, which padded one-line names with dead space (owner: "satu baris jadi kejauhan"). 6 pad + 138 art + 4 + name up to 42 + count 18 + slack = 216. -->
+                                <ItemsWrapGrid ItemWidth="162" ItemHeight="216" Orientation="Horizontal" />
                             </ItemsPanelTemplate>
                         </GridView.ItemsPanel>
                         <GridView.ItemTemplate>
@@ -403,15 +404,10 @@
                                             CornerRadius="69">
                                             <Image Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}" Stretch="UniformToFill" />
                                         </Border>
-                                        <!-- MinHeight reserves the two-line box up front: ItemsWrapGrid sizes every
-                                             row from the first card it measures, so without it a single-line
-                                             neighbour set the row height and a wrapped name ("OFFICIAL HIGE
-                                             DANDISM") was clipped mid-line. -->
                                         <TextBlock
                                             FontSize="15"
                                             HorizontalAlignment="Center"
                                             MaxLines="2"
-                                            MinHeight="42"
                                             Style="{StaticResource BodyStrongTextBlockStyle}"
                                             Text="{x:Bind Name}"
                                             TextAlignment="Center"

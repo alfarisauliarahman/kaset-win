@@ -120,6 +120,82 @@ public class SongVersionResolverTests
         Assert.Equal(0, albumFetches); // settled by the type alone — no album lookup wasted
     }
 
+    // ── Round 15: the album route dead-ends when the album lists the video itself ─────
+
+    [Fact]
+    public async Task WhenTheAlbumListsTheVideoItself_TheGatedSearchAnswers()
+    {
+        // The proven failure: "0 title matches on album …" because the album's own row IS the
+        // video id, and the self-exclusion leaves nothing. Search must answer — under gates.
+        var video = new Song
+        {
+            Id = "omv1", VideoId = "omv1", Title = "Lemon Tang",
+            VideoType = MusicVideoType.Omv,
+            Artists = [new Artist { Id = "", Name = "Hearts2Hearts" }],
+            Album = new Album { Id = "MPREb_V", Title = "The 2nd Mini Album" },
+        };
+        var resolver = new SongVersionResolver(
+            (_, _) => Task.FromResult<Song?>(null),
+            (_, _) => Task.FromResult<IReadOnlyList<Song>>(
+                [video with { VideoType = null }]), // album lists the video id itself
+            (_, _) => Task.FromResult<IReadOnlyList<Song>>(
+            [
+                new Song { Id = "wrong", VideoId = "wrong", Title = "Lemon Tang", VideoType = MusicVideoType.Atv,
+                           Artists = [new Artist { Id = "", Name = "Somebody Else" }] },
+                new Song { Id = "atv1", VideoId = "atv1", Title = "Lemon Tang", VideoType = MusicVideoType.Atv,
+                           Artists = [new Artist { Id = "", Name = "Hearts2Hearts" }] },
+            ]));
+
+        Song? song = await resolver.ResolveAsync(video);
+
+        // The artist gate rejects the first hit; the second passes all four gates.
+        Assert.Equal("atv1", song?.VideoId);
+    }
+
+    [Fact]
+    public async Task SearchFallback_RefusesWhenNoCandidatePassesEveryGate()
+    {
+        var video = new Song
+        {
+            Id = "omv1", VideoId = "omv1", Title = "Song",
+            VideoType = MusicVideoType.Omv,
+            Artists = [new Artist { Id = "", Name = "Artist" }],
+            Album = new Album { Id = "MPREb_V", Title = "A" },
+        };
+        var resolver = new SongVersionResolver(
+            (_, _) => Task.FromResult<Song?>(null),
+            (_, _) => Task.FromResult<IReadOnlyList<Song>>([]),
+            (_, _) => Task.FromResult<IReadOnlyList<Song>>(
+            [
+                // Wrong title, right artist; right title, wrong artist; right pair but a video.
+                new Song { Id = "a", VideoId = "a", Title = "Song 2", VideoType = MusicVideoType.Atv, Artists = [new Artist { Id = "", Name = "Artist" }] },
+                new Song { Id = "b", VideoId = "b", Title = "Song", VideoType = MusicVideoType.Atv, Artists = [new Artist { Id = "", Name = "Other" }] },
+                new Song { Id = "c", VideoId = "c", Title = "Song", VideoType = MusicVideoType.Omv, Artists = [new Artist { Id = "", Name = "Artist" }] },
+            ]));
+
+        Assert.Null(await resolver.ResolveAsync(video));
+    }
+
+    [Fact]
+    public async Task SearchFallback_IsSkippedEntirely_WithoutAnArtistToVerify()
+    {
+        bool searched = false;
+        var resolver = new SongVersionResolver(
+            (_, _) => Task.FromResult<Song?>(null),
+            (_, _) => Task.FromResult<IReadOnlyList<Song>>([]),
+            (_, _) => { searched = true; return Task.FromResult<IReadOnlyList<Song>>([]); });
+
+        var video = new Song
+        {
+            Id = "omv1", VideoId = "omv1", Title = "Song",
+            VideoType = MusicVideoType.Omv,
+            Album = new Album { Id = "MPREb_V", Title = "A" },
+        };
+
+        Assert.Null(await resolver.ResolveAsync(video));
+        Assert.False(searched); // no artist gate possible → no search, no guess
+    }
+
     // ── PlayerService integration: the swap happens before anything observes the load ──
 
     [Fact]

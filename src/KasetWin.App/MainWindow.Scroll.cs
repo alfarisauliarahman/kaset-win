@@ -10,25 +10,25 @@ using Windows.System;
 namespace KasetWin.App;
 
 /// <summary>
-/// One central mouse-wheel policy for everything the content frame hosts: a plain vertical wheel
-/// always scrolls the PAGE (smoothly), never a horizontal card rail sideways; Shift+wheel and a
-/// tilt wheel still pan the rail.
+/// The shell's mouse-wheel policy: a plain vertical wheel always scrolls the PAGE (smoothly),
+/// never a horizontal card rail sideways; Shift+wheel and a tilt wheel still pan the rail.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The previous design attached a swallow handler to each horizontal shelf it could find in the
-/// visual tree at navigation time, plus <c>ItemsRepeater.ElementPrepared</c> for late arrivals.
-/// That enumeration was structurally incomplete: shelves inside virtualized <c>GridView</c>/
-/// <c>ListView</c> items realize long after <c>Loaded</c>, and a shelf that was never attached fell
-/// back to default WinUI routing — the wheel scrolled the rail sideways AND the page handler
-/// (registered <c>handledEventsToo</c>) scrolled vertically, one spin doing two things at once.
-/// Three rounds of testing reported it "still mixed" because every round left different shelves
-/// unenumerated.
+/// Two generations of this file were wrong in two different ways, and the shape below exists
+/// because of both. Attaching a swallow handler to every rail found by visual-tree enumeration
+/// (generation one) lost to virtualization — rails realized after the sweep were never covered.
+/// One central handler on the content frame (generation two) lost to ROUTING: the rail's own
+/// ScrollViewer sits closer to the pointer than the frame, processes the wheel first, and has
+/// already scrolled sideways by the time the central handler runs — which then scrolled the page
+/// as well, one spin doing two things at once, "kacau".
 /// </para>
 /// <para>
-/// So the policy now lives at exactly one place, the content frame, attached once and inspecting
-/// the ancestor chain of whatever the wheel actually hit. There is nothing to enumerate and no
-/// realization timing to lose a race to.
+/// The block therefore has to live BELOW the rail's ScrollViewer (on its content, so it marks the
+/// event handled before the ScrollViewer sees it), and the attachment has to happen before the
+/// first wheel tick. The trick: <c>PointerMoved</c> bubbles to the frame while the mouse travels
+/// across a rail — always before that rail is wheeled — so the frame lazily attaches the swallow
+/// to any rail the pointer passes over. No enumeration, no realization race, no first-notch loss.
 /// </para>
 /// </remarks>
 public sealed partial class MainWindow
@@ -41,9 +41,12 @@ public sealed partial class MainWindow
 
     private readonly ConditionalWeakTable<ScrollViewer, ScrollTarget> _scrollTargets = new();
 
+    /// <summary>Rail contents that already carry the swallow handler (weak: pages come and go).</summary>
+    private readonly ConditionalWeakTable<UIElement, object> _attachedRails = new();
+
     private bool _wheelPolicyAttached;
 
-    /// <summary>Attaches the single wheel policy handler. Idempotent; called on navigation.</summary>
+    /// <summary>Attaches the wheel policy. Idempotent; called on navigation.</summary>
     private void HookPageScrolling()
     {
         if (_wheelPolicyAttached)
@@ -53,12 +56,52 @@ public sealed partial class MainWindow
 
         _wheelPolicyAttached = true;
 
-        // handledEventsToo: a shelf's own ScrollViewer marks wheel events handled while it scrolls
-        // them; the policy must see the event regardless, or the rail keeps winning.
+        // Lazy rail discovery: runs as the pointer travels, i.e. strictly before that rail can be
+        // wheeled. handledEventsToo because item containers routinely mark moves handled.
+        ContentFrame.AddHandler(
+            UIElement.PointerMovedEvent,
+            new PointerEventHandler(OnFramePointerMoved),
+            handledEventsToo: true);
+
+        // Smooth vertical scrolling for whatever scroller the wheel was really aimed at.
         ContentFrame.AddHandler(
             UIElement.PointerWheelChangedEvent,
             new PointerEventHandler(OnFrameWheel),
             handledEventsToo: true);
+    }
+
+    private void OnFramePointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject origin)
+        {
+            return;
+        }
+
+        for (DependencyObject? current = origin; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is ScrollViewer sv && IsHorizontalRail(sv) && sv.Content is UIElement content
+                && !_attachedRails.TryGetValue(content, out _))
+            {
+                _attachedRails.Add(content, new object());
+                // On the CONTENT, below the ScrollViewer in the route: Handled is set before the
+                // rail's own wheel processing runs, which is the entire point.
+                content.AddHandler(
+                    UIElement.PointerWheelChangedEvent,
+                    new PointerEventHandler(OnRailWheel),
+                    handledEventsToo: false);
+            }
+        }
+    }
+
+    private void OnRailWheel(object sender, PointerRoutedEventArgs e)
+    {
+        // A plain vertical wheel must not pan the rail sideways. Swallow it here; the frame's
+        // OnFrameWheel (handledEventsToo) still scrolls the page vertically, so the spin does
+        // exactly one thing. Shift+wheel / tilt wheel fall through and pan the rail.
+        if (sender is UIElement element && IsPlainVerticalWheel(e, element, out _))
+        {
+            e.Handled = true;
+        }
     }
 
     private void OnFrameWheel(object sender, PointerRoutedEventArgs e)
@@ -66,25 +109,18 @@ public sealed partial class MainWindow
         if (e.OriginalSource is not DependencyObject origin
             || !IsPlainVerticalWheel(e, ContentFrame, out var delta))
         {
-            return; // Shift+wheel / tilt wheel: let the rail pan.
+            return;
         }
 
-        // Walk up from what the wheel hit. The first scroller decides:
-        //  - vertical-capable → that is the scroller the user means; glide it.
-        //  - horizontal-only (a card rail) → skip it and keep walking to the page scroller, so the
-        //    rail never moves sideways on a vertical wheel.
+        // First vertically-scrollable ancestor of what the wheel hit — skipping rails, which are
+        // never a vertical wheel's target.
         ScrollViewer? vertical = null;
         for (DependencyObject? current = origin; current is not null; current = VisualTreeHelper.GetParent(current))
         {
-            if (current is ScrollViewer sv)
+            if (current is ScrollViewer sv && IsVerticallyScrollable(sv))
             {
-                if (IsVerticallyScrollable(sv))
-                {
-                    vertical = sv;
-                    break;
-                }
-
-                // Horizontal-only rail: deliberately NOT the target; continue upward.
+                vertical = sv;
+                break;
             }
         }
 
@@ -96,6 +132,12 @@ public sealed partial class MainWindow
         SmoothScrollBy(vertical, -delta);
         e.Handled = true;
     }
+
+    /// <summary>A horizontal card rail: pans sideways, nothing to scroll vertically.</summary>
+    private static bool IsHorizontalRail(ScrollViewer sv) =>
+        sv.HorizontalScrollMode != ScrollMode.Disabled
+        && (sv.VerticalScrollMode == ScrollMode.Disabled || sv.ScrollableHeight <= 0)
+        && sv.ScrollableWidth > 0;
 
     /// <summary>
     /// Whether <paramref name="sv"/> is a scroller a vertical wheel should drive. Mode alone is not

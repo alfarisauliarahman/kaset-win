@@ -462,16 +462,16 @@ diparse dari respons, bukan di-hardcode. Pilihan disimpan di setting `explore.ch
 
 | # | Langkah | Harapan | Hasil |
 |---|---------|---------|-------|
-| 196 | Putar **Lemon Tang dari halaman albumnya** (atau video mana pun dari album) | Yang diputar versi LAGU. `diag.log`: `song-version videoId=… -> …` | |
-| 197 | Lihat baris artis di player bar saat memutar dari `kaset://` / watch page | Tidak ada lagi "Lagu, " di depan nama artis | |
-| 198 | Klik playlist di sidebar | Ter-highlight (percobaan ke-2) | |
-| 199 | Sidebar compact → hamburger → pilih | Pane menutup (percobaan ke-2) | |
-| 200 | Mini player → buka lirik | Panel masuk dengan animasi fade/slide; teks besar (aktif menonjol); baris 2-baris TIDAK terpotong atasnya | |
-| 201 | Mini player → antrean | Ada "Sedang diputar" + "Selanjutnya" seperti panel utama | |
-| 202 | Explore → moods | Chip berwarna PENUH, teks terbaca | |
-| 203 | Klik kanan: kartu album di Library, kartu artis di Search, kartu playlist di Home, show podcast | Menu kontekstual sesuai entitas | |
-| 204 | Library → Artists | Nama 2 baris tidak terpotong; header "Buat playlist" hilang | |
-| 205 | `start "kaset://play?v=BEPSc8q6Bd8"` → lihat sampul | Terisi penuh persegi — tanpa bar hitam atas-bawah | |
+| 196 | Putar **Lemon Tang dari halaman albumnya** (atau video mana pun dari album) | Yang diputar versi LAGU. `diag.log`: `song-version videoId=… -> …` | ❌ 2026-07-27 (putaran 15): masih video. BUKTI dari diag.log: `0 title matches on album MPREb_10HISmzTZKh` — daftar track album itu MEMUAT videoId versi video (baris album = videonya sendiri), jadi jalur album mustinya buntu. Diperbaiki: fallback pencarian ber-pagar (judul+artis harus SAMA persis ternormalisasi, hasil harus ATV). Lihat O |
+| 197 | Lihat baris artis di player bar saat memutar dari `kaset://` / watch page | Tidak ada lagi "Lagu, " di depan nama artis | ✅ 2026-07-27 (putaran 15) |
+| 198 | Klik playlist di sidebar | Ter-highlight (percobaan ke-2) | ✅ 2026-07-27 (putaran 15) |
+| 199 | Sidebar compact → hamburger → pilih | Pane menutup (percobaan ke-2) | ✅ 2026-07-27 (putaran 15) |
+| 200 | Mini player → buka lirik | Panel masuk dengan animasi fade/slide; teks besar (aktif menonjol); baris 2-baris TIDAK terpotong atasnya | ❌ 2026-07-27 (putaran 15): baris yang MEMBUNGKUS terpotong setelah glide. Sebab: font baris aktif membesar 20→28 pada event yang sama, pengukuran berjalan SEBELUM layout ulang. Diperbaiki: pengukuran ditunda satu dispatch (Low) + re-check. Lihat O |
+| 201 | Mini player → antrean | Ada "Sedang diputar" + "Selanjutnya" seperti panel utama | ⚠️ 2026-07-27 (putaran 15): "Selanjutnya" basi setelah antrean habis sampai full mode dikunjungi. Sebab pasti BELUM terbukti; mitigasi: resync eksplisit tiap masuk mini (jujur: mitigasi, bukan akar). Lihat O |
+| 202 | Explore → moods | Chip berwarna PENUH, teks terbaca | ✅ 2026-07-27 (putaran 15) |
+| 203 | Klik kanan: kartu album di Library, kartu artis di Search, kartu playlist di Home, show podcast | Menu kontekstual sesuai entitas | ✅ 2026-07-27 (putaran 15) |
+| 204 | Library → Artists | Nama 2 baris tidak terpotong; header "Buat playlist" hilang | ⚠️ 2026-07-27 (putaran 15): 2-baris aman tapi 1-baris jadi renggang — MinHeight per-teks salah pendekatan. Diganti ItemHeight seragam di ItemsWrapGrid. Lihat O |
+| 205 | `start "kaset://play?v=BEPSc8q6Bd8"` → lihat sampul | Terisi penuh persegi — tanpa bar hitam atas-bawah | ✅ 2026-07-27 (putaran 15) |
 
 ## N. Putaran 13 (2026-07-27) — temuan baru + langkah 183–186 ditulis ulang
 
@@ -483,9 +483,9 @@ Semantik final (koreksi pemilik repo, putaran 13): **konteks yang menentukan** �
 
 | # | Langkah harfiah | Harapan | Hasil |
 |---|---|---|---|
-| 206 | Cari lagu apa pun → buka bagian **Video musik** → klik videonya | **VIDEONYA yang diputar** — tidak diganti apa pun | |
-| 207 | Buka album yang dulu nyangkut video (Lemon Tang), putar lagunya dari situ | Yang berbunyi **versi lagu**. `diag.log` punya baris `song-version videoId=… -> …` | |
-| 208 | Pengaturan → Pemutaran → **matikan** toggle-nya, ulangi 207 | Sekarang apa adanya (boleh video) — toggle benar-benar berpengaruh | |
+| 206 | Cari lagu apa pun → buka bagian **Video musik** → klik videonya | **VIDEONYA yang diputar** — tidak diganti apa pun | ❌ 2026-07-27 (putaran 15): identik dengan 196 — satu akar, satu perbaikan |
+| 207 | Buka album yang dulu nyangkut video (Lemon Tang), putar lagunya dari situ | Yang berbunyi **versi lagu**. `diag.log` punya baris `song-version videoId=… -> …` | ❌ 2026-07-27 (putaran 15): idem |
+| 208 | Pengaturan → Pemutaran → **matikan** toggle-nya, ulangi 207 | Sekarang apa adanya (boleh video) — toggle benar-benar berpengaruh | ⏭️ 2026-07-27 (putaran 15): penguji berhenti — wajar, 196/206/207 gagal dulu |
 | 209 | Nyalakan lagi. Setelah 207: buka panel antrean & lirik | Antrean & lirik ikut versi lagu | |
 
 ### N1. Temuan baru putaran 13
@@ -502,6 +502,26 @@ Semantik final (koreksi pemilik repo, putaran 13): **konteks yang menentukan** �
 | Lirik mini: minta animasi geser per-baris ala Apple Music; antrean mini: minta bagian "Sudah diputar" | Polesan lanjutan |
 | Loading lagu kadang stutter | Investigasi terpisah — navigasi halaman penuh per track adalah tersangka; JANGAN diutak-atik tanpa pengukuran |
 | Mini player bisa di-resize bebas? | Penguji sendiri ragu ("kekny gausa gasi?"). DIPUTUSKAN: tidak dulu — drag-resize di CompactOverlay tidak didukung OS dengan andal, dan concern liriknya sudah tertangani panel |
+
+## O. Putaran 15 (2026-07-27)
+
+| Hal | Sebab terbukti | Perbaikan |
+|---|---|---|
+| #196/206/207 versi lagu masih video | diag.log: `0 title matches` — album-nya sendiri memuat videoId video (baris album = videonya), jalur album buntu by construction | Fallback pencarian ber-pagar 4 lapis: judul ternormalisasi SAMA + artis ternormalisasi SAMA + bukan id yang sama + hasil ATV. Tidak lolos semua = tetap video. Tanpa artis untuk diverifikasi = tidak search sama sekali. 3 test |
+| #200 lirik mini terpotong saat membungkus | Font aktif membesar 20→28 di event yang sama; pengukuran membaca offset PRA-layout; inset mini 12px tak menyerap selisih (panel utama selamat karena 36px) | Ukur+glide ditunda satu dispatch Low, re-check `IsActive` saat jalan |
+| #201 "Selanjutnya" basi | BELUM terbukti — dicatat apa adanya | Mitigasi: `Queue.Resync()` tiap masuk mini. Kalau masih muncul: butuh reproduksi dengan langkah persis |
+| #204 kartu artis renggang | MinHeight per-teks memadatkan yang 2-baris tapi merenggangkan yang 1-baris | `ItemHeight=216` seragam di ItemsWrapGrid; kartu mengatur dirinya di dalam kontrak baris |
+| Scroll masih campur | Kebijakan pusat di ContentFrame KALAH RUTE: event wheel diproses ScrollViewer rail (lebih dekat ke sumber) SEBELUM sampai ke frame — handler pusat cuma menambah scroll halaman di atasnya | Pre-attach saat pointer BERGERAK di atas rail (PointerMoved bubbling sampai frame sebelum wheel pertama) — penangkap terpasang di bawah SV sebelum roda berputar |
+
+### Langkah uji putaran 16
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 210 | Putar Lemon Tang dari albumnya | Versi LAGU. diag.log: `song-version … -> … (search: …)` | |
+| 211 | Mini player → lirik → tunggu baris panjang yang membungkus 2 baris jadi aktif | Tidak terpotong | |
+| 212 | Library → Artists | 1-baris rapat, 2-baris utuh, baris grid rapi | |
+| 213 | Roda mouse di atas shelf horizontal (Home/Explore) | HANYA halaman yang bergulir vertikal; kartu tidak geser sideways; satu gerakan satu efek | |
+| 214 | Antrean habis → autoplay lanjut → langsung buka mini player → tab antrean | "Selanjutnya"/"Sedang diputar" segar tanpa mampir full mode | |
 
 ## F. Cacat terbuka dari putaran 4 (2026-07-23)
 
