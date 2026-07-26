@@ -259,18 +259,19 @@
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="vm:LyricLineItem">
-                            <!-- The side panel's typography (Subtitle base; the active line grows via
-                                 FONT SIZE — layout-aware, so it wraps instead of being clipped —
-                                 20px → 28px SemiBold and brightens). Karaoke word-split is
-                                 deliberately not rendered at this size — Text always shows. -->
+                            <!-- REVERTED to the original body-sized typography at the owner's
+                                 explicit request (round 16): the enlarged active line (20→28px)
+                                 kept clipping when it wrapped, twice, and the small version had
+                                 never clipped at all. Uniform size also removes the mid-glide
+                                 re-layout entirely — the enlargement was the cause of the stale
+                                 measurements. The active line still brightens and turns semibold. -->
                             <TextBlock
-                                Margin="0,6"
-                                FontSize="{x:Bind IsActive, Converter={StaticResource ActiveLineToFontSize}, Mode=OneWay}"
+                                Margin="0,2"
                                 FontWeight="{x:Bind IsActive, Converter={StaticResource ActiveLineToFontWeight}, Mode=OneWay}"
                                 Opacity="{x:Bind IsActive, Converter={StaticResource BoolToOpacity}, Mode=OneWay}"
                                 Text="{x:Bind Text}"
                                 TextWrapping="Wrap"
-                                Style="{StaticResource SubtitleTextBlockStyle}">
+                                Style="{StaticResource BodyTextBlockStyle}">
                                 <TextBlock.OpacityTransition>
                                     <ScalarTransition Duration="0:0:0.35" />
                                 </TextBlock.OpacityTransition>

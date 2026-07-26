@@ -163,6 +163,16 @@ public sealed partial class MiniPlayerView : UserControl
         Queue?.Resync();
         RefreshPlayedTail();
         UpdateQueueEmptyVisual();
+
+        // The resync did NOT cure the stale panel (round 16), which means the mini's view model
+        // already held this data and the divergence is elsewhere. This line is the reproduction
+        // instrument: compare it against what the panel visibly shows next time it happens.
+        if (Queue is { } q)
+        {
+            KasetWin.Core.Diag.Write(
+                $"mini-queue open: history={q.History.Count} upnext={q.UpNext.Count} "
+                + $"now={q.NowPlaying?.VideoId ?? "<none>"} tracks={q.Tracks.Count}");
+        }
     }
 
     internal void OnEnteredMiniPlayer()
