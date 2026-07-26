@@ -16,13 +16,22 @@ public sealed partial class LikedSongsViewModel : ViewModelBase
 {
     private readonly IYTMusicClient _client;
     private readonly IPlayerService _player;
+    private readonly IQueueService? _queue;
+    private readonly Notifications.IInAppNotifier? _notifier;
 
     /// <summary>Creates the ViewModel from the DI-resolved client and player (resolved by the page).</summary>
-    public LikedSongsViewModel(IYTMusicClient client, IPlayerService player, ISingleFlight? singleFlight = null)
+    public LikedSongsViewModel(
+        IYTMusicClient client,
+        IPlayerService player,
+        ISingleFlight? singleFlight = null,
+        IQueueService? queue = null,
+        Notifications.IInAppNotifier? notifier = null)
         : base(singleFlight)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _player = player ?? throw new ArgumentNullException(nameof(player));
+        _queue = queue;
+        _notifier = notifier;
     }
 
     /// <summary>The liked songs, in playlist order. Stable identity via <see cref="Song.Id"/>.</summary>
@@ -51,5 +60,47 @@ public sealed partial class LikedSongsViewModel : ViewModelBase
 
         var index = Tracks.IndexOf(song);
         return index < 0 ? Task.CompletedTask : _player.PlayCollectionAsync([.. Tracks], startIndex: index);
+    }
+
+    /// <summary>Queues a single track to play right after the current one ("Putar setelah ini").</summary>
+    [RelayCommand]
+    private void PlayTrackNext(Song? song)
+    {
+        if (song is null)
+        {
+            return;
+        }
+
+        if (_queue is null)
+        {
+            _notifier?.Show(Localization.UiStrings.ToastQueueUnavailable);
+            return;
+        }
+
+        var added = _queue.InsertNext([song]);
+        _notifier?.Show(added == 0
+            ? Localization.UiStrings.ToastSongAlreadyQueued
+            : Localization.UiStrings.ToastPlayingNext(song.Title));
+    }
+
+    /// <summary>Appends a single track to the play queue ("Tambahkan ke antrean").</summary>
+    [RelayCommand]
+    private void AddTrackToQueue(Song? song)
+    {
+        if (song is null)
+        {
+            return;
+        }
+
+        if (_queue is null)
+        {
+            _notifier?.Show(Localization.UiStrings.ToastQueueUnavailable);
+            return;
+        }
+
+        var added = _queue.AppendDeduplicated([song]);
+        _notifier?.Show(added == 0
+            ? Localization.UiStrings.ToastSongAlreadyQueued
+            : Localization.UiStrings.ToastAddedToQueue(song.Title));
     }
 }

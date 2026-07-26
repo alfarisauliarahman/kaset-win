@@ -169,6 +169,32 @@
                 </Grid>
             </Border>
 
+            <!-- Prefer the song version: music videos play as their album track when one exists -->
+            <Border Style="{StaticResource SettingsCardStyle}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock x:Name="PreferSongVersionLabel" Text="Utamakan versi lagu" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock
+                            x:Name="PreferSongVersionCaption"
+                            Opacity="0.7"
+                            TextWrapping="Wrap"
+                            Text="Video musik diganti versi album-nya bila ada."
+                            Style="{StaticResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                    <ToggleSwitch
+                        Grid.Column="1"
+                        MinWidth="0"
+                        VerticalAlignment="Center"
+                        OnContent=""
+                        OffContent=""
+                        IsOn="{x:Bind ViewModel.PreferSongVersion, Mode=TwoWay}" />
+                </Grid>
+            </Border>
+
             <!-- Remember playback settings (Req 18.2) -->
             <Border Style="{StaticResource SettingsCardStyle}">
                 <Grid ColumnSpacing="16">

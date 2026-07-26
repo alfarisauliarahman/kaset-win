@@ -968,6 +968,30 @@ kalinya), 4 gagal. Dua ditutup langsung, dua lagi dikerjakan:
   - Halaman lain (Search/LikedSongs/History/Artist) juga tanpa klik kanan tapi VM-nya belum punya
     command-nya — itu fitur baru, dicatat sebagai kerja lanjutan, bukan dikerjakan diam-diam.
 
+### FITUR BARU (2026-07-23, pasca putaran 9)
+
+- [x] 76. **"Utamakan versi lagu"** — video musik diganti versi album-nya (permintaan pemilik repo)
+  - Counterpart SONG/VIDEO **terbukti absen** dari respons watch-next (diprobe 3 arah termasuk sesi
+    login; upstream macOS juga tak pernah memecahkan). Jalur yang dibangun: `SongVersionResolver` —
+    metadata video → album id → daftar track album → cocok judul ternormalisasi SAJA (durasi bukan
+    sinyal: MV memang lebih panjang). Ambigu/nol/gagal = putar videonya, tanpa menebak.
+  - Substitusi di `LoadTrackAsync` SEBELUM penjaga dipasang; antrean ikut berganti identitas
+    (`IQueueService.TryReplaceTrack` baru). Toggle Pengaturan→Pemutaran, default nyala, dibaca per
+    pemuatan. 12 test. Probe sementara di YTMusicClient dihapus.
+
+- [x] 77. **Mini player: lirik + antrean** (H7, ala Apple Music)
+  - Opsi jendela-meninggi (400×150 → 400×450) dengan bukti dari kode: `EnterMiniPlayer` sudah
+    me-resize saat CompactOverlay. `LyricsViewModel`/`QueueViewModel` dibuat EAGER (VM yang telat
+    berlangganan menunggu event yang tak pernah datang → panel blank). Expand ditolak saat jendela
+    tersembunyi (jaga-jaga regresi 58c). RISIKO TERBUKA: resize lanjutan ke 450 belum diuji manual;
+    degradasi aman + fallback Opsi B (tanpa resize) sudah disiapkan strukturnya.
+
+- [x] 78. **Klik kanan kontekstual di halaman lain** — Search, LikedSongs, History, Artist,
+  Explore, Trending: Putar berikutnya / Tambah ke antrean / Bagikan (+ Buka album/artis bila
+  datanya ada). Kartu polimorfik (Explore/Trending) membangun menu dinamis hanya untuk lagu.
+  LANJUTAN yang dicatat, tidak dibangun diam-diam: "Simpan ke playlist" (plumbing picker),
+  "Hapus dari riwayat" (butuh feedback-token di VM).
+
 - [ ] 69. **Race laten di `LoadTrackAsync`** — `_expectedVideoId`/`CurrentTrack` diset di luar
   `_loadGate` dan tidak atomik dengan `Interlocked.Increment(_loadGeneration)`. Kelas bug yang sama
   dengan ADR 0006, di baris berbeda. **Tidak terbukti** menyebabkan gejala; jendelanya nanodetik

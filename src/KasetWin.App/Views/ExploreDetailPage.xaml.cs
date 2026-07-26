@@ -1,4 +1,5 @@
 using KasetWin.App.ViewModels;
+using KasetWin.Core.Models;
 using KasetWin.Core.Services;
 using KasetWin.Core.Services.Api;
 using KasetWin.Core.Services.Player;
@@ -36,8 +37,15 @@ public sealed partial class ExploreDetailPage : Page
         _player = services.GetService<IPlayerService>();
         var client = services.GetRequiredService<IYTMusicClient>();
         _client = client;
-        ViewModel = new ExploreDetailViewModel(client, services.GetService<ISingleFlight>());
+        _notifier = services.GetService<Notifications.IInAppNotifier>();
+        ViewModel = new ExploreDetailViewModel(
+            client,
+            services.GetService<ISingleFlight>(),
+            services.GetService<IQueueService>(),
+            _notifier);
     }
+
+    private readonly Notifications.IInAppNotifier? _notifier;
 
     /// <summary>The page ViewModel, bound from XAML via <c>x:Bind</c>.</summary>
     public ExploreDetailViewModel ViewModel { get; }
@@ -60,6 +68,68 @@ public sealed partial class ExploreDetailPage : Page
         {
             FeedNavigation.Activate(this.Frame, card.Model, _player);
         }
+    }
+
+    /// <summary>
+    /// Right-click on a card: only SONG cards get the YT-Music-style menu (play next / add to
+    /// queue / go to album / go to artist / share). The card union is polymorphic, so the menu is
+    /// built here instead of a static <c>ContextFlyout</c>; non-song cards simply show nothing.
+    /// </summary>
+    private void OnCardContextRequested(UIElement sender, ContextRequestedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: HomeCardItem card } element
+            || card.Model is not HomeSectionItem.SongItem songItem)
+        {
+            return;
+        }
+
+        var song = songItem.Song;
+        var menu = new MenuFlyout();
+
+        var playNext = new MenuFlyoutItem { Text = Localization.UiStrings.MenuPlayNext };
+        playNext.Click += (_, _) => ViewModel.PlayTrackNextCommand.Execute(song);
+        menu.Items.Add(playNext);
+
+        var addToQueue = new MenuFlyoutItem { Text = Localization.UiStrings.MenuAddToQueue };
+        addToQueue.Click += (_, _) => ViewModel.AddTrackToQueueCommand.Execute(song);
+        menu.Items.Add(addToQueue);
+
+        // Contextual: only offered when the song actually carries a navigable id.
+        if (song.HasAlbumLink)
+        {
+            var goToAlbum = new MenuFlyoutItem { Text = Localization.UiStrings.MenuGoToAlbum };
+            goToAlbum.Click += (_, _) => Navigation.NavigationHelper.NavigateToSongAlbum(song);
+            menu.Items.Add(goToAlbum);
+        }
+
+        if (song.HasArtistLink)
+        {
+            var goToArtist = new MenuFlyoutItem { Text = Localization.UiStrings.MenuGoToArtist };
+            goToArtist.Click += (_, _) => Navigation.NavigationHelper.NavigateToSongArtist(song);
+            menu.Items.Add(goToArtist);
+        }
+
+        var share = new MenuFlyoutItem { Text = Localization.UiStrings.MenuShare };
+        share.Click += (_, _) =>
+        {
+            var target = KasetWin.Core.Services.Sharing.ShareUrlBuilder.TryCreate(song);
+            if (!Sharing.ShareInvoker.TryShow(App.Current.MainWindow, target))
+            {
+                _notifier?.Show(Localization.UiStrings.ToastActionUnavailable(Localization.UiStrings.MenuShare));
+            }
+        };
+        menu.Items.Add(share);
+
+        if (e.TryGetPosition(element, out var point))
+        {
+            menu.ShowAt(element, point);
+        }
+        else
+        {
+            menu.ShowAt(element);
+        }
+
+        e.Handled = true;
     }
 
     private void OnChartCardEnter(object sender, PointerRoutedEventArgs e)

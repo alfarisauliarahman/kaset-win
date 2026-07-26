@@ -129,6 +129,13 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
     /// <summary>Sleep timer consulted at track end; <c>null</c> when the feature is not wired.</summary>
     private readonly SleepTimer? _sleepTimer;
 
+    /// <summary>Maps a music video to its album track ("prefer the song version"); optional.</summary>
+    private readonly SongVersionResolver? _songVersionResolver;
+
+    /// <summary>Reads the "prefer the song version" setting; evaluated per load so a toggle in
+    /// Settings takes effect on the next track without a restart. <c>null</c> disables the flow.</summary>
+    private readonly Func<bool>? _preferSongVersion;
+
     /// <summary>
     /// Set when an "end of this track" sleep timer has stopped playback, and cleared by the next
     /// deliberate transport action from the user.
@@ -184,7 +191,9 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         IJsBridge bridge,
         InfiniteMixCoordinator? mixCoordinator = null,
         Func<string, CancellationToken, Task<Song?>>? metadataFetcher = null,
-        SleepTimer? sleepTimer = null)
+        SleepTimer? sleepTimer = null,
+        SongVersionResolver? songVersionResolver = null,
+        Func<bool>? preferSongVersion = null)
     {
         _queue = queue ?? throw new ArgumentNullException(nameof(queue));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
@@ -192,6 +201,8 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         _mixCoordinator = mixCoordinator;
         _metadataFetcher = metadataFetcher;
         _sleepTimer = sleepTimer;
+        _songVersionResolver = songVersionResolver;
+        _preferSongVersion = preferSongVersion;
 
         _stateHandler = (_, message) => HandleStateUpdate(message);
         _trackEndedHandler = (_, message) => _ = HandleTrackEndedAsync(message.VideoId);
@@ -880,6 +891,25 @@ public sealed class PlayerService : ObservableObject, IPlayerService, IDisposabl
         // Take a load ticket. Anything started after this one supersedes it (see _loadGeneration).
         int generation = Interlocked.Increment(ref _loadGeneration);
         Diag.Write($"player load videoId={track.VideoId} force={forceReload} gen={generation}");
+
+        // "Prefer the song version": a track about to play as a music video is swapped for its
+        // album counterpart BEFORE anything observes the load — before the guard is armed, before
+        // CurrentTrack is set — so downstream (queue authority, lyrics, likes, history) simply sees
+        // the audio track and nothing needs to special-case the substitution. The queue entry
+        // changes identity with it, or the page's reports for the substituted id would look foreign
+        // and be re-appended as history. Resolution failing, finding nothing, or being outrun by a
+        // newer load all mean: play the video the user picked.
+        if (_songVersionResolver is not null
+            && _preferSongVersion?.Invoke() == true
+            && track.VideoType is MusicVideoType.Omv or MusicVideoType.Ugc)
+        {
+            Song? songVersion = await _songVersionResolver.ResolveAsync(track).ConfigureAwait(false);
+            if (songVersion is not null && !IsSuperseded(generation))
+            {
+                _queue.TryReplaceTrack(track.VideoId, songVersion);
+                track = songVersion;
+            }
+        }
 
         // Guard the load window: transient STATE_UPDATEs for other videos (autoplay/drift) that
         // arrive while the controller is switching tracks must not hijack the queue (see

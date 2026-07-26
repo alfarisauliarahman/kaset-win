@@ -24,13 +24,18 @@ public sealed partial class HistoryPage : Page
     /// <summary>The page ViewModel, bound from XAML via <c>x:Bind</c>.</summary>
     public HistoryViewModel ViewModel { get; }
 
+    private readonly Notifications.IInAppNotifier? _notifier;
+
     public HistoryPage()
     {
         var services = App.Current.Services;
+        _notifier = services.GetService<Notifications.IInAppNotifier>();
         ViewModel = new HistoryViewModel(
             services.GetRequiredService<IYTMusicClient>(),
             services.GetRequiredService<IPlayerService>(),
-            services.GetService<ISingleFlight>());
+            services.GetService<ISingleFlight>(),
+            services.GetService<IQueueService>(),
+            _notifier);
 
         this.InitializeComponent();
         PageTitleText.Text = Localization.UiStrings.HistoryTitle;
@@ -46,6 +51,54 @@ public sealed partial class HistoryPage : Page
         {
             // THROWAWAY DIAGNOSTIC (Bug A): confirm a history track-row click reaches the player.
             ViewModel.PlayTrackCommand.Execute(song);
+        }
+    }
+
+    // ── Row context menu (right-click, YT-Music-style) ───────────────────────────────────────────
+
+    private void OnTrackPlayNextClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            ViewModel.PlayTrackNextCommand.Execute(song);
+        }
+    }
+
+    private void OnTrackAddToQueueClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            ViewModel.AddTrackToQueueCommand.Execute(song);
+        }
+    }
+
+    private void OnTrackOpenAlbumClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            Navigation.NavigationHelper.NavigateToSongAlbum(song);
+        }
+    }
+
+    private void OnTrackOpenArtistClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            Navigation.NavigationHelper.NavigateToSongArtist(song);
+        }
+    }
+
+    private void OnTrackShareClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: Song song })
+        {
+            return;
+        }
+
+        var target = Core.Services.Sharing.ShareUrlBuilder.TryCreate(song);
+        if (!Sharing.ShareInvoker.TryShow(App.Current.MainWindow, target))
+        {
+            _notifier?.Show(Localization.UiStrings.ToastActionUnavailable(Localization.UiStrings.MenuShare));
         }
     }
 }

@@ -94,6 +94,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
         // Close behaviour: default to hide-to-tray (background audio) unless the user turned it off.
         CloseToTray = AppData.Settings[CloseToTrayKey] is not bool closeToTray || closeToTray;
+        PreferSongVersion = AppData.Settings[PreferSongVersionKey] is not false;
 
         Bands = new ObservableCollection<EqBand>(
             EqBandLabels.Select(l => new EqBand { Label = l }));
@@ -250,6 +251,28 @@ public sealed partial class SettingsViewModel : ViewModelBase
     {
         var saved = AppData.Settings[LanguageKey] as string;
         return saved == "en" ? "en" : "id";
+    }
+
+    // ── Prefer the song version (music videos play as their album track) ──────────────────────────
+
+    private const string PreferSongVersionKey = "playback.preferSongVersion";
+
+    /// <summary>
+    /// When on (the default), a music video about to play is swapped for its album ("song")
+    /// version when one can be found unambiguously. Read by the player per load, so flipping it
+    /// applies from the next track.
+    /// </summary>
+    [ObservableProperty]
+    private bool _preferSongVersion = true;
+
+    partial void OnPreferSongVersionChanged(bool value)
+    {
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        AppData.Settings[PreferSongVersionKey] = value;
     }
 
     // ── Close behaviour (hide-to-tray vs quit) ────────────────────────────────────────────────────

@@ -41,6 +41,18 @@ public interface IQueueService : INotifyPropertyChanged
     bool TryEnrichTrack(string videoId, Song metadata);
 
     /// <summary>
+    /// Replaces the queue entry whose videoId is <paramref name="videoId"/> with
+    /// <paramref name="replacement"/> wholesale. Returns <c>false</c> when no such entry exists.
+    /// </summary>
+    /// <remarks>
+    /// Exists for the "prefer the song version" substitution: the entry that was queued IS the
+    /// music video, and the track about to load is its album counterpart with a different videoId.
+    /// Enrichment cannot express that — it fills gaps on the same identity; this changes the
+    /// identity. Position, current-index and the rest of the queue are untouched.
+    /// </remarks>
+    bool TryReplaceTrack(string videoId, Song replacement);
+
+    /// <summary>
     /// Moves the track at <paramref name="fromIndex"/> to <paramref name="toIndex"/>
     /// (Req 6.2). The multiset of tracks is preserved and the active track stays the
     /// same track (its index follows the move).

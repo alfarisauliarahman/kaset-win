@@ -32,10 +32,13 @@
                     </controls:ItemsRepeater.Layout>
                     <controls:ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:HomeCardItem">
+                            <!-- ContextRequested (not a static ContextFlyout): the card is polymorphic,
+                                 and only SONG cards get the YT-Music-style right-click menu. -->
                             <Grid
                                 Width="256"
                                 Padding="8"
                                 Background="Transparent"
+                                ContextRequested="OnCardContextRequested"
                                 CornerRadius="8"
                                 DataContext="{x:Bind}"
                                 Tapped="OnItemClick">
@@ -54,10 +57,13 @@
                 <ItemsControl x:Name="ItemsHost">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:HomeCardItem">
+                            <!-- ContextRequested (not a static ContextFlyout): the row is polymorphic,
+                                 and only SONG rows get the YT-Music-style right-click menu. -->
                             <Grid
                                 Padding="8"
                                 Background="Transparent"
                                 ColumnSpacing="14"
+                                ContextRequested="OnCardContextRequested"
                                 Tapped="OnItemClick">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="36" />

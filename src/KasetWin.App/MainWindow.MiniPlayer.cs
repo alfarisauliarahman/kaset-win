@@ -28,6 +28,14 @@ public sealed partial class MainWindow
     private const int MiniPlayerWidth = 400;
     private const int MiniPlayerHeight = 150;
 
+    /// <summary>
+    /// Compact overlay height while the lyrics/queue panel is open. Resizing while the presenter is
+    /// <see cref="AppWindowPresenterKind.CompactOverlay"/> is proven: <see cref="EnterMiniPlayer"/>
+    /// already calls <c>Resize</c> right after the presenter switch and the window verifiably takes
+    /// the 400×150 frame rather than the system's preset compact size.
+    /// </summary>
+    private const int MiniPlayerExpandedHeight = 450;
+
     /// <summary>Whether the shell is currently in mini-player mode.</summary>
     private bool _isMiniPlayer;
 
@@ -148,6 +156,58 @@ public sealed partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// Grows or shrinks the compact window when <see cref="Controls.MiniPlayerView"/> opens or
+    /// closes its lyrics/queue panel (400×150 ⇄ 400×450).
+    /// </summary>
+    /// <remarks>
+    /// Only runs while mini-player mode is active on a visible window. A pending deferred exit means
+    /// the window is hidden in the tray, where <c>Resize</c>/<c>MoveAndResize</c> would re-show it
+    /// (checklist 58c, ADR 0003) — the call is refused there. Growing happens downward, so when the
+    /// taller frame would fall off the bottom of the work area the window slides up just enough to
+    /// stay fully visible; shrinking never moves the window.
+    /// </remarks>
+    internal void SetMiniPlayerExpanded(bool expanded)
+    {
+        if (!_isMiniPlayer || _miniPlayerExitPending || AppWindow is not { } appWindow)
+        {
+            return;
+        }
+
+        try
+        {
+            var width = ScaleForWindow(MiniPlayerWidth);
+            var height = ScaleForWindow(expanded ? MiniPlayerExpandedHeight : MiniPlayerHeight);
+            var position = appWindow.Position;
+            var y = position.Y;
+
+            if (expanded)
+            {
+                var area = DisplayArea.GetFromRect(
+                    new RectInt32(position.X, position.Y, width, height), DisplayAreaFallback.Nearest);
+                var workBottom = area.WorkArea.Y + area.WorkArea.Height;
+                if (y + height > workBottom)
+                {
+                    y = Math.Max(area.WorkArea.Y, workBottom - height);
+                }
+            }
+
+            if (y == position.Y)
+            {
+                appWindow.Resize(new SizeInt32(width, height));
+            }
+            else
+            {
+                appWindow.MoveAndResize(new RectInt32(position.X, y, width, height));
+            }
+        }
+        catch (COMException)
+        {
+            // Worst case the window keeps its current size; the view's panel state still applies and
+            // the toggle can simply be pressed again.
+        }
+    }
+
     private void ExitMiniPlayer()
     {
         if (AppWindow is not { } appWindow)
@@ -166,6 +226,11 @@ public sealed partial class MainWindow
         {
             // Keep going: the chrome must be restored even if the presenter refused to change.
         }
+
+        // Collapse the lyrics/queue panel state before the chrome swap so the next entry starts at
+        // the base layout. Pure XAML state — safe on the deferred-exit path, where this method runs
+        // while the window is still hidden and nothing may resize or re-show it (ADR 0003).
+        MiniPlayerHost.ResetPanels();
 
         MiniPlayerHost.Visibility = Visibility.Collapsed;
         AppTitleBar.Visibility = Visibility.Visible;

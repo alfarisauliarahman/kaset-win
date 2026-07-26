@@ -206,6 +206,35 @@ public sealed class QueueService : ObservableObject, IQueueService
     }
 
     /// <inheritdoc />
+    public bool TryReplaceTrack(string videoId, Song replacement)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(videoId);
+        ArgumentNullException.ThrowIfNull(replacement);
+
+        bool currentAffected;
+        lock (_gate)
+        {
+            int index = _tracks.FindIndex(t => string.Equals(t.VideoId, videoId, StringComparison.Ordinal));
+            if (index < 0)
+            {
+                return false;
+            }
+
+            _tracks[index] = replacement;
+            currentAffected = index == _currentIndex;
+            RebuildSnapshotLocked();
+        }
+
+        OnPropertyChanged(nameof(Tracks));
+        if (currentAffected)
+        {
+            OnPropertyChanged(nameof(CurrentTrack));
+        }
+
+        return true;
+    }
+
+    /// <inheritdoc />
     public void Move(int fromIndex, int toIndex)
     {
         lock (_gate)

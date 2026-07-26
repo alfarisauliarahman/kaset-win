@@ -402,10 +402,34 @@
                             </GridView.ItemContainerStyle>
                             <GridView.ItemTemplate>
                                 <DataTemplate x:DataType="models:Song">
+                                    <!-- Background=Transparent: makes the whole row hit-testable so
+                                         right-click works over the empty space too (documented
+                                         gotcha, see PodcastShowPage/PlaylistPage). -->
                                     <Grid
                                         Width="430"
                                         Padding="8,6"
+                                        Background="Transparent"
                                         ColumnSpacing="12">
+                                        <!-- Right-click menu (YT-Music-style, context-appropriate):
+                                             queue actions always; Go-to-album / Go-to-artist only
+                                             when the row carries a real id. -->
+                                        <Grid.ContextFlyout>
+                                            <MenuFlyout>
+                                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackPlayNextClick" Text="{x:Bind loc:UiStrings.MenuPlayNext}" />
+                                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackAddToQueueClick" Text="{x:Bind loc:UiStrings.MenuAddToQueue}" />
+                                                <MenuFlyoutItem
+                                                    Tag="{x:Bind}"
+                                                    Click="OnTrackOpenAlbumClick"
+                                                    Text="{x:Bind loc:UiStrings.MenuGoToAlbum}"
+                                                    Visibility="{x:Bind HasAlbumLink, Converter={StaticResource BoolToVisibility}}" />
+                                                <MenuFlyoutItem
+                                                    Tag="{x:Bind}"
+                                                    Click="OnTrackOpenArtistClick"
+                                                    Text="{x:Bind loc:UiStrings.MenuGoToArtist}"
+                                                    Visibility="{x:Bind HasArtistLink, Converter={StaticResource BoolToVisibility}}" />
+                                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackShareClick" Text="{x:Bind loc:UiStrings.MenuShare}" />
+                                            </MenuFlyout>
+                                        </Grid.ContextFlyout>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />

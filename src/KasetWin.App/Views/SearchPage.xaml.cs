@@ -41,10 +41,15 @@ public sealed partial class SearchPage : Page
         NoResultsText.Text = Localization.UiStrings.SearchNoResults;
 
         var services = ((App)Application.Current).Services;
+        _notifier = services.GetService<Notifications.IInAppNotifier>();
         ViewModel = new SearchViewModel(
             services.GetRequiredService<IYTMusicClient>(),
-            services.GetRequiredService<IPlayerService>());
+            services.GetRequiredService<IPlayerService>(),
+            services.GetService<IQueueService>(),
+            _notifier);
     }
+
+    private readonly Notifications.IInAppNotifier? _notifier;
 
     /// <summary>The page ViewModel; bound from XAML via <c>x:Bind</c>.</summary>
     public SearchViewModel ViewModel { get; }
@@ -122,6 +127,54 @@ public sealed partial class SearchPage : Page
         {
             // THROWAWAY DIAGNOSTIC (Bug A): confirm a search song-row click reaches the player.
             _ = ViewModel.PlaySongAsync(song);
+        }
+    }
+
+    // ── Song-row context menu (right-click, YT-Music-style) ──────────────────────────────────────
+
+    private void OnTrackPlayNextClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            ViewModel.PlayTrackNextCommand.Execute(song);
+        }
+    }
+
+    private void OnTrackAddToQueueClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            ViewModel.AddTrackToQueueCommand.Execute(song);
+        }
+    }
+
+    private void OnTrackOpenAlbumClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            Navigation.NavigationHelper.NavigateToSongAlbum(song);
+        }
+    }
+
+    private void OnTrackOpenArtistClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            Navigation.NavigationHelper.NavigateToSongArtist(song);
+        }
+    }
+
+    private void OnTrackShareClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: Song song })
+        {
+            return;
+        }
+
+        var target = Core.Services.Sharing.ShareUrlBuilder.TryCreate(song);
+        if (!Sharing.ShareInvoker.TryShow(((App)Application.Current).MainWindow, target))
+        {
+            _notifier?.Show(Localization.UiStrings.ToastActionUnavailable(Localization.UiStrings.MenuShare));
         }
     }
 

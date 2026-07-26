@@ -367,6 +367,49 @@ geometri proporsional. Uji ulang: langkah 178.
 | 181 | Jendela sempit → klik hamburger → pilih halaman/playlist | Pane menutup sendiri setelah memilih | |
 | 182 | Panel Terkait → bagian artis serupa | Avatar + nama rata tengah, seperti halaman artis | |
 
+## K. Fitur baru (2026-07-23, pasca putaran 9) — belum satu pun diuji tangan
+
+### K1. "Utamakan versi lagu" — video musik diganti versi albumnya
+
+Permintaan pemilik repo: "annoying kalau keputernya versi video, bukan versi lagu/album aslinya".
+
+Jalur mudahnya tertutup: counterpart (pasangan SONG/VIDEO milik YT Music) **terbukti tidak ada** di
+respons watch-next kita — diprobe tiga arah, termasuk dari sesi login di dalam aplikasi
+(`next-probe … counterpart=False`). Upstream macOS juga tidak pernah memecahkan ini.
+
+Yang dibangun: `SongVersionResolver` — metadata video menyebut albumnya → daftar track album
+menyebut videoId versi audio → dicocokkan **judul ternormalisasi saja** (durasi sengaja bukan
+sinyal: MV memang lebih panjang, itu justru alasan fiturnya ada). Cocok ganda/nol/gagal = putar
+videonya apa adanya, tanpa menebak. Substitusi terjadi SEBELUM penjaga muatan dipasang, jadi
+antrean/lirik/like semuanya melihat track audio sejak awal; entri antrean ikut berganti identitas.
+Toggle di Pengaturan → Pemutaran, default NYALA, dibaca per pemuatan (tanpa restart). 12 test.
+
+Jawaban "ngaruh ke playback?": substitusi sebelum navigasi — mesinnya tidak berubah; lirik/like/
+riwayat mengikuti id versi lagu (lebih benar, nyambung ke album); biaya satu fetch album per video
+(ter-cache 24 jam).
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 183 | Cari sebuah lagu populer, buka tab **Video musik**, putar MV-nya | Yang diputar **versi lagu** (thumbnail persegi, durasi album). `diag.log`: `song-version videoId=… -> …` | |
+| 184 | Pengaturan → Pemutaran → matikan "Utamakan versi lagu", ulangi 183 | MV diputar apa adanya (video) | |
+| 185 | Nyalakan lagi, putar video yang TIDAK ada versi albumnya (mis. live/cover UGC) | Video diputar apa adanya; `diag.log`: `song-version …: no album, keeping the video` — tidak ada error | |
+| 186 | Setelah 183: cek panel antrean & lirik | Antrean menampilkan versi lagu (bukan MV); lirik ikut versi lagu | |
+
+### K2. Mini player: lirik + antrean (H7) — lihat laporan implementasi di bawah setelah mendarat
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 187 | Masuk mini player, klik tombol lirik | Lirik tampil di mini player, baris aktif mengikuti lagu | |
+| 188 | Klik tombol antrean | Antrean ringkas tampil; klik lagu memutarnya | |
+| 189 | Keluar mini player | Jendela pulih normal — tidak ada regresi 58c (kilat/lompatan) | |
+
+### K3. Klik kanan kontekstual di halaman lain
+
+| # | Langkah | Harapan | Hasil |
+|---|---------|---------|-------|
+| 190 | Klik kanan baris lagu di **hasil pencarian**, **Lagu yang disukai**, **Riwayat**, **Top songs artis** | Menu muncul: Putar berikutnya, Tambah ke antrean, Bagikan (+ Buka album/artis bila datanya ada) | |
+| 191 | "Putar berikutnya" dari hasil pencarian | Lagu masuk antrean tepat setelah lagu sekarang | |
+
 ## F. Cacat terbuka dari putaran 4 (2026-07-23)
 
 > **Status per putaran 5:** F1 (aksesibilitas), F2 (`kaset://`), F3 (nyangkut), dan bagian F4 (ikon

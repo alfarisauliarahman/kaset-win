@@ -285,7 +285,35 @@ internal static class AppHost
                         throw;
                     }
                 }).FetchAsync,
-            sp.GetRequiredService<SleepTimer>()));
+            sp.GetRequiredService<SleepTimer>(),
+            // "Prefer the song version": maps an OMV/UGC about to play to its album (ATV) track.
+            // Deterministic on purpose — the video's own metadata names the album, the album names
+            // its tracks, and only an unambiguous title match substitutes. The counterpart shortcut
+            // was proven absent from our watch-next response (signed-in probe, 2026-07-23), so this
+            // is the only honest route. See SongVersionResolver.
+            new SongVersionResolver(
+                async (videoId, ct) =>
+                {
+                    var meta = await sp.GetRequiredService<IYTMusicClient>().GetSongMetadataAsync(videoId, ct);
+                    return meta.Song;
+                },
+                async (albumBrowseId, ct) =>
+                {
+                    var detail = await sp.GetRequiredService<IYTMusicClient>().GetPlaylistAsync(albumBrowseId, ct);
+                    return detail.Tracks;
+                }),
+            // Read per load, so flipping the Settings toggle applies to the very next track.
+            preferSongVersion: static () =>
+            {
+                try
+                {
+                    return KasetWin.Platform.Storage.AppData.Settings["playback.preferSongVersion"] is not false;
+                }
+                catch
+                {
+                    return true; // The default: the owner asked for songs, not videos.
+                }
+            }));
 
         // ── Core: full YouTube mode — parallel client + parsers (task 25.1, Req 32) ──────
         // Parallel to IYTMusicClient (ADR-0020): own browser-shaped HttpClient, the YouTube origin

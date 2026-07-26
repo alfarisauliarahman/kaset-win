@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Xaml;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services.Api;
@@ -40,6 +41,8 @@ public sealed partial class SearchViewModel : ViewModelBase
 
     private readonly IYTMusicClient _client;
     private readonly IPlayerService _player;
+    private readonly IQueueService? _queue;
+    private readonly Notifications.IInAppNotifier? _notifier;
 
     private CancellationTokenSource? _debounceCts;
     private CancellationTokenSource? _searchCts;
@@ -47,10 +50,60 @@ public sealed partial class SearchViewModel : ViewModelBase
     /// <summary>Creates the Search ViewModel.</summary>
     /// <param name="client">The YouTube Music client used for search + suggestions (Req 12).</param>
     /// <param name="player">The shared player used to play a selected song result (Req 12.4).</param>
-    public SearchViewModel(IYTMusicClient client, IPlayerService player)
+    /// <param name="queue">Optional queue for the per-row play-next / add-to-queue menu actions.</param>
+    /// <param name="notifier">Optional in-app toast used as feedback for the queue menu actions.</param>
+    public SearchViewModel(
+        IYTMusicClient client,
+        IPlayerService player,
+        IQueueService? queue = null,
+        Notifications.IInAppNotifier? notifier = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _player = player ?? throw new ArgumentNullException(nameof(player));
+        _queue = queue;
+        _notifier = notifier;
+    }
+
+    /// <summary>Queues a song result to play right after the current one ("Putar setelah ini").</summary>
+    [RelayCommand]
+    private void PlayTrackNext(Song? song)
+    {
+        if (song is null)
+        {
+            return;
+        }
+
+        if (_queue is null)
+        {
+            _notifier?.Show(Localization.UiStrings.ToastQueueUnavailable);
+            return;
+        }
+
+        var added = _queue.InsertNext([song]);
+        _notifier?.Show(added == 0
+            ? Localization.UiStrings.ToastSongAlreadyQueued
+            : Localization.UiStrings.ToastPlayingNext(song.Title));
+    }
+
+    /// <summary>Appends a song result to the play queue ("Tambahkan ke antrean").</summary>
+    [RelayCommand]
+    private void AddTrackToQueue(Song? song)
+    {
+        if (song is null)
+        {
+            return;
+        }
+
+        if (_queue is null)
+        {
+            _notifier?.Show(Localization.UiStrings.ToastQueueUnavailable);
+            return;
+        }
+
+        var added = _queue.AppendDeduplicated([song]);
+        _notifier?.Show(added == 0
+            ? Localization.UiStrings.ToastSongAlreadyQueued
+            : Localization.UiStrings.ToastAddedToQueue(song.Title));
     }
 
     /// <summary>The current search text. Bound to the page's <c>AutoSuggestBox</c>.</summary>

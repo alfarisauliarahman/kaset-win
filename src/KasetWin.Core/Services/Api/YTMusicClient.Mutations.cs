@@ -38,27 +38,6 @@ public sealed partial class YTMusicClient
         };
 
         var node = await RequestAsync("next", body, ApiCacheTtl.SongMetadata, ct).ConfigureAwait(false);
-
-        // TEMPORARY probe for the "always play the song version" feature request. The question it
-        // answers: does OUR session's watch-next response carry a counterpart (the paired ATV/OMV
-        // videoId behind YT Music's own SONG/VIDEO toggle)? Anonymous probes said no; the answer for
-        // a signed-in session can only come from inside the app, and guessing response shapes is
-        // exactly what AGENTS.md forbids. One line per lookup, dump only on the first hit.
-        try
-        {
-            string raw = node.ToJsonString();
-            bool hasCounterpart = raw.Contains("counterpart", StringComparison.Ordinal);
-            Diag.Write($"next-probe videoId={videoId} counterpart={hasCounterpart} wrapper={raw.Contains("playlistPanelVideoWrapperRenderer", StringComparison.Ordinal)}");
-            if (hasCounterpart)
-            {
-                Diag.Dump($"next-counterpart-{videoId}.json", raw);
-            }
-        }
-        catch
-        {
-            // The probe must never affect metadata fetching.
-        }
-
         return SongMetadataParser.Parse(node, videoId);
     }
 

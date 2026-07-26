@@ -51,10 +51,63 @@ public sealed partial class ArtistPage : Page
         var services = App.Current.Services;
         _player = services.GetService<IPlayerService>();
         _client = services.GetService<IYTMusicClient>();
+        _notifier = services.GetService<Notifications.IInAppNotifier>();
         ViewModel = new ArtistDetailViewModel(
             services.GetRequiredService<IYTMusicClient>(),
             services.GetRequiredService<IPlayerService>(),
-            services.GetService<ISingleFlight>());
+            services.GetService<ISingleFlight>(),
+            services.GetService<IQueueService>(),
+            _notifier);
+    }
+
+    private readonly Notifications.IInAppNotifier? _notifier;
+
+    // ── Top-songs row context menu (right-click, YT-Music-style) ─────────────────────────────────
+
+    private void OnTrackPlayNextClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            ViewModel.PlayTrackNextCommand.Execute(song);
+        }
+    }
+
+    private void OnTrackAddToQueueClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            ViewModel.AddTrackToQueueCommand.Execute(song);
+        }
+    }
+
+    private void OnTrackOpenAlbumClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            Navigation.NavigationHelper.NavigateToSongAlbum(song);
+        }
+    }
+
+    private void OnTrackOpenArtistClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Song song })
+        {
+            Navigation.NavigationHelper.NavigateToSongArtist(song);
+        }
+    }
+
+    private void OnTrackShareClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: Song song })
+        {
+            return;
+        }
+
+        var target = KasetWin.Core.Services.Sharing.ShareUrlBuilder.TryCreate(song);
+        if (!Sharing.ShareInvoker.TryShow(App.Current.MainWindow, target))
+        {
+            _notifier?.Show(Localization.UiStrings.ToastActionUnavailable(Localization.UiStrings.MenuShare));
+        }
     }
 
     /// <summary>The page ViewModel, resolved from DI and bound via <c>x:Bind</c>.</summary>

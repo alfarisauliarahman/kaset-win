@@ -88,6 +88,11 @@ internal static class UiStrings
     internal static string SettingsGeneral => IsIndonesian ? "Umum" : "General";
     internal static string SettingsLaunchPageLabel => IsIndonesian ? "Halaman awal" : "Default launch page";
     internal static string SettingsLaunchPageCaption => IsIndonesian ? "Halaman yang dibuka Kaset saat dijalankan." : "The page Kaset opens to on launch.";
+    internal static string SettingsPreferSongVersionLabel => IsIndonesian ? "Utamakan versi lagu" : "Prefer the song version";
+    internal static string SettingsPreferSongVersionCaption => IsIndonesian
+        ? "Video musik diganti versi album-nya bila ada."
+        : "Music videos play as their album version when one exists.";
+
     internal static string SettingsCloseBehaviorLabel => IsIndonesian ? "Saat menutup jendela" : "When closing the window";
     internal static string SettingsCloseBehaviorCaption => IsIndonesian
         ? "Kecilkan ke tray membuat musik tetap berjalan di latar; Keluar menutup Kaset sepenuhnya."

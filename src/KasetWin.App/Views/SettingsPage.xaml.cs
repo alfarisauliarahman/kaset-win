@@ -90,6 +90,8 @@ public sealed partial class SettingsPage : Page
         LaunchPageCaption.Text = Localization.UiStrings.SettingsLaunchPageCaption;
         CloseBehaviorLabel.Text = Localization.UiStrings.SettingsCloseBehaviorLabel;
         CloseBehaviorCaption.Text = Localization.UiStrings.SettingsCloseBehaviorCaption;
+        PreferSongVersionLabel.Text = Localization.UiStrings.SettingsPreferSongVersionLabel;
+        PreferSongVersionCaption.Text = Localization.UiStrings.SettingsPreferSongVersionCaption;
         ThemeLabel.Text = Localization.UiStrings.SettingsThemeLabel;
         ThemeCaption.Text = Localization.UiStrings.SettingsThemeCaption;
         LanguageLabel.Text = Localization.UiStrings.SettingsLanguageLabel;

@@ -7,19 +7,49 @@
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:KasetWin.Core.Models"
+    xmlns:vm="using:KasetWin.App.ViewModels"
     mc:Ignorable="d">
 
     <UserControl.Resources>
         <converters:UriToImageSourceConverter x:Key="UriToImageSource" />
         <converters:PlayPauseGlyphConverter x:Key="PlayPauseGlyph" />
         <converters:SecondsToTimeConverter x:Key="SecondsToTime" />
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:BoolToOpacityConverter x:Key="BoolToOpacity" />
+        <converters:ActiveLineToFontWeightConverter x:Key="ActiveLineToFontWeight" />
+
+        <!-- Compact queue row: smaller artwork than the side panel's 40px and no duration — at
+             ~376px of usable width the title needs every pixel it can get. -->
+        <DataTemplate x:Key="MiniQueueRowTemplate" x:DataType="models:Song">
+            <Grid Padding="4,4" ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="32" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border
+                    Grid.Column="0"
+                    Width="32"
+                    Height="32"
+                    VerticalAlignment="Center"
+                    CornerRadius="4">
+                    <Image
+                        AutomationProperties.AccessibilityView="Raw"
+                        Source="{x:Bind ThumbnailUrl, Converter={StaticResource UriToImageSource}}"
+                        Stretch="UniformToFill" />
+                </Border>
+                <controls:TrackInfo Grid.Column="1" VerticalAlignment="Center" Song="{x:Bind}" />
+            </Grid>
+        </DataTemplate>
     </UserControl.Resources>
 
     <!--
         Compact now-playing surface for CompactOverlay (picture-in-picture) mode: artwork, title and
-        artist, transport, and a seek bar. Deliberately a reduced set — at 400×150 there is no room
-        for shuffle/repeat/volume/lyrics, and the full bar's three-column layout does not survive the
-        width. Everything binds to the same IPlayerService instance the main player bar uses.
+        artist, transport, and a seek bar — plus, Apple-Music-style, an optional bottom panel that
+        shows the synced lyrics or the up-next queue. The panel row is 0px until one of the two
+        toggle buttons opens it; opening also asks MainWindow to grow the compact window
+        (400×150 → 400×450) and closing shrinks it back. Everything binds to the same singleton
+        services the main player bar and side panel use, so the surfaces can never disagree.
     -->
     <Grid Padding="12,10" ColumnSpacing="12">
         <Grid.ColumnDefinitions>
@@ -28,8 +58,11 @@
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
+            <!-- MainRow is * while collapsed (centres the 64px block in the 150px window) and Auto
+                 while the panel is open, so the panel row gets all the added height. -->
+            <RowDefinition x:Name="MainRow" Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition x:Name="PanelRow" Height="0" />
         </Grid.RowDefinitions>
 
         <Border
@@ -100,7 +133,9 @@
             </Button>
         </StackPanel>
 
-        <!-- Seek row spanning the full width, matching the main bar's affordance. -->
+        <!-- Seek row spanning the full width, matching the main bar's affordance. The lyrics and
+             queue panel toggles live at its right edge: putting them in the transport row instead
+             would eat ~70px of the title's room, and the title is already the tightest element. -->
         <Grid
             Grid.Row="1"
             Grid.Column="0"
@@ -110,6 +145,8 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock
@@ -136,6 +173,112 @@
                 Opacity="0.7"
                 Text="{Binding Duration, Converter={StaticResource SecondsToTime}}"
                 Style="{StaticResource CaptionTextBlockStyle}" />
+            <Button
+                x:Name="MiniLyricsButton"
+                AutomationProperties.Name="Lyrics"
+                Grid.Column="3"
+                Padding="6,4"
+                Click="OnLyricsToggleClick"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Lyrics">
+                <FontIcon x:Name="MiniLyricsIcon" FontSize="13" Glyph="&#xE8D2;" />
+            </Button>
+            <Button
+                x:Name="MiniQueueButton"
+                AutomationProperties.Name="Queue"
+                Grid.Column="4"
+                Padding="6,4"
+                Click="OnQueueToggleClick"
+                Style="{StaticResource SubtleButtonStyle}"
+                ToolTipService.ToolTip="Queue">
+                <FontIcon x:Name="MiniQueueIcon" FontSize="13" Glyph="&#xE90B;" />
+            </Button>
+        </Grid>
+
+        <!-- ══ Expandable panel: lyrics OR queue ══ -->
+        <Grid
+            x:Name="MiniPanelHost"
+            Grid.Row="2"
+            Grid.Column="0"
+            Grid.ColumnSpan="3"
+            Margin="0,6,0,0"
+            Visibility="Collapsed">
+
+            <!-- LYRICS: synced list with the active line highlighted / plain fallback / empty. -->
+            <Grid x:Name="MiniLyricsPanel" Visibility="Collapsed">
+                <ListView
+                    x:Name="MiniLyricsList"
+                    AutomationProperties.Name="Lyrics"
+                    HorizontalContentAlignment="Stretch"
+                    IsItemClickEnabled="True"
+                    ItemClick="OnLyricLineClick"
+                    ItemsSource="{x:Bind Lyrics.Lines, Mode=OneWay}"
+                    SelectionMode="None"
+                    Visibility="{x:Bind Lyrics.ShowSynced, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="MinHeight" Value="0" />
+                            <Setter Property="Padding" Value="8,2" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="vm:LyricLineItem">
+                            <!-- Body-sized text (the side panel's Subtitle style fits 3 lines here);
+                                 the active line brightens and turns semibold. Karaoke word-split is
+                                 deliberately not rendered at this size — Text always shows. -->
+                            <TextBlock
+                                Margin="0,2"
+                                FontWeight="{x:Bind IsActive, Converter={StaticResource ActiveLineToFontWeight}, Mode=OneWay}"
+                                Opacity="{x:Bind IsActive, Converter={StaticResource BoolToOpacity}, Mode=OneWay}"
+                                Text="{x:Bind Text}"
+                                TextWrapping="Wrap"
+                                Style="{StaticResource BodyTextBlockStyle}" />
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <ScrollViewer
+                    Padding="8,0,8,8"
+                    Visibility="{x:Bind Lyrics.ShowPlain, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{x:Bind Lyrics.PlainText, Mode=OneWay}" TextWrapping="Wrap" Style="{StaticResource BodyTextBlockStyle}" />
+                </ScrollViewer>
+
+                <TextBlock
+                    x:Name="MiniLyricsEmptyText"
+                    Margin="12"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Opacity="0.6"
+                    Text="Play a song to see its lyrics here."
+                    TextAlignment="Center"
+                    TextWrapping="Wrap"
+                    Visibility="{x:Bind Lyrics.ShowEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                    Style="{StaticResource CaptionTextBlockStyle}" />
+            </Grid>
+
+            <!-- QUEUE: the up-next slice of the shared queue; tapping a row plays from there. -->
+            <Grid x:Name="MiniQueuePanel" Visibility="Collapsed">
+                <ListView
+                    x:Name="MiniQueueList"
+                    AutomationProperties.Name="Playback queue"
+                    IsItemClickEnabled="True"
+                    ItemClick="OnQueueTrackClick"
+                    ItemTemplate="{StaticResource MiniQueueRowTemplate}"
+                    ItemsSource="{x:Bind Queue.UpNext, Mode=OneWay}"
+                    SelectionMode="None" />
+
+                <TextBlock
+                    x:Name="MiniQueueEmptyText"
+                    Margin="12"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Opacity="0.6"
+                    Text="No upcoming songs."
+                    TextAlignment="Center"
+                    Visibility="Collapsed"
+                    Style="{StaticResource CaptionTextBlockStyle}" />
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

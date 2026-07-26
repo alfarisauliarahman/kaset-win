@@ -1,8 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using KasetWin.Core.Models;
 using KasetWin.Core.Services;
 using KasetWin.Core.Services.Api;
 using KasetWin.Core.Services.Api.Parsers;
+using KasetWin.Core.Services.Player;
 
 namespace KasetWin.App.ViewModels;
 
@@ -27,9 +29,60 @@ public sealed partial class ExploreDetailViewModel : SectionFeedViewModel
 {
     private string _browseId = "FEmusic_explore";
 
-    public ExploreDetailViewModel(IYTMusicClient client, ISingleFlight? singleFlight = null)
+    private readonly IQueueService? _queue;
+    private readonly Notifications.IInAppNotifier? _notifier;
+
+    public ExploreDetailViewModel(
+        IYTMusicClient client,
+        ISingleFlight? singleFlight = null,
+        IQueueService? queue = null,
+        Notifications.IInAppNotifier? notifier = null)
         : base(client, singleFlight)
     {
+        _queue = queue;
+        _notifier = notifier;
+    }
+
+    /// <summary>Queues a song card to play right after the current one ("Putar setelah ini").</summary>
+    [RelayCommand]
+    private void PlayTrackNext(Song? song)
+    {
+        if (song is null)
+        {
+            return;
+        }
+
+        if (_queue is null)
+        {
+            _notifier?.Show(Localization.UiStrings.ToastQueueUnavailable);
+            return;
+        }
+
+        var added = _queue.InsertNext([song]);
+        _notifier?.Show(added == 0
+            ? Localization.UiStrings.ToastSongAlreadyQueued
+            : Localization.UiStrings.ToastPlayingNext(song.Title));
+    }
+
+    /// <summary>Appends a song card to the play queue ("Tambahkan ke antrean").</summary>
+    [RelayCommand]
+    private void AddTrackToQueue(Song? song)
+    {
+        if (song is null)
+        {
+            return;
+        }
+
+        if (_queue is null)
+        {
+            _notifier?.Show(Localization.UiStrings.ToastQueueUnavailable);
+            return;
+        }
+
+        var added = _queue.AppendDeduplicated([song]);
+        _notifier?.Show(added == 0
+            ? Localization.UiStrings.ToastSongAlreadyQueued
+            : Localization.UiStrings.ToastAddedToQueue(song.Title));
     }
 
     /// <summary>The detail page header title (e.g. "Charts", "Moods &amp; Genres", a mood name).</summary>

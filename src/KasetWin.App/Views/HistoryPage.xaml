@@ -6,6 +6,7 @@
     xmlns:controls="using:KasetWin.App.Controls"
     xmlns:converters="using:KasetWin.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:loc="using:KasetWin.App.Localization"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:KasetWin.Core.Models"
     mc:Ignorable="d">
@@ -40,7 +41,31 @@
             SelectionMode="None">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="models:Song">
-                    <Grid Padding="8,6" ColumnSpacing="12">
+                    <!-- Background=Transparent: without it the row's empty space is not
+                         hit-testable, so right-click would only work directly over text/thumbnail
+                         (same gotcha as PodcastShowPage/PlaylistPage). -->
+                    <Grid Padding="8,6" Background="Transparent" ColumnSpacing="12">
+                        <!-- Right-click menu (YT-Music-style, context-appropriate): queue actions
+                             always; Go-to-album / Go-to-artist only when the row carries a real id.
+                             "Hapus dari riwayat" is deliberately absent: no remove mechanism exists
+                             in HistoryViewModel yet (follow-up work). -->
+                        <Grid.ContextFlyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackPlayNextClick" Text="{x:Bind loc:UiStrings.MenuPlayNext}" />
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackAddToQueueClick" Text="{x:Bind loc:UiStrings.MenuAddToQueue}" />
+                                <MenuFlyoutItem
+                                    Tag="{x:Bind}"
+                                    Click="OnTrackOpenAlbumClick"
+                                    Text="{x:Bind loc:UiStrings.MenuGoToAlbum}"
+                                    Visibility="{x:Bind HasAlbumLink, Converter={StaticResource BoolToVisibility}}" />
+                                <MenuFlyoutItem
+                                    Tag="{x:Bind}"
+                                    Click="OnTrackOpenArtistClick"
+                                    Text="{x:Bind loc:UiStrings.MenuGoToArtist}"
+                                    Visibility="{x:Bind HasArtistLink, Converter={StaticResource BoolToVisibility}}" />
+                                <MenuFlyoutItem Tag="{x:Bind}" Click="OnTrackShareClick" Text="{x:Bind loc:UiStrings.MenuShare}" />
+                            </MenuFlyout>
+                        </Grid.ContextFlyout>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="44" />
                             <ColumnDefinition Width="2.2*" />
